@@ -1,8 +1,6 @@
-"""atlas_main.py
-ATLAS - Adaptive Multi-Scale Framework for Structural Design
-
-Flow:
-  pick benchmark → train XPINN → (optional) validate vs FEM → (optional) inverse design → plot
+"""Run from the project root:
+    python -m atlas.atlas_main
+then pick a benchmark and an action when prompted.
 """
 
 import torch
@@ -43,11 +41,6 @@ def _eb_prefit_cantilever(model, sampler, E: float, P: float,
                           device: str, epochs: int = 8000,
                           n_points: int = 30000, lr: float = 1e-3,
                           seed: int = 0) -> Tuple[float, float]:
-    """    Regress the (monolith) network onto the Euler-Bernoulli/Timoshenko
-    displacement field of the cantilever under the applied tip shear load.
-
-    Returns (last regression loss, tip deflection in mm as fit by the net).
-    """
     L, H = sampler.L, sampler.H
     I_c = H ** 3 / 12.0
 
@@ -86,11 +79,6 @@ def _eb_prefit_cantilever(model, sampler, E: float, P: float,
 
 
 def _kirsch_region_points(sampler, i: int, n: int, seed: int = 0):
-    """Draw n random points in subdomain region i of the plate-with-hole,
-    using the same geometry as PlateWithHoleSampler.sample_interior (near-hole
-    annulus, mid shell, far-field rect). Detached/numeric - only used as
-    regression points for the analytic prefit.
-    """
     sampler._update_subdomain_radii()
     rng = np.random.default_rng(seed + i)
     a = float(sampler.r.detach().cpu().item())
@@ -119,18 +107,6 @@ def _kirsch_prefit_plate(model, sampler, E: float, nu: float, sigma_inf: float,
                          device: str, lr: float = 1e-3, n_points: int = 4000,
                          min_epochs: int = 2000, max_epochs: int = 20000,
                          tol: float = 1e-4, patience: int = 200) -> Tuple[list, int]:
-    """    Warm-start prefit for the plate-with-hole: regress each subdomain network
-    onto the analytic Kirsch displacement field of the infinite plate (hole
-    radius a=sampler.r, remote uniaxial tension sigma_inf along +x), sampled
-    ONLY within that subnet's own collocation region (near-hole annulus, mid
-    shell, far-field rect).
-
-        u_r  = (sigma_0/2E)[(1-nu)r + (1+nu)a^2/r
-               + ((1+nu)r + 4a^2/r - (1+nu)a^4/r^3) cos(2theta)]
-        u_th = (sigma_0/E)[-(1+nu)r + 2(nu-1)a^2/r - (1+nu)a^4/r^3] sin(2theta)
-
-    Returns (per-subnet final losses, epochs used).
-    """
     a = float(sampler.r.detach().cpu().item())
 
     def kirsch_uv(x, y):
@@ -192,9 +168,6 @@ def _kirsch_prefit_plate(model, sampler, E: float, nu: float, sigma_inf: float,
 
 
 def _loss_scales(u_s: float, l_char: float, e_train: float, tau_ref: float) -> Dict[str, float]:
-    """Per-component SQUARED reference scales to make each loss term
-    dimensionless ~O(1) (see XPINNLoss.__init__ for the rationale).
-    """
     sigma_s = e_train * u_s / l_char
     r_s = sigma_s / l_char
     energy_s = 0.5 * sigma_s * (u_s / l_char)
@@ -209,43 +182,16 @@ def _loss_scales(u_s: float, l_char: float, e_train: float, tau_ref: float) -> D
 
 
 def _plate_hole_essential_mask(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Hard symmetry rollers for the quarter plate-with-hole: u must vanish on
-    the vertical symmetry face x=0 and v on the horizontal one y=0. Applied as
-    a coordinate-multiplicative reparameterization (u = x*u_hat, v = y*v_hat),
-    BOTH essential BCs hold exactly at every evaluation point (interior,
-    boundaries, FEM-validation grids) with zero soft-penalty cost, and the
-    network only ever represents the ratio fields. The multipliers are NOT
-    detached so autograd computes the correct product-rule derivatives of the
-    true displacement field (mask linear in x/y).
-    """
     return x[:, 0:1], x[:, 1:2]
 
 
 def _plate_hole_energy_context(sampler, sigma_inf: float, device: str,
                                spacing: float = 1.0 / 16.0,
                                face_frac: float = 0.5):
-    """Quadrature context for the MPE (total-potential-energy) objective on
-    the quarter plate-with-hole. STRUCTURED (deterministic) quadrature, two
-    panels, each with PER-POINT area weights so the discrete strain-energy
-    integral is a genuine composite rectangle/trapezoid rule — a definite
-    discretization with no Monte-Carlo randomness:
-
-        G  bulk panel: cell-centered grid of width `spacing` over
-           [0, W]x[0, H] minus the quarter-hole (cells whose center lies in
-           the hole are dropped). Per-point weight = spacing^2. The last
-           bulk column covers x in [W-spacing, W].
-        F  loaded-face trapezoid: points EXACTLY on x=W at the grid y-rows,
-           charged with the half-cell strip [W - face_frac*spacing, W] x H,
-           per-point weight = (face_frac*spacing*H)/N_y.
-
-    Returns (interior_cuts, loaded_edges) consuming XPINNLoss.energy_loss()
-    (which now supports per-point tensor 'area' weights).
-    """
     a = float(sampler.r.detach().cpu().item())
     W, H = sampler.W, sampler.H
     h = float(spacing)
 
-    # Bulk panel G: cell centers on the [0,W]x[0,H] lattice, keep material.
     xs = (np.arange(int(W / h)) + 0.5) * h
     ys = (np.arange(int(H / h)) + 0.5) * h
     gm = np.meshgrid(xs, ys, indexing='ij')
@@ -254,7 +200,6 @@ def _plate_hole_energy_context(sampler, sigma_inf: float, device: str,
     gx, gy = gx[keep], gy[keep]
     area_g = np.full(gx.shape[0], h * h, dtype=np.float32)
 
-    # Loaded-face panel F: points on x=W, trapezoid strip weight.
     fy = ys.copy()
     fx = np.full_like(fy, W)
     strip_area = face_frac * h * H
@@ -312,45 +257,6 @@ def train_forward_solver(
     probe=None,
     probe_every: int = 100,
 ) -> Tuple:
-    """    formulation: 'energy_xpinn' is the same deep-energy solver but domain-decomposed
-    (one subnetwork per subdomain + interface continuity; atlas/energy_xpinn.py).
-    'energy' (default) trains with the deep-energy / Ritz solver
-    in atlas/energy_solver.py (hard essential BCs, deterministic graded
-    quadrature; reaches the <5% displacement / <10% von Mises targets on all
-    three benchmarks). 'residual' runs the original strong-form XPINN path
-    below. For 'energy', `epochs` = Adam steps and L-BFGS runs
-    lbfgs_steps * lbfgs_max_iter_per_step iterations; the residual-path-only
-    options (warm starts, MPE, adaptive weights, singular features, anchor
-    weight, n_interior/n_boundary/n_interface) are ignored.
-
-    Why this exists: with real steel properties (E=210e9), the PDE-residual
-    loss term involves squared stress, which lands around
-    (2e11)^2 ~ 4e22 - a magnitude so large that a) it completely swamps the
-    O(1) Dirichlet/interface loss terms in the combined weighted sum, and
-    b) gradient-clipped Adam steps (max_norm=1.0, appropriate for normal-
-    scale losses) change a loss that large by an amount too small to be
-    visible in float32 - training looks completely frozen for thousands of
-    epochs even though it's "running." Verified this exact failure mode
-    with a live run: total loss was bit-for-bit IDENTICAL from epoch 1 to
-    epoch 100 (ratio == 1.0 exactly).
-
-    The fix is a real non-dimensionalization, not a hack: for linear
-    elasticity, dividing E and the applied load/traction by the same
-    constant s leaves the equilibrium PDE and Neumann BCs satisfied by
-    exactly the same displacement field u (the governing equations are
-    homogeneous of degree 1 in the pair (E, load) - scaling both by 1/s is
-    algebraically equivalent to dividing the whole equation by s, which
-    doesn't change its solution set). So the network still learns the true
-    physical displacement field with no correction needed on u/v - only
-    quantities *derived* from stress (von Mises plots, compliance) need the
-    real, unscaled E to convert back to physical units, which is exactly
-    why this function returns the REAL physics object (unscaled) for the
-    caller to use in validation/visualization, while training internally
-    uses a scaled one. Verified with a live run: same seed, same 100
-    epochs, loss went from frozen at ~3e23 (ratio 1.0, i.e. literally no
-    change) to actually converging (~50 -> ~0.03, ratio ~0.0006) once E and
-    load were both divided by stress_scale=1e11.
-    """
     if formulation == 'energy' and l_bracket_fillet_init is not None:
         print("[Info] fillet geometry is only supported by the residual "
               "formulation; falling back to formulation='residual'.")
@@ -387,8 +293,8 @@ def train_forward_solver(
 
     E = 210e9
     nu = 0.3
-    physics_real = PlaneStressElasticity(E=E, nu=nu)           # for stress/von-Mises post-processing, real Pa
-    physics_train = PlaneStressElasticity(E=E / stress_scale, nu=nu)  # for the loss only - see docstring
+    physics_real = PlaneStressElasticity(E=E, nu=nu)
+    physics_train = PlaneStressElasticity(E=E / stress_scale, nu=nu)
 
     u_s = None
     resultants = None
@@ -408,12 +314,11 @@ def train_forward_solver(
             n_interior=n_interior, n_boundary=n_boundary,
             n_interface=n_interface, device=device
         )
-        # EB tip deflection under the tip shear load: u_s = |P| L^3 / (3 E I)
         I_c = sampler.H ** 3 / 12.0
         u_s = (1e6 * sampler.L ** 3) / (3.0 * E * I_c)
         model = create_xpinn_for_benchmark('cantilever', hidden_layers=hidden_layers, neurons=neurons, device=device,
                                            output_scale=u_s, monolith=(warm_start_eb or standard_pinn))
-        P = -1e6 / stress_scale   # load scaled by the SAME factor as E - see docstring
+        P = -1e6 / stress_scale
         subdomain_data = sampler.sample_interior()
         boundary_data = sampler.sample_boundary(P=P)
         interface_data = sampler.sample_interface()
@@ -421,7 +326,6 @@ def train_forward_solver(
             'pde': 1.0, 'dirichlet': 100.0, 'neumann': 10.0,
             'interface_u': 10.0, 'interface_t': 10.0
         }
-        # Load RMS over the loaded edge (mean(t_y^2)=1.2*(P/H)^2, P already scaled)
         tau_ref = np.sqrt(1.2) * abs(P) / sampler.H
         loss_scales = _loss_scales(u_s, sampler.L, physics_train.E, tau_ref)
         y_w = np.linspace(0, sampler.H, sampler.n_boundary).reshape(-1, 1)
@@ -445,14 +349,11 @@ def train_forward_solver(
                 'pde': 10.0, 'dirichlet': 100.0, 'neumann': 10.0,
                 'interface_u': 0.0, 'interface_t': 0.0
             }
-            # Stiffen the wall-section resultants (same physical targets).
             resultants[0]['weight'] = 100.0
             I_a = sampler.H ** 3 / 12.0
             rng_a = np.random.default_rng(7)
             xa = rng_a.uniform(0.1, sampler.L - 0.05, (300, 1))
             ya = rng_a.uniform(0, sampler.H, (300, 1))
-            # eta = distance from neutral axis (y=H/2), NOT raw ya - see the
-            # matching fix/comment in _eb_prefit_cantilever above.
             eta_a = ya - sampler.H / 2.0
             ua = -(-1e6) * eta_a * xa * (2 * sampler.L - xa) / (2.0 * E * I_a)
             va = (-1e6) * xa ** 2 * (3 * sampler.L - xa) / (6.0 * E * I_a)
@@ -471,7 +372,6 @@ def train_forward_solver(
             n_interface=n_interface, device=device,
             fillet_init=l_bracket_fillet_init,
         )
-        # Loaded arm is an ~1x1 cantilever anchored at x=s: u_s = P s^3/(3 E I)
         I_c = sampler.size ** 3 / 12.0
         u_s = (1e6 * sampler.size ** 3) / (3.0 * E * I_c)
         model = create_xpinn_for_benchmark('l_bracket', hidden_layers=hidden_layers, neurons=neurons, device=device,
@@ -493,10 +393,8 @@ def train_forward_solver(
             'pde': 1.0, 'dirichlet': 100.0, 'neumann': 10.0,
             'interface_u': 10.0, 'interface_t': 20.0
         }
-        # Loaded arm is an ~1x1 cantilever anchored at x=s: u_s = P s^3/(3 E I)
         I_c = sampler.size ** 3 / 12.0
         u_s = (1e6 * sampler.size ** 3) / (3.0 * E * I_c)
-        # Load RMS on the loaded face (mean(t_x^2)=1.2*P^2, P already scaled)
         tau_ref = np.sqrt(1.2) * abs(P)
         loss_scales = _loss_scales(u_s, sampler.size, physics_train.E, tau_ref)
         yc = sampler.size / 2.0
@@ -529,7 +427,6 @@ def train_forward_solver(
             n_interior=n_interior, n_boundary=n_boundary,
             n_interface=n_interface, device=device
         )
-        # Far-field strain displacement scale: u_s ~ sigma_inf * W / E
         u_s = (1e6 * sampler.W) / E
         sigma_inf = 1e6 / stress_scale
         if use_mpe:
@@ -566,7 +463,6 @@ def train_forward_solver(
                 'pde': 1.0, 'dirichlet': 100.0, 'neumann': 10.0,
                 'interface_u': 10.0, 'interface_t': 20.0
             }
-            # Applied edge traction is uniform sigma_inf (already scaled)
             tau_ref = abs(sigma_inf)
             loss_scales = _loss_scales(u_s, sampler.W, physics_train.E, tau_ref)
             y_r = np.linspace(0.0, sampler.H, sampler.n_boundary).reshape(-1, 1)
@@ -634,17 +530,6 @@ def train_forward_solver(
 def run_inverse_design_on_plate(model, sampler, physics, device: str,
                                 n_outer: int = 12, n_inner: int = 300,
                                 stress_scale: float = 1e11):
-    """    `physics` here is the REAL (unscaled) physics object returned by
-    train_forward_solver - the model was trained against a SCALED physics
-    internally (see train_forward_solver's docstring for why: raw E=210e9
-    makes the loss numerically unusable). Continuing to optimize that same
-    model's forward-solve loop with the real, unscaled E here would
-    reintroduce the exact same frozen-loss pathology, so this function
-    rebuilds the same scaled physics locally (must match the scale
-    train_forward_solver actually used the model was trained with) for the
-    loss/inner-loop computations, and scales sigma_inf by the same factor
-    for consistency with the boundary conditions the model already learned.
-    """
     print("=" * 70)
     print("INVERSE DESIGN — PLATE WITH HOLE")
     print("=" * 70)
@@ -702,7 +587,7 @@ def run_inverse_design_on_plate(model, sampler, physics, device: str,
     inverse_optimizer.optimize(loss_fn=loss_fn, verbose=True,
                                inner_solve_fn=inner_solve_fn)
     if use_energy_inner:
-        energy_net.float()   # back to the float32 the validation/plot code uses
+        energy_net.float()
 
     os.makedirs('results', exist_ok=True)
     inverse_optimizer.plot_history(str(RESULTS_DIR / 'inverse_design_history.png'))
@@ -712,14 +597,6 @@ def run_inverse_design_on_plate(model, sampler, physics, device: str,
 def run_inverse_design_on_l_bracket(model, sampler, physics, device: str,
                                     n_outer: int = 12, n_inner: int = 300,
                                     stress_scale: float = 1e11):
-    """    Inverse design for the L-bracket's re-entrant-corner fillet - same
-    pattern as run_inverse_design_on_plate above, just driving
-    sampler.fillet instead of sampler.r. See LBracketSampler's class
-    docstring for the fillet geometry, and
-    fillet_region_sensitivity_objective's docstring for what the
-    optimization objective actually is (a pragmatic proxy, not a rigorous
-    shape derivative - same caveat as the plate's hole radius).
-    """
     if not getattr(sampler, 'fillet_enabled', False):
         raise ValueError(
             "This LBracketSampler was built without fillet_init set, so it has "
@@ -779,9 +656,6 @@ def run_inverse_design_on_l_bracket(model, sampler, physics, device: str,
 
 
 def design_result_to_json(res: Dict) -> Dict:
-    """JSON-serialisable view of a run_inverse_design result (drops the case and
-    network objects; numpy scalars become floats).
-    """
     def num(v):
         if isinstance(v, (bool, np.bool_)):
             return bool(v)
@@ -801,12 +675,6 @@ def run_inverse_design_all(benchmark: str, device: str, metric: Optional[str] = 
                            target_value: Optional[float] = None, net=None,
                            out_dir=None, verbose: bool = True, decomposed: bool = False,
                            **solver_kw) -> Dict:
-    """Parametric inverse design for ANY benchmark (cantilever beam height, plate
-    hole radius, L-bracket fillet radius) with the deep-energy solver: find the
-    parameter whose metric (compliance / peak von Mises) hits the target. See
-    atlas/energy_design.py. Saves a history plot, a design plot and a JSON
-    summary under `out_dir` (default results/atlas_energy/inverse_design/<benchmark>_*).
-    """
     import json
     from pathlib import Path
     from atlas.energy_design import run_inverse_design
@@ -823,8 +691,6 @@ def run_inverse_design_all(benchmark: str, device: str, metric: Optional[str] = 
     plot_design_result(res, str(out / f'{benchmark}_design.png'))
     with open(out / f'{benchmark}_inverse.json', 'w') as f:
         json.dump(design_result_to_json(res), f, indent=2)
-    # converged design network (float32 state dict), so plots/fields for the
-    # optimised design can be regenerated without retraining
     import torch
     torch.save({k: v.float() if v.is_floating_point() else v
                 for k, v in res['net'].state_dict().items()},
@@ -882,16 +748,12 @@ def main():
     if choice not in benchmark_map:
         print("Invalid choice, defaulting to cantilever.")
 
-    l_bracket_fillet_init = None   # the energy solver handles the fillet design itself
+    l_bracket_fillet_init = None
 
-    # 1. Train
     if l_bracket_fillet_init is None:
-        # Deep-energy solver (default formulation): 2000 Adam steps + 1500
-        # L-BFGS iterations reaches the accuracy targets on all benchmarks.
         budget = dict(epochs=2000, lbfgs_steps=15, lbfgs_max_iter_per_step=100)
     else:
-        # Fillet geometry falls back to the residual formulation.
-        budget = dict(epochs=11000)   # increase to 10000–15000 for final paper runs
+        budget = dict(epochs=11000)
     model, trainer, sampler, physics = train_forward_solver(
         benchmark=benchmark,
         device=device,
@@ -900,7 +762,6 @@ def main():
         **budget,
     )
 
-    # 2. Optional validation
     if post in ('V', 'B'):
         run_validation(
             model=model,
@@ -908,21 +769,18 @@ def main():
             physics=physics,
             benchmark=benchmark,
             device=device,
-            use_mock=True   # change to False once you have real FEM .npy files
+            use_mock=True
         )
         os.makedirs(str(RESULTS_DIR), exist_ok=True)
         plot_fem_comparison(
             model, sampler, physics, benchmark=benchmark,
-            use_mock=True,  # keep in sync with run_validation's use_mock above
+            use_mock=True,
             save_path=str(RESULTS_DIR / f'{benchmark}_fem_comparison.png')
         )
 
-    # 3. Optional inverse design (all three benchmarks; deep-energy solver)
     if post in ('I', 'B'):
         from atlas.energy_solver import EnergyNet
         net = model.get_subdomain_network(0)
-        # The plate's forward network has exactly the design family's architecture,
-        # so it warm-starts the design solve; the others train a dedicated design net.
         design_net = net.double() if (benchmark == 'plate_hole' and isinstance(net, EnergyNet)) else None
         try:
             raw = input("Target as a ratio of the baseline metric (Enter = default): ").strip()
@@ -933,7 +791,6 @@ def main():
         if design_net is not None:
             design_net.float()
 
-    # 4. Plots
     visualize_results(model, sampler, physics, trainer, benchmark)
 
     print()

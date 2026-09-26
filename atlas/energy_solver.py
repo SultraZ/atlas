@@ -1,17 +1,3 @@
-"""energy_solver.py - Deep-energy (Ritz) forward solver for the ATLAS benchmarks.
-
-    Pi[u] = 1/2 int sigma(u):eps(u) dA  -  int_loaded t.u ds
-
-  * The functional is convex/quadratic in the field, so the load amplitude is
-    pinned (no collapse into the trivial zero field) and only FIRST
-    derivatives of u are needed.
-  * Essential BCs (clamp, symmetry rollers) are imposed EXACTLY through a
-    multiplicative mask u = m(x) * u_hat, so no soft-penalty balancing.
-    Natural BCs (traction-free edges, the applied load) are built into Pi.
-  * Quadrature is deterministic and graded toward the known singular
-    points, so the optimizer sees a fixed smooth objective (L-BFGS-friendly).
-"""
-
 import math
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -20,12 +6,8 @@ import torch
 import torch.nn as nn
 
 
-
 def graded_nodes(a: float, b: float, n: int, power: float = 1.0,
                  toward: str = 'none') -> np.ndarray:
-    """n+1 cell edges on [a, b]. power>1 clusters cells toward the chosen end
-    ('a', 'b', or 'both'); power=1 (or toward='none') is uniform.
-    """
     s = np.linspace(0.0, 1.0, n + 1)
     if toward == 'a':
         t = s ** power
@@ -51,7 +33,6 @@ def _gauss_on_edges(edges: np.ndarray, ng: int) -> Tuple[np.ndarray, np.ndarray]
 
 def rect_quadrature(x_edges: np.ndarray, y_edges: np.ndarray,
                     ng: int = 3) -> Tuple[np.ndarray, np.ndarray]:
-    """Tensor-product composite Gauss rule on the grid x_edges x y_edges."""
     xp, xw = _gauss_on_edges(x_edges, ng)
     yp, yw = _gauss_on_edges(y_edges, ng)
     X, Y = np.meshgrid(xp, yp, indexing='ij')
@@ -63,9 +44,6 @@ def line_quadrature(p0: Tuple[float, float], p1: Tuple[float, float],
                     n_cells: int = 8, ng: int = 4,
                     power: float = 1.0, toward: str = 'none'
                     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Composite Gauss rule along the segment p0->p1. Returns (pts, weights
-    in arc length, curve parameter s in [0,1]).
-    """
     edges = graded_nodes(0.0, 1.0, n_cells, power, toward)
     sp, sw = _gauss_on_edges(edges, ng)
     p0 = np.asarray(p0, float)
@@ -74,19 +52,7 @@ def line_quadrature(p0: Tuple[float, float], p1: Tuple[float, float],
     return pts, sw * float(np.linalg.norm(p1 - p0)), sp
 
 
-
 class EnergyNet(nn.Module):
-    """u(x,y) = mask(x,y) * [ MLP(normalized coords) + W_enrich . feats(x,y) ] * u_s.
-
-    * `lo`/`hi` normalise the input to [-1, 1] per axis (conditioning).
-    * `mask_kind`:  'none' | 'clamp_x0' (u=v=0 on x=0) | 'clamp_y0' (u=v=0 on y=0)
-                    | 'clamp_x1' (u=v=0 on x = mask_x1, default hi[0])
-                    | 'sym' (u=0 on x=0, v=0 on y=0)
-    * `enrich_fn`:  optional callable (N,2)->(N,F) of FIXED (non-trainable)
-      basis functions; their coefficients are learned linearly and start at 0.
-      Used for classical corner-singularity (Williams) terms.
-    """
-
     def __init__(self, lo: Tuple[float, float], hi: Tuple[float, float],
                  hidden_layers: int = 4, neurons: int = 64, out_scale: float = 1.0,
                  mask_kind: str = 'none', mask_len: float = 1.0, mask_x1: Optional[float] = None,
@@ -125,7 +91,7 @@ class EnergyNet(nn.Module):
         if self.mask_kind == 'clamp_x0':
             m = x / self.mask_len
             out = out * torch.cat([m, m], dim=1)
-        elif self.mask_kind == 'clamp_x1':            # u = v = 0 on x = hi_x
+        elif self.mask_kind == 'clamp_x1':
             m = (self.mask_x1 - x) / self.mask_len
             out = out * torch.cat([m, m], dim=1)
         elif self.mask_kind == 'clamp_y0':
@@ -136,21 +102,12 @@ class EnergyNet(nn.Module):
         return out
 
 
-# ---- Williams corner-singularity enrichment ---------------------------------
-
 WILLIAMS_270 = (0.5444837367, 0.9085291898)
 
 
 def williams_features(center: Tuple[float, float], sector_lo: float,
                       sector_hi: float, lambdas=WILLIAMS_270,
                       eps: float = 1e-4) -> Tuple[Callable, int]:
-    """Fixed enrichment basis  r^lam * {cos,sin}(k*phi), k in {lam-2, lam, lam+2}
-    for each lam. Cartesian displacement components of a Williams mode are
-    linear combinations of exactly these terms. phi is measured inside the
-    material sector [sector_lo, sector_hi] (branch cut placed in the void, so
-    the basis is continuous over the whole material, including the two free
-    edges). r is regularised by eps and the angle is gradient-safe at r=0.
-    """
     cx, cy = center
     ks_of = lambda lam: (lam - 2.0, lam, lam + 2.0)
     n_feat = sum(2 * len(ks_of(l)) for l in lambdas)
@@ -164,8 +121,6 @@ def williams_features(center: Tuple[float, float], sector_lo: float,
         dy_s = torch.where(safe, dy, torch.zeros_like(dy))
         phi = torch.atan2(dy_s, dx_s)
         phi = torch.where(safe, phi, torch.zeros_like(phi))
-        # move the branch cut into the void: material sector is
-        # [sector_lo, sector_hi]; anything above sector_hi wraps by -2*pi.
         phi = torch.where(phi > sector_hi + 1e-9, phi - 2.0 * math.pi, phi)
         r_reg = torch.sqrt(r2 + eps * eps)
         feats = []
@@ -179,10 +134,7 @@ def williams_features(center: Tuple[float, float], sector_lo: float,
     return fn, n_feat
 
 
-
 class EnergyProblem:
-    """Discrete total potential energy on a fixed quadrature."""
-
     def __init__(self, physics, interior, loads, energy_scale: float,
                  device: str = 'cpu', dtype=torch.float64):
         self.physics = physics
@@ -190,7 +142,6 @@ class EnergyProblem:
         self.dtype = dtype
         self.energy_scale = float(energy_scale)
         at = lambda a: torch.as_tensor(a, dtype=dtype, device=device)
-        # a block is (pts, w) or (pts, w, physics) - the latter for a multi-material body
         self.interior = [(at(b[0]), at(b[1]).reshape(-1), b[2] if len(b) > 2 else None)
                          for b in interior]
         self.loads = [(at(p), at(w).reshape(-1), at(t)) for p, w, t in loads]
@@ -226,13 +177,11 @@ class EnergyProblem:
         return (se - we) / self.energy_scale, se / self.energy_scale, we / self.energy_scale
 
 
-
 def train_energy(net: nn.Module, problem: EnergyProblem, epochs: int = 3000,
                  lr: float = 2e-3, lbfgs_iters: int = 3000,
                  lbfgs_chunk: int = 100, print_every: int = 500,
                  verbose: bool = True, keep_best: bool = False,
                  probe=None, probe_every: int = 100, on_chunk=None) -> Dict[str, List[float]]:
-    """Adam (cosine-decayed) warm-up, then L-BFGS (strong Wolfe) polish."""
     hist = {'total': [], 'strain': [], 'work': [], 'iter': []}
     params = [p for p in net.parameters() if p.requires_grad]
 
@@ -296,12 +245,10 @@ def train_energy(net: nn.Module, problem: EnergyProblem, epochs: int = 3000,
     return hist
 
 
-
 def build_cantilever(physics_train, P: float, u_s: float, L: float = 4.0,
                      H: float = 1.0, nx: int = 60, ny: int = 20, ng: int = 3,
                      hidden_layers: int = 4, neurons: int = 64,
                      device: str = 'cpu', dtype=torch.float64):
-    """Clamp at x=0 (exact, via mask), parabolic tip shear on x=L."""
     xe = graded_nodes(0.0, L, nx, 2.0, 'a')
     ye = graded_nodes(0.0, H, ny, 1.6, 'both')
     pts, w = rect_quadrature(xe, ye, ng)
@@ -315,20 +262,14 @@ def build_cantilever(physics_train, P: float, u_s: float, L: float = 4.0,
 
 
 def l_bracket_blocks(s: float = 1.0, n: int = 24, ng: int = 3, power: float = 3.0):
-    """Quadrature blocks (numpy) tiling L = [0,2s]x[0,s] U [s,2s]x[s,2s], graded
-    toward the re-entrant corner (s,s) and mildly toward the clamp x=0.
-    """
     blocks = []
-    # sub0 [0,s]^2 : refine toward x=s and y=s (corner) and mildly toward x=0
     xe0 = np.unique(np.concatenate([graded_nodes(0, s, n // 3, 1.5, 'a'),
                                     graded_nodes(0, s, n, power, 'b')]))
     ye0 = graded_nodes(0, s, n, power, 'b')
     ye0 = np.unique(np.concatenate([ye0, graded_nodes(0, s, n // 3, 1.5, 'a')]))
     blocks.append(rect_quadrature(xe0, ye0, ng))
-    # sub1 [s,2s]x[0,s] : refine toward x=s, y=s
     blocks.append(rect_quadrature(graded_nodes(s, 2 * s, n, power, 'a'),
                                   graded_nodes(0, s, n, power, 'b'), ng))
-    # sub2 [s,2s]^2 : refine toward x=s, y=s
     blocks.append(rect_quadrature(graded_nodes(s, 2 * s, n, power, 'a'),
                                   graded_nodes(s, 2 * s, n, power, 'a'), ng))
     return blocks
@@ -339,10 +280,6 @@ def build_l_bracket(physics_train, P: float, u_s: float, s: float = 1.0,
                     hidden_layers: int = 4, neurons: int = 64,
                     enrich: bool = True, device: str = 'cpu',
                     dtype=torch.float64):
-    """L = [0,2s]x[0,s] U [s,2s]x[s,2s]; clamp x=0; parabolic t_x on x=2s,
-    y in [s,2s]; re-entrant corner (s,s) enriched with Williams terms and
-    quadrature graded toward it.
-    """
     blocks = l_bracket_blocks(s, n, ng, power)
     lp, lw, t = line_quadrature((2 * s, s), (2 * s, 2 * s), 12, 4)
     tr = np.stack([6.0 * P * t * (1.0 - t), np.zeros_like(t)], axis=1)
@@ -361,13 +298,6 @@ def plate_hole_problem(physics_train, sigma_inf: float, u_s: float, r: float = 0
                        W: float = 2.0, H: float = 2.0, n_xi: int = 24,
                        n_th: int = 24, ng: int = 3, device: str = 'cpu',
                        dtype=torch.float64) -> "EnergyProblem":
-    """Energy problem (quadrature + load) for the quarter plate with a quarter
-    hole of radius r. Structured O-grid quadrature: x = rho(xi,theta)
-    (cos th, sin th), rho = r + xi*(rho_sq-r), rho_sq the square boundary along
-    the ray (two blocks split at the diagonal). Traction sigma_inf on x=W.
-    Only the quadrature depends on r, so a network trained for one radius can
-    be re-equilibrated for another by rebuilding this problem.
-    """
     th_split = math.atan2(H, W)
     xi_edges = graded_nodes(0.0, 1.0, n_xi, 1.5, 'a')
     blocks = []
@@ -394,9 +324,6 @@ def build_plate_hole(physics_train, sigma_inf: float, u_s: float, r: float = 0.3
                      W: float = 2.0, H: float = 2.0, n_xi: int = 24,
                      n_th: int = 24, ng: int = 3, hidden_layers: int = 4,
                      neurons: int = 64, device: str = 'cpu', dtype=torch.float64):
-    """Quarter plate with quarter hole at the origin: (net, problem). Symmetry
-    rollers are exact via the mask; see plate_hole_problem for the quadrature.
-    """
     prob = plate_hole_problem(physics_train, sigma_inf, u_s, r, W, H, n_xi, n_th,
                               ng, device, dtype)
     net = EnergyNet((0.0, 0.0), (W, H), hidden_layers, neurons, u_s,
@@ -407,13 +334,6 @@ def build_plate_hole(physics_train, sigma_inf: float, u_s: float, r: float = 0.3
 def make_plate_energy_inner_solver(net: nn.Module, physics_train, sampler,
                                    sigma_inf: float, u_s: float, lbfgs_iters: int,
                                    device: str = 'cpu', dtype=torch.float64):
-    """Inner forward-solve callback for inverse design on an energy-trained
-    plate model. Each call re-equilibrates `net` (warm start) at the sampler's
-    CURRENT hole radius by rebuilding the quadrature and running L-BFGS, and
-    returns the positive scalar -Pi (= half the external work at equilibrium).
-    The network is kept in float64 for the whole inverse run; the caller casts
-    it back to float32 afterwards.
-    """
     net.to(dtype)
 
     def inner_solve() -> float:
@@ -427,13 +347,7 @@ def make_plate_energy_inner_solver(net: nn.Module, physics_train, sampler,
     return inner_solve
 
 
-
 def history_for_plot(hist: Dict[str, List[float]]) -> Dict[str, List[float]]:
-    """Training history in the format visualization.plot_training_convergence expects
-    for energy solvers: 'total' is the relative energy gap to the final value (the
-    final point is that reference, so it is dropped from every array), 'strain' and
-    'work' are the normalised energies, 'iter' the iteration axis.
-    """
     pi = np.asarray(hist['total'], dtype=np.float64)
     gap = (pi - pi[-1]) / abs(pi[-1])
     keep = slice(0, len(pi) - 1)
@@ -444,12 +358,6 @@ def history_for_plot(hist: Dict[str, List[float]]) -> Dict[str, List[float]]:
 
 
 class EnergyTrainer:
-    """Minimal stand-in for XPINNTrainer: carries the training history in the
-    keys visualization.plot_training_convergence expects. 'total' is the energy
-    GAP (Pi - Pi_final, strictly positive) so it can be drawn on a log axis;
-    the raw signed potential energy is kept under 'energy'.
-    """
-
     def __init__(self):
         self.history: Dict[str, List[float]] = {'total': [], 'energy': [],
                                                 'strain': [], 'work': [], 'iter': []}
@@ -463,12 +371,6 @@ def train_energy_forward_solver(benchmark: str, device: str = 'cpu',
                                 hidden_layers: int = 4, neurons: int = 64,
                                 stress_scale: float = 1e11, seed: Optional[int] = 42,
                                 dtype=torch.float64):
-    """Train a benchmark with the deep-energy method. Returns
-    (model, trainer, sampler, physics_real) exactly like the residual path in
-    atlas_main.train_forward_solver, so validation/plots/inverse design consume
-    it unchanged. The model is a monolith XPINNModel whose single network is an
-    EnergyNet (exact hard BCs); it is returned in float32 on `device`.
-    """
     from atlas.networks import create_xpinn_for_benchmark
     from atlas.physics import PlaneStressElasticity
     from atlas.sampling import (CantileverBeamSampler, LBracketSampler,
@@ -522,8 +424,6 @@ def train_energy_forward_solver(benchmark: str, device: str = 'cpu',
 
     trainer = EnergyTrainer()
     pi = np.asarray(hist['total'], dtype=np.float64)
-    # Relative energy gap to the final value. The final point is that
-    # reference (gap 0), so it is dropped from the plotted arrays.
     gap = (pi - pi[-1]) / abs(pi[-1])
     keep = slice(0, len(pi) - 1)
     trainer.history['energy'] = pi.tolist()
@@ -539,9 +439,6 @@ def train_energy_forward_solver(benchmark: str, device: str = 'cpu',
 def load_energy_model(benchmark: str, path: str, device: str = 'cpu',
                       hidden_layers: int = 4, neurons: int = 64,
                       stress_scale: float = 1e11):
-    """Rebuild the (model, sampler, physics_real) triple for a benchmark and load
-    a state dict saved by scripts/run_benchmark.py (model.state_dict()).
-    """
     from atlas.networks import create_xpinn_for_benchmark
     from atlas.physics import PlaneStressElasticity
     from atlas.sampling import (CantileverBeamSampler, LBracketSampler,
@@ -549,8 +446,6 @@ def load_energy_model(benchmark: str, path: str, device: str = 'cpu',
     E, nu = 210e9, 0.3
     pt = PlaneStressElasticity(E=E / stress_scale, nu=nu)
     kw = dict(hidden_layers=hidden_layers, neurons=neurons, device='cpu')
-    # output_scale (u_s) is a plain float, not part of the state dict, so it
-    # must be rebuilt with exactly the value used in training.
     if benchmark == 'cantilever':
         u_s = 1e6 * 4.0 ** 3 / (3.0 * E * (1.0 / 12.0))
         net, _ = build_cantilever(pt, -1e6 / stress_scale, u_s, **kw)

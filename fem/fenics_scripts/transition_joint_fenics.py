@@ -1,20 +1,7 @@
-"""transition_joint_fenics.py - legacy FEniCS plane-stress reference for the steel-aluminium
-transition joint (atlas/benchmarks/transition_joint.py).
-
-    plate [0,2] x [0,1], steel for x < f(y) = 1 + 0.1 cos(4 pi y), aluminium beyond,
-    rollers on x = 0 and y = 0, uniform tension on x = 2.
-
-A structured crossed mesh with a vertex column at x = 1 is mapped onto the bond line (x = 1 goes to
-x = f(y), each side stretched linearly), so no element straddles the interface; the material is
-assigned from the unmapped cell position, which is exact. Elements are refined around the point
-where the bond line meets the free edge. P2 displacements, element-wise DG1 stresses (exact for
-P2). Evaluated on a uniform 0.01 grid -> transition_joint_{coords,u,v,vonmises}.npy and on a 0.004
-grid within 0.05 of the bond line -> transition_joint_roi_*.npy (points within 2e-3 of it
-skipped). Two mesh levels are compared. Used ONLY to score the ATLAS solvers.
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/transition_joint_fenics.py
 """
+
 import json
 import os
 import sys
@@ -37,7 +24,7 @@ def build_mesh(level):
     n = 2 ** level
     mesh = dl.RectangleMesh(dl.Point(0, 0), dl.Point(W, H), 50 * n, 25 * n, "crossed")
     mid = np.array([c.midpoint().array()[:2] for c in dl.cells(mesh)])
-    steel = mid[:, 0] < X0                              # exact: decided before the mapping
+    steel = mid[:, 0] < X0
     xy = mesh.coordinates()
     F = f(xy[:, 1])
     left = xy[:, 0] <= X0

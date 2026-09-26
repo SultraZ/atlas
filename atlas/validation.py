@@ -1,7 +1,3 @@
-"""validation.py
-FEM validation module for ATLAS
-"""
-
 import torch
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -29,7 +25,7 @@ SINGULARITY_LOCAL_SPACING_NNEAR = 24
 
 VON_MISES_EXCL_TARGET = 0.10
 
-VON_MISES_ROI_HALF_WIDTH = 0.06  # plate_hole: band |dist-to-center - r| < 0.06
+VON_MISES_ROI_HALF_WIDTH = 0.06
 
 VON_MISES_ROI_CONFIG = {
     'cantilever': {
@@ -54,9 +50,6 @@ VON_MISES_ROI_CONFIG = {
 
 
 def relative_l2(pred, ref) -> float:
-    """Classic relative L2 error (module-level so metrics helpers can reuse
-    it without an FEMValidator instance).
-    """
     pred = np.asarray(pred, dtype=np.float64)
     ref = np.asarray(ref, dtype=np.float64)
     return float(np.linalg.norm(pred - ref) / (np.linalg.norm(ref) + 1e-12))
@@ -65,10 +58,6 @@ def relative_l2(pred, ref) -> float:
 def singular_locations(benchmark: str, geometry: Dict[str, float],
                        centers: Optional[List[Tuple[float, float]]] = None
                        ) -> List[Tuple[str, Tuple[float, float]]]:
-    """Resolve this benchmark's known singular locations from SINGULAR_LOCATION_CONFIG.
-    A caller can override the config by passing explicit `centers`.
-    Unresolvable entries (missing geometry key) produce a warning, not a crash.
-    """
     resolved: List[Tuple[str, Tuple[float, float]]] = []
     if centers is not None:
         return [(f'singular_{i}', (float(c[0]), float(c[1]))) for i, c in enumerate(centers)]
@@ -86,11 +75,6 @@ def singular_locations(benchmark: str, geometry: Dict[str, float],
 def estimate_local_point_spacing(coords, center: Tuple[float, float],
                                  n_near: int = SINGULARITY_LOCAL_SPACING_NNEAR
                                  ) -> Optional[float]:
-    """Median nearest-neighbor distance among the n_near evaluation points
-    closest to `center`. Pure numpy (this repo has no scipy dependency),
-    so it works identically on CPU/GPU-loaded reference arrays.
-    Returns None for an empty coordinate set.
-    """
     coords = np.asarray(coords)
     if coords is None or coords.shape[0] == 0:
         return None
@@ -110,10 +94,6 @@ def estimate_local_point_spacing(coords, center: Tuple[float, float],
 
 
 def exclusion_mask(coords, centers, r_excl: float) -> np.ndarray:
-    """Boolean keep-mask over evaluation points: True where the point is
-    farther than r_excl from EVERY singular center. Empty/invalid r_excl
-    keeps everything.
-    """
     coords = np.asarray(coords)
     if r_excl is None or r_excl <= 0 or not centers:
         return np.ones(coords.shape[0], dtype=bool)
@@ -124,13 +104,6 @@ def exclusion_mask(coords, centers, r_excl: float) -> np.ndarray:
 
 
 def compute_von_mises_metrics(vm_pred, vm_fem, coords, centers, r_excl: Optional[float]):
-    """Both von Mises L2 variants in one place (used by FEMValidator and by
-    plot_fem_comparison so the printed/JSON numbers and the plot always agree):
-      - von_mises_l2_global : relative L2 over all evaluation points
-      - von_mises_l2_excl   : relative L2 excluding points within r_excl of any center
-    Raises no exceptions on degenerate inputs - returns None exclusion
-    numbers when exclusion isn't possible/meaningful.
-    """
     vm_pred = np.asarray(vm_pred).reshape(-1, 1)
     vm_fem = np.asarray(vm_fem).reshape(-1, 1)
     coords = np.asarray(coords)
@@ -160,11 +133,6 @@ def compute_von_mises_metrics(vm_pred, vm_fem, coords, centers, r_excl: Optional
 
 def default_exclusion_radius(coords, centers, factor: float = SINGULARITY_EXCLUSION_FACTOR
                              ) -> Optional[float]:
-    """Auto r_excl: SINGULARITY_EXCLUSION_FACTOR x the local point spacing
-    near each singular center (max across centers, so a single radius covers
-    every location). Tied to the actual evaluation-point density of THIS
-    benchmark's mesh, not a hardcoded number.
-    """
     if not centers:
         return None
     spacings = [estimate_local_point_spacing(coords, c) for c in centers]
@@ -175,12 +143,6 @@ def default_exclusion_radius(coords, centers, factor: float = SINGULARITY_EXCLUS
 
 
 def roi_mask(coords, benchmark: str, geometry: Dict[str, float]) -> np.ndarray:
-    """Keep-mask for the FIXED physical singular-ROI metric: True where the
-    evaluation point is OUTSIDE this benchmark's configured singular region
-    (fixed-radius disks around clamp/re-entrant corners, a fixed half-width
-    band hugging the hole arc). Unconfigured benchmark / unresolvable geometry
-    keeps everything.
-    """
     coords = np.asarray(coords)
     keep = np.ones(coords.shape[0], dtype=bool)
     spec = VON_MISES_ROI_CONFIG.get(benchmark)
@@ -205,11 +167,6 @@ def roi_mask(coords, benchmark: str, geometry: Dict[str, float]) -> np.ndarray:
 
 def compute_von_mises_roi_metric(vm_pred, vm_fem, coords, benchmark: str,
                                  geometry: Dict[str, float]) -> Dict:
-    """Fixed singular-ROI relative L2 von Mises error `von_mises_l2_roi`,
-    additive to the existing metrics (nothing here changes the keys the
-    validator already produces). Returns None sentinel values when the
-    benchmark/geometry isn't resolved or the ROI removes every point.
-    """
     base = {
         'von_mises_l2_roi': None,
         'von_mises_roi_excluded_points': 0,
@@ -231,12 +188,6 @@ def compute_von_mises_roi_metric(vm_pred, vm_fem, coords, benchmark: str,
 
 
 def sampler_geometry_dict(sampler, benchmark: str) -> Dict[str, float]:
-    """Extract the geometry parameters that actually matter for comparing
-    a sampler's problem to a stored FEM reference. Used both when *writing*
-    a reference (fenics_scripts write a matching {benchmark}_meta.json) and
-    when *reading* one (FEMValidator.load_fem_reference checks the two
-    agree) - see check_geometry_match().
-    """
     if benchmark == 'cantilever':
         return {'L': float(sampler.L), 'H': float(sampler.H)}
     elif benchmark == 'l_bracket':
@@ -253,12 +204,6 @@ def sampler_geometry_dict(sampler, benchmark: str) -> Dict[str, float]:
 
 def check_geometry_match(meta: Optional[Dict], current: Dict[str, float],
                           rel_tol: float = 1e-3) -> Optional[str]:
-    """Compare a loaded {benchmark}_meta.json (written by the FEniCS
-    reference scripts) against the geometry of the sampler you're actually
-    validating right now. Returns None if they match (or no meta file was
-    found and the caller should decide how to treat that), otherwise a
-    human-readable mismatch message.
-    """
     if meta is None:
         return ("no geometry metadata found alongside this FEM reference "
                 "(older reference file, or not generated by the provided "
@@ -289,7 +234,6 @@ class FEMValidator:
         self.history = {}
 
     def load_fem_reference(self, benchmark: str, data_dir: str = str(FEM_REFERENCE_DIR)):
-        # try to load real FEM data if the student already generated it
         try:
             coords = np.load(os.path.join(data_dir, f'{benchmark}_coords.npy'))
             u = np.load(os.path.join(data_dir, f'{benchmark}_u.npy'))
@@ -308,26 +252,22 @@ class FEMValidator:
             return None
 
     def generate_mock_fem_reference(self, sampler, n_points: int = 2000):
-        # super rough placeholder so we can test the whole pipeline
-        # replace this later with actual FEM results
-        if hasattr(sampler, 'L'):  # cantilever
+        if hasattr(sampler, 'L'):
             x = np.random.uniform(0, sampler.L, (n_points, 1))
             y = np.random.uniform(0, sampler.H, (n_points, 1))
-        elif hasattr(sampler, 'W'):  # plate with hole
+        elif hasattr(sampler, 'W'):
             x = np.random.uniform(0, sampler.W, (n_points, 1))
             y = np.random.uniform(0, sampler.H, (n_points, 1))
-        else:  # L-bracket
+        else:
             s = sampler.size
             x = np.random.uniform(0, 2 * s, (n_points, 1))
             y = np.random.uniform(0, 2 * s, (n_points, 1))
 
-        # fake displacement field just so the numbers aren't zero
         u = 1e-5 * x * (1.0 - y / (y.max() + 1e-8))
         v = -2e-5 * (x / (x.max() + 1e-8)) ** 2
         return {'coords': np.hstack([x, y]), 'u': u, 'v': v}
 
     def evaluate_xpinn_on_points(self, model, sampler, coords: np.ndarray):
-        # reuse the same subdomain routing we already fixed in visualization
         from atlas.visualization import _evaluate_model_on_grid
         device = next(model.parameters()).device
         x_flat = coords[:, 0:1]
@@ -341,19 +281,9 @@ class FEMValidator:
         return evaluate_von_mises_on_points(model, self.physics, sampler, coords, device=device)
 
     def compute_l2_error(self, pred, ref):
-        # classic relative L2 (delegates to the module-level helper so the
-        # metric helpers and the validator provably use the same formula)
         return relative_l2(pred, ref)
 
     def compute_max_pointwise_error(self, pred, ref):
-        """        Absolute value of the single worst pointwise discrepancy, plus
-        where it occurred. The paper's Methodology (Validation Module)
-        specifically calls for this alongside the L2 error: "the maximum
-        pointwise error at stress concentration locations" - an L2 (average
-        -ish) error can look good overall while completely missing a sharp
-        local spike right at a stress concentration, which is exactly the
-        failure mode a single blended error number would hide.
-        """
         diff = np.abs(pred.flatten() - ref.flatten())
         idx = int(np.argmax(diff))
         return float(diff[idx]), idx
@@ -410,7 +340,7 @@ class FEMValidator:
             'relative_L2_displacement': err_disp,
             'displacement_within_5pct_target': passed_5pct,
             'used_mock_data': used_mock_data,
-            'geometry_warning': geometry_warning,  # None if verified consistent
+            'geometry_warning': geometry_warning,
         }
 
         print(f"  Relative L2 error (u)      : {err_u:.6e}")
@@ -436,8 +366,6 @@ class FEMValidator:
             vm_metrics = compute_von_mises_metrics(vm_pred, vm_fem, coords, centers, r_used)
             err_vm_excl = vm_metrics['von_mises_l2_excl']
 
-            # The 10% stress target gates ONLY on the excluded-region metric
-            # (see the VON_MISES_EXCL_TARGET TODO above); global is context.
             vm_within_10pct = (err_vm_excl is not None and err_vm_excl < VON_MISES_EXCL_TARGET) \
                 if meaningful else None
 
@@ -452,8 +380,6 @@ class FEMValidator:
             results['max_pointwise_von_mises_error'] = max_err
             results['max_pointwise_von_mises_error_location'] = max_loc
 
-            # Fixed singular-region reading (additive; see
-            # VON_MISES_ROI_CONFIG for the per-benchmark physical ROIs).
             roi_metrics = compute_von_mises_roi_metric(
                 vm_pred, vm_fem, coords, benchmark, geom)
             results['von_mises_l2_roi'] = roi_metrics['von_mises_l2_roi']
@@ -524,7 +450,6 @@ def run_validation(model, sampler, physics, benchmark: str,
                    device: str = 'cpu', use_mock: bool = True,
                    data_dir: str = str(FEM_REFERENCE_DIR),
                    r_excl: Optional[float] = None):
-    # thin wrapper so atlas_main stays clean
     validator = FEMValidator(physics, device=device)
     return validator.validate(model, sampler, benchmark, use_mock=use_mock,
                               data_dir=data_dir, r_excl=r_excl)

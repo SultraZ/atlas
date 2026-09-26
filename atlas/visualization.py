@@ -1,7 +1,3 @@
-"""visualization.py - Plotting utilities for XPINN results
-Now correctly routes points to the right subdomain network
-"""
-
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,28 +6,17 @@ from atlas.paths import FEM_REFERENCE_DIR
 
 
 def _show_if_interactive():
-    """plt.show() only when a GUI backend is active; on headless/Agg runs it
-    is a no-op instead of emitting a "non-interactive backend" warning.
-    """
     if plt.get_backend().lower() != 'agg':
         plt.show()
 
 
 def _colorbar(fig, im, ax, label=None):
-    """Colorbar exactly as tall as its (equal-aspect) axes, so wide/short
-    domains such as the cantilever don't get a figure-height bar and dead
-    white space around the plot.
-    """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     cax = make_axes_locatable(ax).append_axes('right', size='3%', pad=0.08)
     return fig.colorbar(im, cax=cax, label=label)
 
 
 def _inside_material(sampler, X, Y) -> np.ndarray:
-    """Boolean mask of grid points that lie in the actual material, so plots
-    leave the plate's hole / the L-bracket's notch blank instead of showing
-    the network extrapolated (or a spurious zero) inside the void.
-    """
     if hasattr(sampler, 'L'):
         return np.ones_like(X, dtype=bool)
     if hasattr(sampler, 'W'):
@@ -46,13 +31,6 @@ def _inside_material(sampler, X, Y) -> np.ndarray:
 
 
 def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
-    """    Single shared implementation of "which subdomain network owns this
-    point" routing, used by every caller that needs (u, v) at arbitrary
-    points: _evaluate_model_on_grid (no-grad, for plain field plots),
-    plot_von_mises_stress (grad-tracked, for stress), and
-    validation.evaluate_xpinn_stress_on_points (grad-tracked, for FEM
-    stress comparison).
-    """
     coords = torch.cat([x_t, y_t], dim=1)
     if getattr(model, 'self_routing', False):
         uv = model(coords)
@@ -62,7 +40,7 @@ def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
     u = torch.zeros(N, 1, device=device)
     v = torch.zeros(N, 1, device=device)
 
-    if hasattr(sampler, 'L'):  # Cantilever
+    if hasattr(sampler, 'L'):
         mid = sampler.L / 2
         mask0 = x_t.flatten() <= mid
         mask1 = ~mask0
@@ -72,7 +50,7 @@ def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
                 u[m] = uv[:, 0:1]
                 v[m] = uv[:, 1:2]
 
-    elif hasattr(sampler, 'W'):  # Plate with hole
+    elif hasattr(sampler, 'W'):
         r_mid = getattr(sampler, 'r_mid', 0.6)
         r_far = getattr(sampler, 'r_far', 1.2)
         dist = torch.sqrt(x_t**2 + y_t**2).flatten()
@@ -85,7 +63,7 @@ def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
                 u[m] = uv[:, 0:1]
                 v[m] = uv[:, 1:2]
 
-    else:  # L-bracket
+    else:
         s = sampler.size
         mask0 = (x_t.flatten() <= s) & (y_t.flatten() <= s)
         mask1 = (x_t.flatten() > s) & (y_t.flatten() <= s)
@@ -97,7 +75,7 @@ def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
             dist = torch.sqrt((x_t.flatten() - Cx)**2 + (y_t.flatten() - Cy)**2)
             already_covered = mask0 | mask1 | mask2
             mask_fillet = (dist <= f) & (~already_covered)
-            masks.append((mask_fillet, 0))  # fillet patch belongs to sub0
+            masks.append((mask_fillet, 0))
         for m, idx in masks:
             if m.any():
                 uv = model.get_subdomain_network(idx)(coords[m])
@@ -108,9 +86,6 @@ def _route_and_forward(model, sampler, x_t: torch.Tensor, y_t: torch.Tensor):
 
 
 def _evaluate_model_on_grid(model, sampler, x_flat, y_flat, device):
-    """    Evaluate the multi-subdomain XPINN correctly.
-    Each point is sent to the network that owns that region.
-    """
     x_t = torch.tensor(x_flat, dtype=torch.float32, device=device)
     y_t = torch.tensor(y_flat, dtype=torch.float32, device=device)
 
@@ -121,12 +96,6 @@ def _evaluate_model_on_grid(model, sampler, x_flat, y_flat, device):
 
 
 def evaluate_von_mises_on_points(model, physics, sampler, coords: np.ndarray, device: str = 'cpu'):
-    """    Evaluate von Mises stress at arbitrary scattered (x,y) points -
-    grad-tracked through _route_and_forward so strains/stresses can
-    actually be computed, unlike _evaluate_model_on_grid (which is
-    deliberately no-grad, for plain displacement plots). Used by
-    validation.py to compare against a FEM stress reference field.
-    """
     x_t = torch.tensor(coords[:, 0:1], dtype=torch.float32, device=device, requires_grad=True)
     y_t = torch.tensor(coords[:, 1:2], dtype=torch.float32, device=device, requires_grad=True)
     u, v = _route_and_forward(model, sampler, x_t, y_t)
@@ -139,12 +108,6 @@ def evaluate_von_mises_on_points(model, physics, sampler, coords: np.ndarray, de
 def plot_fem_comparison(model, sampler, physics, benchmark: str,
                         data_dir: str = str(FEM_REFERENCE_DIR), use_mock: bool = True,
                         save_path: Optional[str] = None, r_excl: Optional[float] = None):
-    """    The actual side-by-side ATLAS-vs-FEM comparison plot - until now,
-    validation.py only ever printed relative L2 error NUMBERS to the
-    console; nothing visualized what those numbers were computed from. This
-    is the plot the paper's Visualization Module section calls for:
-    "comparison of ATLAS and FEM results side by side."
-    """
     from atlas.validation import (FEMValidator, sampler_geometry_dict, check_geometry_match,
                                   singular_locations, default_exclusion_radius,
                                   compute_von_mises_metrics)
@@ -173,7 +136,6 @@ def plot_fem_comparison(model, sampler, physics, benchmark: str,
     disp_fem = np.sqrt(u_fem**2 + v_fem**2).flatten()
     disp_pred = np.sqrt(u_pred**2 + v_pred**2).flatten()
     abs_err = np.hypot(u_pred.flatten() - u_fem.flatten(), v_pred.flatten() - v_fem.flatten())
-    # Label follows the model: one network over the whole domain vs domain-decomposed.
     name = 'ATLAS (single network)' if getattr(model, 'monolith', False) else 'ATLAS (XPINN)'
     rel_l2 = validator.compute_l2_error(disp_pred.reshape(-1, 1), disp_fem.reshape(-1, 1))
 
@@ -192,7 +154,7 @@ def plot_fem_comparison(model, sampler, physics, benchmark: str,
     cen = tri.triangles
     cx, cy = x[cen].mean(axis=1), y[cen].mean(axis=1)
     tri.set_mask(~_inside_material(sampler, cx, cy))
-    wide = hasattr(sampler, 'L')  # 4:1 beam needs far less height than the square domains
+    wide = hasattr(sampler, 'L')
     fig, axes = plt.subplots(2 if show_stress else 1, 3,
                              figsize=(16, (5.5 if wide else 9) if show_stress else (3.2 if wide else 4.5)))
     row0 = axes[0] if show_stress else axes
@@ -283,7 +245,7 @@ def plot_fem_comparison(model, sampler, physics, benchmark: str,
         title += '  [WARNING: FEM reference geometry mismatch - see log]'
     fig.suptitle(title, color=('red' if (used_mock or geometry_warning or passed_5pct is False or stress_fail) else 'black'))
 
-    for ax_ in fig.axes:                       # keep titles clear of the colour-bar exponent text
+    for ax_ in fig.axes:
         if ax_.get_title():
             ax_.set_title(ax_.get_title(), pad=16, fontsize=9)
     plt.tight_layout()
@@ -349,7 +311,7 @@ def plot_displacement_field(model, sampler, physics, n_grid: int = 100,
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     _show_if_interactive()
-    plt.close(fig)  # avoid leaking figures across repeated/headless (server) calls
+    plt.close(fig)
 
 
 def plot_von_mises_stress(model, sampler, physics, n_grid: int = 100,
@@ -388,19 +350,12 @@ def plot_von_mises_stress(model, sampler, physics, n_grid: int = 100,
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     _show_if_interactive()
-    plt.close(fig)  # avoid leaking figures across repeated/headless (server) calls
+    plt.close(fig)
 
 
 def plot_training_convergence(history: Dict[str, List[float]],
                               save_path: Optional[str] = None,
                               adam_epoch_count: Optional[int] = None):
-    """    adam_epoch_count: index into history['total'] where the Adam stage ends
-    and L-BFGS fine-tuning begins (XPINNTrainer.adam_epoch_count after a
-    two-stage train() call). Draws a vertical marker there so the plot makes
-    the Adam -> L-BFGS handoff visible instead of looking like one
-    homogeneous run. Pass None (default) to skip the marker, e.g. for an
-    Adam-only run (use_lbfgs=False).
-    """
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
     energy_hist = 'iter' in history and len(history.get('strain', [])) > 0
     x_axis = history['iter'] if energy_hist else np.arange(len(history['total']))
@@ -416,8 +371,6 @@ def plot_training_convergence(history: Dict[str, List[float]],
         axes[1].set_ylabel('Normalized energy')
         axes[1].set_title('Energy Components (U = W/2 at equilibrium)')
         axes[1].set_xlabel('Iteration')
-        # The untrained network's first iterations have a huge strain energy;
-        # scale the axis to the converged values so U and W stay readable.
         top = 1.6 * max(abs(history['strain'][-1]), abs(history['work'][-1]), 1e-30)
         axes[1].set_ylim(0.0, top)
     else:
@@ -445,27 +398,12 @@ def plot_training_convergence(history: Dict[str, List[float]],
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     _show_if_interactive()
-    plt.close(fig)  # avoid leaking figures across repeated/headless (server) calls
+    plt.close(fig)
 
 
 def plot_deformed_shape(model, sampler, scale: Optional[float] = None,
                         target_fraction: float = 0.2,
                         n_grid: int = 50, save_path: Optional[str] = None):
-    """    scale: exaggeration factor for the deformed overlay. Pass None (default)
-    to auto-compute one from the actual predicted displacement magnitude, so
-    the deformed shape always renders at a legible size regardless of how
-    large or small the true physical displacements happen to be for this
-    benchmark/load - a fixed magic-number scale (the old default was a
-    hardcoded 1e6) looks fine by accident for whatever displacement range it
-    was tuned against, but silently produces a nonsensical, wildly
-    exaggerated shape once training actually converges to correct,
-    physically-small displacements. Auto mode targets a deformed extent of
-    `target_fraction` (default 20%) of the domain's largest dimension -
-    visibly exaggerated (a real structure wouldn't bend the exact same
-    material) but still recognizably beam/plate/bracket-shaped. Pass an
-    explicit float to override auto mode (e.g. for a fixed scale across a
-    side-by-side comparison of several runs).
-    """
     if hasattr(sampler, 'L'):
         x = np.linspace(0, sampler.L, n_grid)
         y = np.linspace(0, sampler.H, n_grid)
@@ -488,8 +426,6 @@ def plot_deformed_shape(model, sampler, scale: Optional[float] = None,
     u = u.reshape(X.shape)
     v = v.reshape(X.shape)
 
-    # Only material points count: the plate's hole / the L-bracket's notch have
-    # no displacement, and grid lines must not be drawn across them.
     inside = _inside_material(sampler, X, Y)
     u = np.where(inside, u, 0.0)
     v = np.where(inside, v, 0.0)
@@ -502,7 +438,6 @@ def plot_deformed_shape(model, sampler, scale: Optional[float] = None,
     Y_def = Y + scale * v
 
     def _segments(PX, PY):
-        # a grid segment is drawn only if BOTH of its end points are material
         segs = []
         for (a, b) in [((slice(None), slice(None, -1)), (slice(None), slice(1, None))),
                        ((slice(None, -1), slice(None)), (slice(1, None), slice(None)))]:
@@ -527,4 +462,4 @@ def plot_deformed_shape(model, sampler, scale: Optional[float] = None,
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     _show_if_interactive()
-    plt.close(fig)  # avoid leaking figures across repeated/headless (server) calls
+    plt.close(fig)

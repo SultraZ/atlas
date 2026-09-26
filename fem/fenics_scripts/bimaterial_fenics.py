@@ -1,20 +1,10 @@
-"""bimaterial_fenics.py - legacy FEniCS (dolfin + mshr) plane-stress reference for the
-two-material benchmark (atlas/benchmarks/bimaterial.py).
+"""Run from the project root with the FEniCS env on PATH (all options: --help):
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/bimaterial_fenics.py --contrast C
 
-    quarter plate [0,2]^2, inclusion rho < 0.3 (E / contrast), rollers on x = 0 and y = 0,
-    uniform tension on x = 2.
-
-The mesh conforms to the interface (mshr subdomain, 1024-segment circle) and is refined in bands
-around it; P2 displacements, stresses taken element-wise in DG1 (exact for P2, so the stress jump
-at the interface is kept, not smoothed). Evaluated on
-  * a uniform 0.01 grid over the plate         -> bimaterial_c<contrast>_{coords,u,v,vonmises}.npy
-  * a 0.0025 grid within 0.05 of the interface -> bimaterial_c<contrast>_roi_*.npy
-Points within 1e-3 of the interface are skipped (which side of the discrete interface they fall
-on is ambiguous). The FEM result is used ONLY to score the ATLAS solvers, never in training.
-
-Run from the repo root with the Atlas env's bin on PATH:
+Example:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/bimaterial_fenics.py --contrast 15
 """
+
 import argparse
 import json
 import os
@@ -36,7 +26,7 @@ df.set_log_level(40)
 def build_mesh(levels, base=48, segments=1024):
     plate = mshr.Rectangle(df.Point(0, 0), df.Point(W, H))
     dom = plate
-    dom.set_subdomain(1, mshr.Circle(df.Point(0, 0), R_INC, segments))   # mshr clips it to the plate
+    dom.set_subdomain(1, mshr.Circle(df.Point(0, 0), R_INC, segments))
     mesh = mshr.generate_mesh(dom, base)
     for band in [0.20, 0.10, 0.05, 0.025][:levels]:
         mid = np.array([c.midpoint().array()[:2] for c in df.cells(mesh)])
@@ -74,7 +64,7 @@ def solve(mesh, contrast):
 def evaluate(uh, comps, pts):
     out = np.full((len(pts), 5), np.nan)
     for i, p in enumerate(pts):
-        P = df.Point(p[0] * (1 - 1e-9) + 5e-10, p[1] * (1 - 1e-9) + 5e-10)   # keep edge points inside
+        P = df.Point(p[0] * (1 - 1e-9) + 5e-10, p[1] * (1 - 1e-9) + 5e-10)
         try:
             u = uh(P)
             out[i] = [u[0], u[1], comps[0](P), comps[1](P), comps[2](P)]
@@ -92,9 +82,6 @@ def grid(x0, x1, y0, y1, step):
 
 
 def goodier(contrast):
-    """Uniform stress inside a circular inclusion in an INFINITE plate under remote uniaxial
-    tension (plane stress, equal nu): (sigma_xx, sigma_yy) / sigma. A cross-check only - the
-    plate here is finite (W / r = 6.7)."""
     kap = (3 - NU) / (1 + NU)
     gam = 1.0 / contrast
     mean = 0.5 * gam * (kap + 1) / (2 * gam + kap - 1)

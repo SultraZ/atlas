@@ -1,23 +1,8 @@
-"""
-fem_parametric.py - independent FEniCS (legacy dolfin 2019.1 + mshr) solves of the
-three ATLAS design problems at an arbitrary shape parameter. Used ONLY to verify
-inverse-design results (docs/ATLAS_spec.md: "compliance difference between the
-ATLAS-optimised design and the FEM parametric reference, target within 10%").
+"""Run from the project root with the FEniCS env on PATH (all options: --help):
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fem_parametric.py BENCHMARK PARAMETER
 
-Nothing here is read by training, and nothing is written to fem/reference/.
-
-    cantilever : p = beam height H
-    plate_hole : p = hole radius r
-    l_bracket  : p = fillet radius f  (region between the re-entrant corner and
-                 the arc of radius f is added; smooth rounded corner)
-
-Returns physical compliance C = int t.u ds  [N m per unit thickness] (= 2 x strain
-energy), the peak von Mises stress along the same curves ATLAS samples, and the
-solid area. Stresses are L2-projected onto DISCONTINUOUS P1: the strain of a P2
-displacement field is exactly piecewise-P1, so that projection is exact and free of
-the boundary overshoot a continuous P2 projection of von Mises shows.
-
-Run from a shell where the Atlas conda env's bin is first on PATH (pkg-config).
+Example:
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fem_parametric.py plate_hole 0.3
 """
 
 import math
@@ -44,7 +29,6 @@ def _sigma(df, u):
 
 
 def _vm_from_dg(df, uh, mesh):
-    """Return a callable (x, y) -> von Mises [Pa] evaluated from the exact DG1 strain."""
     W = df.FunctionSpace(mesh, "DG", 1)
     s = _sigma(df, uh)
     fxx, fyy, fxy = (df.project(s[0, 0], W), df.project(s[1, 1], W), df.project(s[0, 1], W))
@@ -62,7 +46,7 @@ def _peak(vm, pts) -> float:
     for x, y in pts:
         try:
             best = max(best, vm(x, y))
-        except RuntimeError:      # point outside the (polygonal) mesh
+        except RuntimeError:
             continue
     return best
 
@@ -103,7 +87,6 @@ def solve_plate_hole(r: float, W: float = 2.0, H: float = 2.0, sigma_inf: float 
     df = _df()
     dom = mshr.Rectangle(df.Point(0, 0), df.Point(W, H)) - mshr.Circle(df.Point(0, 0), r, segments)
     mesh = mshr.generate_mesh(dom, resolution)
-    # refine twice around the hole edge, where the stress concentration lives
     for _ in range(2):
         cf = df.MeshFunction("bool", mesh, mesh.topology().dim(), False)
         for c in df.cells(mesh):
@@ -141,7 +124,7 @@ def solve_l_bracket_fillet(f: float, s: float = 1.0, P: float = 1e6, resolution:
     import mshr
     df = _df()
     cx, cy = s - f, s + f
-    th = np.linspace(0.0, -0.5 * math.pi, arc_segments + 1)       # (s, s+f) -> (s-f, s)
+    th = np.linspace(0.0, -0.5 * math.pi, arc_segments + 1)
     arc = [df.Point(cx + f * math.cos(a), cy + f * math.sin(a)) for a in th]
     poly = [df.Point(0, 0), df.Point(2 * s, 0), df.Point(2 * s, 2 * s), df.Point(s, 2 * s)] \
         + arc + [df.Point(0, s)]

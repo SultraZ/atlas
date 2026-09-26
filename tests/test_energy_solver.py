@@ -1,4 +1,7 @@
-"""Unit checks for the deep-energy solver (CPU, a few seconds)."""
+"""Run from the project root:
+    python tests/test_energy_solver.py
+"""
+
 import math
 import os
 import sys
@@ -40,7 +43,7 @@ def area(prob):
 def t_quadrature():
     pts, w = rect_quadrature(graded_nodes(0, 2, 7, 3.0, 'b'), graded_nodes(0, 1, 5, 2.0, 'both'), 3)
     assert abs(w.sum() - 2.0) < 1e-12
-    assert abs((w * pts[:, 0] ** 2).sum() - 8.0 / 3.0) < 1e-12      # exact for polynomials
+    assert abs((w * pts[:, 0] ** 2).sum() - 8.0 / 3.0) < 1e-12
     lp, lw, _ = line_quadrature((3, 0), (3, 2), 5, 4)
     assert abs(lw.sum() - 2.0) < 1e-12
 
@@ -61,8 +64,8 @@ def t_hard_bcs():
     assert torch.all(out == 0), "clamp x=0 must give exactly u=v=0"
     net, _ = build_plate_hole(PHYS, 1e-5, 1e-5, **KW)
     s = torch.linspace(0.3, 2.0, 9, dtype=torch.float64).reshape(-1, 1)
-    assert torch.all(net(torch.cat([torch.zeros_like(s), s], 1))[:, 0] == 0)   # u=0 on x=0
-    assert torch.all(net(torch.cat([s, torch.zeros_like(s)], 1))[:, 1] == 0)   # v=0 on y=0
+    assert torch.all(net(torch.cat([torch.zeros_like(s), s], 1))[:, 0] == 0)
+    assert torch.all(net(torch.cat([s, torch.zeros_like(s)], 1))[:, 1] == 0)
 
 
 def t_williams_finite_at_corner():
@@ -72,8 +75,6 @@ def t_williams_finite_at_corner():
     assert f.shape == (4, nf) and torch.isfinite(f).all()
     g = torch.autograd.grad(f.sum(), c)[0]
     assert torch.isfinite(g).all(), "gradient must be finite even exactly at the corner"
-    # branch cut lies in the void: both free edges of the notch sit at the
-    # sector limits, so features on the two edges must differ (phi=pi/2 vs -pi)
     assert not torch.allclose(f[1], f[2])
 
 

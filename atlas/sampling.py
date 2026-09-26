@@ -1,5 +1,3 @@
-"""sampling.py - Collocation Point Generation for All Benchmarks"""
-
 import torch
 import numpy as np
 from typing import Dict, List, Tuple, Optional
@@ -11,7 +9,6 @@ class CollocationSampler:
     
     def to_tensor(self, arr: np.ndarray) -> torch.Tensor:
         return torch.tensor(arr, dtype=torch.float32, device=self.device)
-
 
 
 class CantileverBeamSampler(CollocationSampler):
@@ -41,7 +38,6 @@ class CantileverBeamSampler(CollocationSampler):
         bcs = []
         n = self.n_boundary
 
-        # Left edge – fixed
         y_left = np.linspace(0, self.H, n).reshape(-1, 1)
         x_left = np.zeros_like(y_left)
         bcs.append({
@@ -63,7 +59,6 @@ class CantileverBeamSampler(CollocationSampler):
             't_y': self.to_tensor(tau_y)
         })
 
-        # Top & bottom traction-free
         for y_val, n_y_sign in [(self.H, 1.0), (0.0, -1.0)]:
             x_edge = np.linspace(0, self.L, 2*n).reshape(-1, 1)
             y_edge = np.full_like(x_edge, y_val)
@@ -92,19 +87,10 @@ class CantileverBeamSampler(CollocationSampler):
         }]
 
 
-
 class LBracketSampler(CollocationSampler):
     def __init__(self, size: float = 1.0, n_interior: int = 500,
                  n_boundary: int = 100, n_interface: int = 50, device: str = 'cpu',
                  fillet_init: Optional[float] = None):
-        """        fillet_init: opt-in re-entrant-corner fillet radius. Leave as None
-        (default) to get the exact original sharp-corner L-bracket geometry,
-        byte-for-byte identical to before this parameter existed - meaning
-        any FEM reference (.npy files) already generated for this benchmark
-        stays valid with zero changes needed. Only setting fillet_init to a
-        number activates the extra geometry described below, intended for
-        InverseDesignOptimizer to grow/shrink via gradient descent.
-        """
         super().__init__(device)
         self.size = size
         self.n_interior = n_interior
@@ -113,27 +99,16 @@ class LBracketSampler(CollocationSampler):
 
         self.fillet_enabled = fillet_init is not None
         if self.fillet_enabled:
-            max_fillet = 0.4 * size  # keeps tangent points safely within [0,s]/[s,2s]
+            max_fillet = 0.4 * size
             init = min(max(fillet_init, 1e-4), max_fillet)
             self.fillet = torch.tensor([init], requires_grad=True, device=device)
             self.max_fillet = max_fillet
 
     def _fillet_center(self):
-        """Center of the fillet disk, as a differentiable tensor (used only
-        by the outer/inverse-design loop) - see class docstring for the
-        geometric derivation.
-        """
         s = self.size
         return (s - self.fillet), (s + self.fillet)
 
     def sample_fillet_arc_differentiable(self, n_theta: int = 60):
-        """Fillet arc points, kept differentiable w.r.t. self.fillet - use
-        ONLY for the outer geometry-sensitivity computation (mirrors
-        sample_hole_boundary_differentiable in PlateWithHoleSampler and the
-        same reasoning: reusing this inside the inner forward-solve
-        training loop's repeated .backward() calls would eventually hit
-        "Trying to backward through the graph a second time").
-        """
         device = self.device
         theta = torch.linspace(-np.pi/2, 0.0, n_theta, device=device).reshape(-1, 1)
         Cx, Cy = self._fillet_center()
@@ -176,7 +151,6 @@ class LBracketSampler(CollocationSampler):
         n = self.n_boundary
         f_val = float(self.fillet.detach().cpu().item()) if self.fillet_enabled else 0.0
 
-        # Fixed left face of Sub0
         y_fix = np.linspace(0, s, n).reshape(-1, 1)
         x_fix = np.zeros_like(y_fix)
         bcs.append({
@@ -199,7 +173,6 @@ class LBracketSampler(CollocationSampler):
             't_y': self.to_tensor(np.zeros_like(x_load))
         })
 
-        # Bottom edges (traction-free)
         for subdomain, x_range in [(0, (0, s)), (1, (s, 2*s))]:
             x_bot = np.linspace(x_range[0], x_range[1], n).reshape(-1, 1)
             y_bot = np.zeros_like(x_bot)
@@ -212,7 +185,6 @@ class LBracketSampler(CollocationSampler):
                 't_y': self.to_tensor(np.zeros_like(x_bot))
             })
 
-        # Top of Sub2
         x_top = np.linspace(s, 2*s, n).reshape(-1, 1)
         y_top = np.full_like(x_top, 2*s)
         bcs.append({
@@ -224,7 +196,6 @@ class LBracketSampler(CollocationSampler):
             't_y': self.to_tensor(np.zeros_like(x_top))
         })
 
-        # Right face of Sub1 (free)
         y_right1 = np.linspace(0, s, n).reshape(-1, 1)
         x_right1 = np.full_like(y_right1, 2*s)
         bcs.append({
@@ -247,8 +218,6 @@ class LBracketSampler(CollocationSampler):
             't_y': self.to_tensor(np.zeros_like(x_inner_v))
         })
 
-        # Inner horizontal face of re-entrant corner (y=s, x<s) – free.
-        # Shortened to end at x=s-fillet (not x=s) for the same reason.
         x_inner_h = np.linspace(0, s - f_val, n).reshape(-1, 1)
         y_inner_h = np.full_like(x_inner_h, s)
         bcs.append({
@@ -302,7 +271,6 @@ class LBracketSampler(CollocationSampler):
         return interfaces
 
 
-
 class PlateWithHoleSampler(CollocationSampler):
     def __init__(self, W: float = 2.0, H: float = 2.0, r_init: float = 0.3,
                  n_interior: int = 500, n_boundary: int = 100,
@@ -319,12 +287,6 @@ class PlateWithHoleSampler(CollocationSampler):
         self._update_subdomain_radii()
 
     def _update_subdomain_radii(self):
-        """Keep r_mid/r_far a safe, fixed distance ahead of the current hole
-        radius so the subdomain bands never invert or run off the domain.
-        Called at the top of every sample_* method so callers that read
-        sampler.r_mid / sampler.r_far (visualization.py, validation.py)
-        always see values consistent with the current r.
-        """
         r_val = float(self.r.detach().cpu().item())
         self.r_mid = r_val + self.mid_margin
         self.r_far = r_val + self.far_margin
@@ -340,13 +302,11 @@ class PlateWithHoleSampler(CollocationSampler):
         x0 = (rho0 * torch.cos(theta0)).detach()
         y0 = (rho0 * torch.sin(theta0)).detach()
 
-        # Sub 1 – middle (fixed)
         theta1 = np.random.uniform(0, np.pi/2, n)
         rho1 = np.sqrt(np.random.uniform(self.r_mid**2, self.r_far**2, n))
         x1 = (rho1 * np.cos(theta1)).reshape(-1, 1)
         y1 = (rho1 * np.sin(theta1)).reshape(-1, 1)
 
-        # Sub 2 – far field
         x2_list, y2_list = [], []
         while len(x2_list) < n:
             x_cand = np.random.uniform(0, self.W, n)
@@ -365,11 +325,6 @@ class PlateWithHoleSampler(CollocationSampler):
         ]
 
     def sample_hole_boundary(self, n_theta: int = 100) -> Dict:
-        """Hole-boundary traction-free BC for the forward solve. Detached
-        from r for the same reason as sample_interior's sub-0 points (see
-        note there) - avoids re-backwarding through a freed r-graph across
-        the inner training loop.
-        """
         device = self.device
         theta = torch.linspace(0, np.pi/2, n_theta, device=device).reshape(-1, 1)
         x_hole = (self.r * torch.cos(theta)).detach()
@@ -385,11 +340,6 @@ class PlateWithHoleSampler(CollocationSampler):
         }
 
     def sample_hole_boundary_differentiable(self, n_theta: int = 100) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Same hole-boundary points as sample_hole_boundary(), but *keeps*
-        the graph back to self.r. Use this only for the outer-loop geometry
-        sensitivity computation (InverseDesignOptimizer), on a frozen network,
-        never inside the inner forward-solve training loop.
-        """
         device = self.device
         theta = torch.linspace(0, np.pi/2, n_theta, device=device).reshape(-1, 1)
         x_hole = self.r * torch.cos(theta)
@@ -402,7 +352,6 @@ class PlateWithHoleSampler(CollocationSampler):
         n = self.n_boundary
         bcs.append(self.sample_hole_boundary())
 
-        # Right edge tension
         y_right = np.linspace(0, self.H, n).reshape(-1, 1)
         x_right = np.full_like(y_right, self.W)
         bcs.append({
@@ -414,7 +363,6 @@ class PlateWithHoleSampler(CollocationSampler):
             't_y': self.to_tensor(np.zeros_like(x_right))
         })
 
-        # Top free
         x_top = np.linspace(0, self.W, n).reshape(-1, 1)
         y_top = np.full_like(x_top, self.H)
         bcs.append({
@@ -426,7 +374,6 @@ class PlateWithHoleSampler(CollocationSampler):
             't_y': self.to_tensor(np.zeros_like(x_top))
         })
 
-        # Symmetry rollers (only normal component constrained)
         r_val = float(self.r.detach().cpu().item())
 
         y_sym_x = np.linspace(0, self.H, n).reshape(-1, 1)

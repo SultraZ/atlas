@@ -1,35 +1,5 @@
-"""plate_hole_fenics.py - Legacy FEniCS (dolfin + mshr) plane-stress reference
-solve for the ATLAS plate-with-hole benchmark.
-
-    Geometry: rectangle [0,W] x [0,H] minus a quarter-disc of radius r
-              centered at the origin (the sampler only ever samples
-              theta in [0, pi/2]).
-
-    BCs:
-      - hole boundary (arc):        traction-free (natural, no term needed)
-      - x=W, y in [0,H]:             traction t_x = sigma_inf, t_y = 0
-      - y=H, x in [0,W]:             traction-free (natural)
-      - x=0, y in (r,H]:             symmetry roller -> u = 0 (v free)
-      - y=0, x in (r,W]:             symmetry roller -> v = 0 (u free)
-
-    Material: plane stress, E, nu (same constants as physics.py)
-
-    NOTE on the physics: this reproduces exactly what sampling.py encodes
-    (right edge loaded, top edge free), which is the standard doubly-
-    symmetric quarter model of an infinite plate with a hole ONLY if you
-    also intend the top edge to be a symmetry-adjacent free surface (i.e.
-    a plate that is genuinely finite in y, not an approximation of the
-    Kirsch infinite-plate solution). If your paper's intent was the
-    classical Kirsch stress-concentration factor (Kt=3 at the hole edge for
-    an infinite plate), you'd want sigma_inf applied as a far-field
-    condition rather than a finite-edge traction, and H should be several
-    multiples of r so edge effects are negligible. With H=2.0, r up to 0.8,
-    that ratio is not huge (H/r as low as 2.5) - worth checking against the
-    analytical Kirsch formula (sigma_theta = sigma_inf*(1 - 2cos(2theta))
-    at the hole boundary) before trusting this as a Kt=3 validation case.
-
-Run:  python plate_hole_fenics.py
-Needs legacy FEniCS + mshr.
+"""Run from the project root with the FEniCS env on PATH:
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/plate_hole_fenics.py
 """
 
 import dolfin as df
@@ -37,11 +7,10 @@ import mshr
 import numpy as np
 import os
 
-# ---- must match sampling.py / physics.py exactly ---------------------------
 W, H = 2.0, 2.0
-r = 0.3              # PlateWithHoleSampler(r_init=...) -- set to whatever
+r = 0.3
 E, nu = 210e9, 0.3
-sigma_inf = 1e6       # same as train_forward_solver's sigma_inf for plate_hole
+sigma_inf = 1e6
 MESH_RESOLUTION = 100
 CIRCLE_SEGMENTS = 64
 
@@ -49,7 +18,7 @@ OUT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__
 BENCHMARK = "plate_hole"
 
 mu = E / (2.0 * (1.0 + nu))
-lmbda = E * nu / (1.0 - nu**2)  # plane-stress effective lambda
+lmbda = E * nu / (1.0 - nu**2)
 
 
 def sigma(u):
@@ -68,16 +37,14 @@ def main():
     tol = 1e-8
 
     def left_symmetry(x, on_boundary):
-        # x=0 edge, but only the part outside the hole (y > r)
         return on_boundary and df.near(x[0], 0.0, tol) and x[1] > r + tol
 
     def bottom_symmetry(x, on_boundary):
-        # y=0 edge, but only the part outside the hole (x > r)
         return on_boundary and df.near(x[1], 0.0, tol) and x[0] > r + tol
 
     bcs = [
-        df.DirichletBC(V.sub(0), df.Constant(0.0), left_symmetry),   # u = 0
-        df.DirichletBC(V.sub(1), df.Constant(0.0), bottom_symmetry),  # v = 0
+        df.DirichletBC(V.sub(0), df.Constant(0.0), left_symmetry),
+        df.DirichletBC(V.sub(1), df.Constant(0.0), bottom_symmetry),
     ]
 
     class RightBoundary(df.SubDomain):

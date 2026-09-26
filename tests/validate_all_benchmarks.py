@@ -1,19 +1,10 @@
-"""Per-benchmark validation reporting driver (Phase A).
+"""Run from the project root (all options: --help):
+    python tests/validate_all_benchmarks.py [--benchmark B] [--epochs N]
 
-    {benchmark}_validation.json      full metrics dict (incl. new keys)
-    {benchmark}_model.pt             trained weights (snapshot)
-    {benchmark}_fem_comparison.png   ATLAS-vs-FEM displacement + stress
-    {benchmark}_displacement.png
-    {benchmark}_stress.png
-    {benchmark}_deformed.png
-    {benchmark}_convergence.png
-
-Usage:
-    python tests/validate_all_benchmarks.py                 # all three
+Example:
     python tests/validate_all_benchmarks.py --benchmark cantilever
-    python tests/validate_all_benchmarks.py --epochs 5000
-    python tests/validate_all_benchmarks.py --lbfgs          # Adam -> L-BFGS stage
 """
+
 import argparse
 import json
 import os
@@ -69,13 +60,11 @@ def train_and_report(benchmark: str, device: str, epoch_override, overrides=None
     res = run_validation(
         model=model, sampler=sampler, physics=phys_real,
         benchmark=benchmark, device=device,
-        use_mock=False, data_dir=str(FEM_REFERENCE_DIR),  # r_excl defaults to auto
+        use_mock=False, data_dir=str(FEM_REFERENCE_DIR),
     )
     res['benchmark'] = benchmark
     res['device'] = device
     res['seed'] = 42
-    # Durable record of which recipe was active for this run so phase
-    # results can be compared with the variable changes isolated.
     res['train_config'] = cfg
     with open(str(RESULTS_DIR / f"{benchmark}_validation.json"), "w") as f:
         json.dump(res, f, indent=2)

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Seed-42 comparison on the multi-cutout bracket: ATLAS energy, then ATLAS-XPINN (one GPU job at a time).
+# Run from the project root:
+#   bash scripts/hard_benchmarks/run_multicutout_seed42.sh
 cd /home/sultra/atlas_main
 PY=/home/sultra/miniconda3/envs/Atlas/bin/python
 L=results/hard_single_material/multicutout/logs; rm -f $L/SEED42DONE

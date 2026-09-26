@@ -1,20 +1,10 @@
-"""Train and score one solver on the two-material benchmark (atlas/benchmarks/bimaterial.py).
+"""Run from the project root (all options: --help):
+    python scripts/multi_material/run_bimaterial.py --solver {atlas,xpinn,atlas_wide} [--contrast C] [--seed N]
 
-Solvers
-    atlas        single 4 x 64 network over both materials (ATLAS energy)
-    xpinn        two subnetworks, inclusion + matrix, tied on the material interface (ATLAS-XPINN)
-    atlas_wide   single 4 x 91 network, parameter-matched to `xpinn` (control)
-
-Scored against the FEM reference (fem/reference/bimaterial_c<contrast>_*.npy, never used in
-training) every `--probe-every` iterations (probing time excluded from the clock) and at the end:
-  * displacement vector L2 and von Mises L2 on the uniform grid
-  * von Mises L2 within 0.05 m of the interface, inclusion side and matrix side
-  * compliance vs FEM
-
-Writes results/multi_material/bimaterial/c<contrast>/<solver>/seed<seed>.{json,npz} (+ model .pt).
-
+Example:
     python scripts/multi_material/run_bimaterial.py --solver xpinn --contrast 15 --seed 42
 """
+
 import argparse
 import json
 import os
@@ -31,7 +21,7 @@ import torch
 from atlas.benchmarks import bimaterial as bm
 from atlas.paths import FEM_REFERENCE_DIR, RESULTS_DIR
 
-WIDE_NEURONS = 91          # 4 x 91 single network ~ 25.6k parameters = two 4 x 64 subnetworks
+WIDE_NEURONS = 91
 
 
 def load_ref(tag):

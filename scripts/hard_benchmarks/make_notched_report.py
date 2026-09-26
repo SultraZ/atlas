@@ -1,4 +1,7 @@
-"""Table and figures for the notched-plate benchmark (results/hard_single_material/notched_plate/)."""
+"""Run from the project root:
+    python scripts/hard_benchmarks/make_notched_report.py
+"""
+
 import json
 import os
 import sys
@@ -76,7 +79,6 @@ def main():
     fig.savefig(D / "convergence.png", dpi=140)
     plt.close(fig)
 
-    # field comparison on the uniform grid
     ref = None
     for k, *_ in RUNS:
         if data[k][1] is not None:

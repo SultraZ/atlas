@@ -1,15 +1,3 @@
-"""sandwich.py - sandwich-panel benchmark: a cantilever with two steel faces bonded to a soft
-polymer core, used to test ATLAS-XPINN (one subnetwork per layer) against the
-single-network ATLAS energy solver. Protocol: results/multi_material/failed_candidates/sandwich/PROTOCOL.md.
-
-    panel   [0, L] x [0, H], L = 4, H = 1; faces y < T and y > H - T (T = 0.1), core between
-    faces   E = 210 GPa, nu = 0.3        core  E = 3 GPa, nu = 0.35 (contrast 70)
-    BCs     x = 0 clamped (exact via the mask 'clamp_x0'); pressure Q downward on y = H
-
-Quadrature (identical for both solvers, only the subdomain labels differ): one tensor Gauss block
-per layer, x graded toward the clamp, y graded toward both faces of each layer.
-"""
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,9 +9,9 @@ from atlas.physics import PlaneStressElasticity
 E_FACE, NU_FACE = 210e9, 0.3
 E_CORE, NU_CORE = 3e9, 0.35
 STRESS_SCALE = 1e11
-Q = 1e6                          # pressure on the top face [Pa]
+Q = 1e6
 L, H, T = 4.0, 1.0, 0.1
-LAYERS = [(0.0, T), (T, H - T), (H - T, H)]        # bottom face, core, top face  (= subdomains 0, 1, 2)
+LAYERS = [(0.0, T), (T, H - T), (H - T, H)]
 SINGULAR = [(0.0, 0.0), (0.0, H), (0.0, T), (0.0, H - T)]
 
 
@@ -33,19 +21,16 @@ def layer_of(y):
 
 
 def material_arrays(y):
-    """(E, nu) at each point [Pa]."""
     core = layer_of(y) == 1
     return np.where(core, E_CORE, E_FACE), np.where(core, NU_CORE, NU_FACE)
 
 
 def materials():
-    """(face, core) plane-stress models in training units."""
     return (PlaneStressElasticity(E=E_FACE / STRESS_SCALE, nu=NU_FACE),
             PlaneStressElasticity(E=E_CORE / STRESS_SCALE, nu=NU_CORE))
 
 
 def blocks(nx: int = 60, ny_face: int = 6, ny_core: int = 16, ng: int = 3):
-    """[(sub, pts, w, physics)] - one block per layer."""
     face, core = materials()
     xe = graded_nodes(0.0, L, nx, 2.0, 'a')
     out = []
@@ -62,7 +47,6 @@ def loads(q: float):
 
 
 def interfaces(n_cells: int = 40, ng: int = 4):
-    """y = T (face 0 | core 1) and y = H - T (core 1 | face 2); normal from a (below) into b."""
     face, core = materials()
     xp, xw = _gauss_on_edges(graded_nodes(0.0, L, n_cells, 2.0, 'a'), ng)
     out = []
@@ -73,7 +57,6 @@ def interfaces(n_cells: int = 40, ng: int = 4):
 
 
 def characteristic_displacement() -> float:
-    """Tip deflection from sandwich beam theory (face bending + core shear); only a scale."""
     d, c = H - T, H - 2 * T
     D = E_FACE * T * d ** 2 / 2
     S = E_CORE / (2 * (1 + NU_CORE)) * d ** 2 / c
@@ -87,7 +70,6 @@ def _setup():
 
 
 def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over all three layers. Returns (net, problem)."""
     q, u_s, escale = _setup()
     face, _ = materials()
     lp, lw, tr = loads(q)
@@ -98,8 +80,6 @@ def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu',
 
 
 class RoutedSandwichModel(nn.Module):
-    """Three subnetworks routed by layer: 0 bottom face, 1 core, 2 top face."""
-
     def __init__(self, subnets):
         super().__init__()
         self.subnets = nn.ModuleList(subnets)
@@ -120,8 +100,6 @@ class RoutedSandwichModel(nn.Module):
 
 def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS-XPINN: one subnetwork per layer, tied on the two material interfaces. Every
-    subnetwork keeps the global input box and the clamp mask (each layer touches x = 0)."""
     q, u_s, escale = _setup()
     face, _ = materials()
     lp, lw, tr = loads(q)
@@ -133,7 +111,6 @@ def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float =
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords; the stress uses each point's own layer material."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)
@@ -148,7 +125,6 @@ def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
 
 
 def compliance(net_or_model, device: str = 'cpu') -> float:
-    """Work of the pressure int t.u ds on y = H [N m per unit thickness]."""
     lp, lw, tr = loads(Q)
     dt = next(net_or_model.parameters()).dtype
     with torch.no_grad():

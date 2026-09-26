@@ -1,15 +1,10 @@
-"""Build the phase-by-phase ATLAS forward-solver summary table.
+"""Run from the project root (all options: --help):
+    python scripts/summarize_phases.py [--results-dir DIR] [--out FILE]
 
-Gate definitions match validation.py:
-  - displacement pass : relative_L2_displacement < 5%
-  - stress pass       : von_mises_l2_roi < 10% (fixed singular-ROI reading;
-                      von_mises_l2_excl is kept as context alongside it)
-Global von Mises is reported as context only and never gates.
-
-Usage:
-    python scripts/summarize_phases.py
-    python scripts/summarize_phases.py --results-dir results --out results/PHASE_SUMMARY.md
+Example:
+    python scripts/summarize_phases.py --results-dir results/archive_phases
 """
+
 import argparse
 import json
 import os

@@ -1,14 +1,10 @@
-"""Independent FEM check of an inverse-design result (docs/ATLAS_spec.md: compliance
-of the ATLAS-optimised design vs the FEM parametric reference, target within 10%).
+"""Run from the project root (all options: --help):
+    python scripts/verify_inverse_design.py --benchmark {cantilever,plate_hole,l_bracket} [--solver S]
 
-  1. solves the design ATLAS chose (p*) with FEM and compares the metric with the
-     target and with ATLAS's own value;
-  2. sweeps the parameter with FEM, finds where the FEM metric equals the target
-     (the "FEM parametric reference" design) and compares it with p*.
-
-Run in the Atlas env with its bin first on PATH (pkg-config for dolfin):
-    python scripts/verify_inverse_design.py --benchmark plate_hole
+Example:
+    python scripts/verify_inverse_design.py --benchmark plate_hole --solver atlas_xpinn_energy
 """
+
 import argparse
 import json
 import os

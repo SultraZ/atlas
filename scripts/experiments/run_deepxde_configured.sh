@@ -1,6 +1,6 @@
 #!/bin/bash
-# DeepXDE "configured" runs on the three benchmarks (settings fixed in advance from standard
-# DeepXDE practice, never from the FEM error). One GPU job at a time.
+# Run from the project root:
+#   bash scripts/experiments/run_deepxde_configured.sh
 cd /home/sultra/atlas_main
 PY=/home/sultra/miniconda3/envs/Atlas/bin/python
 L=results/comparison/logs; mkdir -p $L; rm -f $L/CFGDONE

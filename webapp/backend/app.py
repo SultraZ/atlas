@@ -1,17 +1,8 @@
+"""Run from the project root:
+    cd webapp/backend && python app.py
+then open http://localhost:8000/
 """
-webapp/backend/app.py - FastAPI backend for the ATLAS web console.
 
-Thin wrapper around the existing CLI pipeline (atlas_main.py, validation.py,
-visualization.py): forward solves, FEM validation and inverse design run in
-background threads, and their plots are dropped into webapp/static/plots/ and
-served back to the frontend. No business logic is reimplemented here - the
-web layer only frames the same functions the CLI already drives.
-
-Run (from anywhere):
-    uvicorn app:app --host 0.0.0.0 --port 8000
-(or:  python app.py   which launches uvicorn with uvicorn.run)
-Then open http://localhost:8000/
-"""
 import os
 import sys
 import io
@@ -22,12 +13,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[2]          # /atlas_main
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import matplotlib
-matplotlib.use("Agg")  # headless server; must be set before pyplot
+matplotlib.use("Agg")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
@@ -47,12 +38,9 @@ app.mount("/static/plots", StaticFiles(directory=str(PLOTS_DIR)), name="plots")
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 app.mount("/results", StaticFiles(directory=str(STORED_RESULTS)), name="results")
 
-# ---------------------------------------------------------------------------
-# Job store (in-memory): one-job-at-a-time execution with a queue.
-# ---------------------------------------------------------------------------
 JOBS: dict = {}
 JOBS_LOCK = threading.Lock()
-RUN_LOCK = threading.Lock()          # serializes GPU-heavy training jobs
+RUN_LOCK = threading.Lock()
 
 BENCHMARKS = {"cantilever", "l_bracket", "plate_hole"}
 
@@ -71,38 +59,27 @@ def cap_log(log: str, n: int = 4000) -> str:
     return "..." + log[-(n - 3):]
 
 
-# ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
 class ForwardRequest(BaseModel):
     benchmark: str = Field(..., pattern="^(cantilever|l_bracket|plate_hole)$")
     epochs: int = Field(2000, ge=50, le=40000)
     n_interior: int = Field(800, ge=200, le=5000)
     use_lbfgs: bool = False
-    warm_start_eb: bool = True          # cantilever only; ignored elsewhere
+    warm_start_eb: bool = True
     prefit_epochs: int = Field(4000, ge=0, le=40000)
     use_mock: bool = False
 
 
 class InverseRequest(BaseModel):
-    """Inverse design: find the shape parameter (cantilever beam height / plate hole
-    radius / L-bracket fillet radius) whose metric meets a target. `target_ratio`
-    is the target as a multiple of the baseline design's metric (compliance for
-    cantilever and plate, peak von Mises for the L-bracket unless `metric` says
-    otherwise); leave it unset for the per-benchmark default."""
     benchmark: str = Field(..., pattern="^(cantilever|l_bracket|plate_hole)$")
     metric: Optional[str] = Field(None, pattern="^(compliance|peak_vm|volume)$")
     target_ratio: Optional[float] = Field(None, gt=0.0, le=10.0)
     forward_epochs: int = Field(2000, ge=100, le=10000)
     forward_lbfgs: int = Field(1500, ge=0, le=6000)
-    n_outer: int = Field(12, ge=1, le=100)      # max solver iterations
-    n_inner: int = Field(40, ge=5, le=2000)     # accepted for older clients; unused
+    n_outer: int = Field(12, ge=1, le=100)
+    n_inner: int = Field(40, ge=5, le=2000)
     use_mock: bool = False
 
 
-# ---------------------------------------------------------------------------
-# Plumbing
-# ---------------------------------------------------------------------------
 def submit(kind: str, payload: dict) -> str:
     job_id = uuid.uuid4().hex[:8]
     with JOBS_LOCK:
@@ -125,7 +102,7 @@ def submit(kind: str, payload: dict) -> str:
 
 def _run_job(job_id: str, kind: str, payload: dict) -> None:
     buf = io.StringIO()
-    with RUN_LOCK:  # single GPU consumer at a time
+    with RUN_LOCK:
         with JOBS_LOCK:
             JOBS[job_id]["status"] = "running"
             JOBS[job_id]["started"] = datetime.now().isoformat(timespec="seconds")
@@ -138,7 +115,7 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
             with JOBS_LOCK:
                 JOBS[job_id]["status"] = "done"
                 JOBS[job_id]["finished"] = datetime.now().isoformat(timespec="seconds")
-        except Exception as exc:  # surface backend errors to the UI, not just logs
+        except Exception as exc:
             with JOBS_LOCK:
                 JOBS[job_id]["status"] = "error"
                 JOBS[job_id]["finished"] = datetime.now().isoformat(timespec="seconds")
@@ -168,10 +145,6 @@ def _run_forward(job_id: str, payload: dict) -> None:
         n_interior=payload["n_interior"],
         n_boundary=max(150, payload["n_interior"] // 5),
         n_interface=max(80, payload["n_interior"] // 10),
-        # Default formulation is the deep-energy solver: `epochs` Adam steps
-        # then a mandatory L-BFGS stage (Adam alone leaves a ~3% energy gap,
-        # i.e. a visibly wrong field). n_interior / warm_start_eb /
-        # prefit_epochs / use_lbfgs only apply to the residual formulation.
         use_lbfgs=True, lbfgs_steps=15, lbfgs_max_iter_per_step=100,
         warm_start_eb=warm,
         prefit_epochs=payload.get("prefit_epochs", 4000),
@@ -181,11 +154,11 @@ def _run_forward(job_id: str, payload: dict) -> None:
         model=model, sampler=sampler, physics=physics,
         benchmark=bench, device=device,
         use_mock=use_mock, data_dir=str(FEM_REF_DIR),
-        r_excl=payload.get("r_excl"),  # None -> auto (factor x local point spacing)
+        r_excl=payload.get("r_excl"),
     )
     if isinstance(metrics, dict):
         metrics["benchmark"] = bench
-    else:  # run_validation may return JSON-serializable wrapper; guard anyway
+    else:
         metrics = {"raw": str(metrics)}
 
     plot_fem_comparison(model, sampler, physics, benchmark=bench,
@@ -233,7 +206,6 @@ def _run_inverse(job_id: str, payload: dict) -> None:
     metric = data["metric"]
     metrics = dict(
         data,
-        # keys the current frontend already reads
         param=data["param_name"],
         initial=data["param_baseline"],
         final=data["p_star"],
@@ -251,9 +223,6 @@ def _run_inverse(job_id: str, payload: dict) -> None:
         JOBS[job_id]["plots"] = plots
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -264,7 +233,6 @@ BENCH_TITLES = {"cantilever": "Cantilever beam", "l_bracket": "L-shaped bracket"
 
 
 def _load(*parts):
-    """Read one stored JSON result; None when that file was never produced."""
     import json
     p = STORED_RESULTS.joinpath(*parts)
     try:
@@ -280,7 +248,6 @@ def _img(*parts):
 
 @app.get("/api/results")
 def stored_results():
-    """Everything the Results view shows: the finished study in results/ (no training)."""
     out = {"benchmarks": {}, "figures": {}, "targets": {"displacement": 0.05, "von_mises": 0.10}}
     for b in BENCH_TITLES:
         xf = _load("atlas_xpinn_energy", "forward", f"{b}_xpinn_energy.json")

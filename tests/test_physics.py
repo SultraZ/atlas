@@ -1,10 +1,7 @@
-"""Unit tests for physics.py math:
-1. Hooke's law plane-stress matrix matches the standard closed form.
-2. von Mises formula is correct.
-3. Equilibrium residuals vanish for a manufactured linear stress field (also
-   validations of the autograd machinery itself).
-4. Known-state cross-check: uniaxial tension produces the right strain.
+"""Run from the project root:
+    python tests/test_physics.py
 """
+
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
@@ -14,7 +11,6 @@ from atlas.physics import PlaneStressElasticity
 E, nu = 210e9, 0.3
 p = PlaneStressElasticity(E=E, nu=nu)
 
-# 1. Elasticity matrix entries
 expected = {
     "C11": E / (1 - nu**2),
     "C12": nu * E / (1 - nu**2),
@@ -25,7 +21,6 @@ for k, v in expected.items():
     assert abs(got - v) < 1e-6 * v, f"{k}: {got} != {v}"
 print("PASS  Hooke constants match closed form")
 
-# 2. von Mises formula
 sig = torch.tensor([[1e6, 2e6, 3e5]])
 vm = p.compute_von_mises(sig[:, 0:1], sig[:, 1:2], sig[:, 2:3])
 expected_vm = math.sqrt(1e12 - 2e12 + 4e12 + 3 * 9e10)
@@ -43,7 +38,6 @@ assert torch.allclose(eps_yy, torch.full_like(eps_yy, c), atol=1e-12)
 assert torch.allclose(eps_xy, torch.full_like(eps_xy, b), atol=1e-12)
 print("PASS  strains from linear displacement field")
 sig_xx, sig_yy, sig_xy = p.compute_stresses(eps_xx, eps_yy, eps_xy)
-# expected stresses
 sxx_e = E/(1-nu**2)*(a + nu*c)
 syy_e = E/(1-nu**2)*(c + nu*a)
 sxy_e = 2 * E/(2*(1+nu)) * b
@@ -58,10 +52,8 @@ yt = torch.linspace(0.1, 0.9, 200, requires_grad=True).reshape(-1, 1)
 def sxx_f(x, y): return 1e3 * torch.sin(1.5 * x) * torch.cos(2.0 * y)
 def syy_f(y, x): return 1e3 * torch.cos(1.1 * x) * torch.sin(0.8 * y)
 def sxy_f(x, y):
-    # 0.3 * (1e3 sin(1.5x)cos(2y)) * (1e3 cos(1.1x)sin(0.8y)) * sin x cos y / 1e6
     return 0.3 * torch.sin(1.5*x)*torch.cos(2.0*y)*torch.cos(1.1*x)*torch.sin(0.8*y)*torch.sin(x)*torch.cos(y)
 rx, ry = p.compute_equilibrium_residuals(sxx_f(xt, yt), syy_f(yt, xt), sxy_f(xt, yt), xt, yt)
-# analytic: r_x = d sxx/dx + d sxy/dy ; r_y = d sxy/dx + d syy/dy
 dsxxdx = 1e3 * 1.5 * torch.cos(1.5*xt) * torch.cos(2.0*yt)
 dsyydy = 1e3 * torch.cos(1.1*xt) * 0.8 * torch.cos(0.8*yt)
 d_siny_terms = (-2.0*torch.sin(2.0*yt)*torch.sin(0.8*yt)*torch.cos(yt)
@@ -77,20 +69,15 @@ assert torch.allclose(rx.detach(), (dsxxdx + dsxydy), atol=1e-3 * scale), (rx.de
 assert torch.allclose(ry.detach(), (dsxydx + dsyydy), atol=1e-3 * scale), (ry.detach() - (dsxydx+dsyydy)).abs().max()
 print("PASS  equilibrium residuals match analytic dσ/dx + dσ/dy")
 
-# 4. Traction: a pure hydrostatic-along-x uniaxial field, t = sigma . n
-# stress tensor (sxx, syy, sxy); check t = sigma n on a 45-degree normal
 n_x = torch.tensor([[1/math.sqrt(2)]])
 n_y = torch.tensor([[1/math.sqrt(2)]])
 tx, ty = p.compute_surface_traction(sig_xx[0:1], sig_yy[0:1], sig_xy[0:1], n_x, n_y)
-# t = sigma . n, so t_x = sxx*nx + sxy*ny, t_y = sxy*nx + syy*ny (shear counts!)
 exp_tx = (sxx_e + sxy_e) / math.sqrt(2)
 exp_ty = (sxy_e + syy_e) / math.sqrt(2)
 assert abs(float(tx.item()) - exp_tx) < 1e-5 * abs(exp_tx)
 assert abs(float(ty.item()) - exp_ty) < 1e-5 * abs(exp_ty)
 print("PASS  traction t = sigma . n")
 
-# 5. compute_full_physics_step end-to-end on a smooth nonlinear network-like
-#    field: bounded finite outputs, von Mises >= 0 (non-degenerate graph).
 from atlas.physics import compute_full_physics_step
 import torch.nn as nn
 class SmoothNet(nn.Module):

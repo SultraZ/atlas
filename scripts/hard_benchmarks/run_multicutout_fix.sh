@@ -1,5 +1,6 @@
 #!/bin/bash
-# ATLAS-XPINN convergence fixes on the multi-cutout bracket (same 2000 Adam + 8000 L-BFGS budget, one GPU job at a time)
+# Run from the project root:
+#   bash scripts/hard_benchmarks/run_multicutout_fix.sh
 cd /home/sultra/atlas_main
 PY=/home/sultra/miniconda3/envs/Atlas/bin/python
 L=results/hard_single_material/multicutout/logs; rm -f $L/FIXDONE

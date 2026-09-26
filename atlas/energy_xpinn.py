@@ -1,15 +1,3 @@
-"""energy_xpinn.py - Domain-decomposed (XPINN) deep-energy solver.
-
-    displacement:  (gamma_u E/L) * int_Gamma |u_A - u_B|^2 ds
-    traction:      (gamma_t L/E) * int_Gamma |sigma_A n - sigma_B n|^2 ds
-
-    cantilever : 2 subnetworks, interface x = L/2
-    plate_hole : 3 subnetworks, concentric rings rho in [r, r+0.3], [r+0.3, r+0.6],
-                 and the far field (interfaces are the two circles)
-    l_bracket  : 3 subnetworks, squares [0,s]^2, [s,2s]x[0,s], [s,2s]^2
-                 (each carries the Williams corner enrichment)
-"""
-
 import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -24,13 +12,10 @@ from atlas.networks import create_xpinn_for_benchmark
 
 import math as _m
 
-MID_MARGIN, FAR_MARGIN = 0.3, 0.6      # plate ring radii offsets (as in PlateWithHoleSampler)
-
+MID_MARGIN, FAR_MARGIN = 0.3, 0.6
 
 
 class DecomposedEnergyProblem:
-    """Potential energy summed over subdomains + interface continuity penalties."""
-
     def __init__(self, physics, blocks, loads, interfaces, energy_scale: float,
                  u_scale: float, length: float, gamma_u: float = 100.0,
                  gamma_t: float = 1.0, device: str = 'cpu', dtype=torch.float64):
@@ -39,23 +24,18 @@ class DecomposedEnergyProblem:
         self.u_scale, self.length = float(u_scale), float(length)
         self.gamma_u, self.gamma_t = float(gamma_u), float(gamma_t)
         at = lambda a: torch.as_tensor(a, dtype=dtype, device=device)
-        # a block is (sub, pts, w) or (sub, pts, w, physics) - the latter for a multi-material body
         self.blocks = [(b[0], at(b[1]), at(b[2]).reshape(-1), b[3] if len(b) > 3 else None)
                        for b in blocks]
         self.loads = [(i, at(p), at(w).reshape(-1), at(t)) for i, p, w, t in loads]
-        # optional 'phys_a' / 'phys_b': the material on each side (traction continuity)
         self.interfaces = [dict(a=d['a'], b=d['b'], pts=at(d['pts']),
                                 w=at(d['w']).reshape(-1), n=at(d['n']),
                                 phys_a=d.get('phys_a'), phys_b=d.get('phys_b')) for d in interfaces]
         self.n_points = sum(p.shape[0] for _, p, _, _ in self.blocks)
-        # interface weights are scaled by the STIFFEST material present (for one material this is
-        # physics.E); scaling by a softer one inflates the traction term by the stiffness contrast
         self.E_ref = max([self.physics.E] + [ph.E for _, _, _, ph in self.blocks if ph is not None]
                          + [d[k].E for d in self.interfaces for k in ('phys_a', 'phys_b') if d[k] is not None])
         self.last: Dict[str, float] = {}
         self.lam = [torch.zeros_like(d['pts']) for d in self.interfaces]
 
-    # ---- pieces -------------------------------------------------------------
     def _strains(self, net, pts):
         c = pts.clone().requires_grad_(True)
         uv = net(c)
@@ -116,12 +96,6 @@ class DecomposedEnergyProblem:
 
     @torch.no_grad()
     def update_multipliers(self, model) -> float:
-        """Method-of-multipliers step lam <- lam + rho [u], rho = 2 gamma_u E / L (so the
-        quadratic term is exactly (rho/2) int |[u]|^2). At convergence lam equals the
-        interface traction and the displacement jump -> 0 for a FIXED, moderate gamma_u,
-        which removes the penalty's consistency error (the spurious interface compliance
-        the pure penalty leaves behind). Returns the relative interface jump before the step.
-        """
         rho = 2.0 * self.gamma_u * self.E_ref / self.length
         num, den = 0.0, 0.0
         for k, d in enumerate(self.interfaces):
@@ -133,14 +107,12 @@ class DecomposedEnergyProblem:
         return (num / max(den, 1e-300)) ** 0.5
 
 
-
 def _line(p0, p1, n_cells=10, ng=4):
     pts, w, _ = line_quadrature(p0, p1, n_cells, ng)
     return pts, w
 
 
 def _polar_block(a, b, th_lo, th_hi, n_th, n_xi, power, toward, ng):
-    """Polar block: rho = a + xi*(b-a), a/b scalars or callables of theta."""
     th_p, th_w = _gauss_on_edges(np.linspace(th_lo, th_hi, n_th + 1), ng)
     xi_p, xi_w = _gauss_on_edges(graded_nodes(0.0, 1.0, n_xi, power, toward), ng)
     TH, XI = np.meshgrid(th_p, xi_p, indexing='ij')
@@ -190,20 +162,14 @@ def l_bracket_geometry(P: float, s: float = 1.0):
     blocks = [(i, p, w) for i, (p, w) in enumerate(base)]
     lp, lw, t = line_quadrature((2 * s, s), (2 * s, 2 * s), 12, 4)
     tr = np.stack([6.0 * P * t * (1.0 - t), np.zeros_like(t)], axis=1)
-    i01p, i01w = _line((s, 0.0), (s, s), 12, 4)              # x = s, y in [0,s]   (0 -> 1)
-    i12p, i12w = _line((s, s), (2 * s, s), 12, 4)            # y = s, x in [s,2s]  (1 -> 2)
+    i01p, i01w = _line((s, 0.0), (s, s), 12, 4)
+    i12p, i12w = _line((s, s), (2 * s, s), 12, 4)
     interfaces = [dict(a=0, b=1, pts=i01p, w=i01w, n=np.tile([1.0, 0.0], (i01p.shape[0], 1))),
                   dict(a=1, b=2, pts=i12p, w=i12w, n=np.tile([0.0, 1.0], (i12p.shape[0], 1)))]
     return blocks, [(2, lp, lw, tr)], interfaces
 
 
 def l_bracket_corner_geometry(P: float, s: float = 1.0, a: float = 0.125):
-    """'concentration' layout: the paper's three squares plus a fourth subdomain, the
-    re-entrant-corner patch |x-s| <= a, |y-s| <= a (three quadrants, the void one excluded).
-    The singular corner field then lives inside ONE subnetwork instead of on the junction
-    of three interfaces. The quadrature is exactly the single-network one (points are only
-    relabelled; a = (12/24)^3 lies on a cell edge of every graded block, checked by area).
-    """
     base = l_bracket_blocks(s)
     blocks = []
     for i, (p, w) in enumerate(base):
@@ -235,10 +201,6 @@ def l_bracket_corner_router(s: float = 1.0, a: float = 0.125):
 
 
 class RoutedEnergyXPINN(nn.Module):
-    """Subnetworks + a geometric router; evaluates every point with the network that owns
-    it. `self_routing` tells visualization/validation to call the model directly instead of
-    routing with the benchmark sampler (whose layouts only know the paper's subdomains).
-    """
     self_routing = True
     monolith = False
 
@@ -261,22 +223,12 @@ class RoutedEnergyXPINN(nn.Module):
         return out
 
 
-
 E_MOD, NU, STRESS_SCALE = 210e9, 0.3, 1e11
 
 
 def build_xpinn_energy(benchmark: str, physics_train, hidden_layers: int = 4,
                        neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                        device: str = 'cpu', dtype=torch.float64, layout: str = 'paper'):
-    """(model, problem, meta). model is an XPINNModel whose subnetworks are
-    EnergyNets with exact essential BCs; problem is the DecomposedEnergyProblem.
-
-    layout 'paper'         : the decompositions listed in the module docstring.
-    layout 'concentration' : L-bracket only - adds a 4th subdomain around the re-entrant
-                             corner (see l_bracket_corner_geometry). On the cantilever and
-                             the plate the stress concentrations are already inside one
-                             subdomain, so it is identical to 'paper' there.
-    """
     if benchmark == 'cantilever':
         L, H, P = 4.0, 1.0, -1e6 / STRESS_SCALE
         u_s = 1e6 * L ** 3 / (3.0 * E_MOD * (H ** 3 / 12.0))
@@ -323,10 +275,6 @@ def train_energy_xpinn_forward_solver(benchmark: str, device: str = 'cpu', epoch
                                       hidden_layers: int = 4, neurons: int = 64,
                                       gamma_u: float = 30.0, gamma_t: float = 0.1,
                                       verbose: bool = True, dtype=torch.float64):
-    """Train the domain-decomposed energy solver. Returns (model, trainer, sampler,
-    physics_real) like atlas_main.train_forward_solver (model is an XPINNModel in float32
-    on `device`, so validation, plots and routing work unchanged).
-    """
     from atlas.energy_solver import EnergyTrainer, history_for_plot
     from atlas.physics import PlaneStressElasticity
     from atlas.sampling import CantileverBeamSampler, LBracketSampler, PlateWithHoleSampler
@@ -353,18 +301,6 @@ def train_decomposed(model, problem: DecomposedEnergyProblem, epochs: int = 2000
                      verbose: bool = True, probe=None,
                      al_stages: int = 3, warm_start: int = 1000,
                      al_keep_memory: bool = False, warm_start_lbfgs: int = 0) -> Dict[str, List[float]]:
-    """Adam at the first interface weight, then L-BFGS; extra entries in `gammas`
-    add stages with a stiffer interface penalty (continuation).
-
-    Measured on the plate (docs/BUGFIXES.md): gamma_u = 30 already matches the
-    interfaces to ~1e-8 relative, and extra stiff stages (300, 3000) only made
-    L-BFGS ill-conditioned (2.8% -> 0.85% displacement error when replaced by a
-    single stage with more iterations). gamma_u = 10 is too soft (3.6%).
-
-    Default recipe (measured on the L-bracket, results/comparison/xpinn_fix_study):
-    al_stages = 3 and warm_start = 1000 (1.44% -> 0.30% displacement error, 5.30% -> 4.55%
-    von Mises at the same budget). Pass al_stages=0, warm_start=0 for the old plain-penalty run.
-    """
     hist = {'total': [], 'strain': [], 'work': [], 'iter': []}
     offset = 0
     warm_start = min(int(warm_start), epochs // 2)
@@ -380,7 +316,6 @@ def train_decomposed(model, problem: DecomposedEnergyProblem, epochs: int = 2000
                          lbfgs_chunk=100, print_every=500, verbose=verbose, probe=None)
         for i in range(len(model.subnets)):
             sd = dict(one.state_dict())
-            # keep each subnetwork's OWN normalisation box (local_norm); only the weights are shared
             for k in ('_lo', '_hi'):
                 if k in sd and k in model.subnets[i].state_dict():
                     sd[k] = model.subnets[i].state_dict()[k]
@@ -417,7 +352,6 @@ def train_decomposed(model, problem: DecomposedEnergyProblem, epochs: int = 2000
         assert len(gammas) == 1, "augmented Lagrangian uses one fixed gamma_u"
         n_part = lbfgs_per_stage // (al_stages + 1)
         stages = [(0, epochs, n_part)] + [(k, 0, n_part) for k in range(1, al_stages + 1)]
-        # (epochs already reduced by warm_start above)
     else:
         stages = [(k, epochs if k == 0 else 0, lbfgs_per_stage) for k in range(len(gammas))]
     for k, ep, n_lb in stages:

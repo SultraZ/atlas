@@ -1,24 +1,3 @@
-"""energy_xpinn_design.py - inverse shape design with the DOMAIN-DECOMPOSED energy solver.
-
-What changes compared with the single-network design cases
-----------------------------------------------------------
-* The functional is Phi(theta; p) = Pi_decomposed + interface penalties. Its
-  quadrature (blocks, loads AND interfaces) is a torch function of the design
-  parameter p, so d Phi / d p at fixed network weights is again the exact shape
-  derivative (envelope theorem). Compliance is the external work; because the
-  interface penalty at the optimum is ~1e-4 of the energy, dC/dp = -2 dPhi/dp is
-  accurate to that level (checked against finite differences in the tests).
-* The interfaces move with the parameter where the geometry says they should:
-    cantilever : interface x = L/2 (fixed), height H(p)
-    plate_hole : concentric rings rho in [r, r+0.3], [r+0.3, r+0.6], far field, so BOTH
-                 interface circles move with the hole radius r
-    l_bracket  : the three squares, plus the fillet patch (part of subdomain 0) whose
-                 right edge x = s, y in [s, s+f] is a NEW interface to subdomain 2
-* Evaluation/plots route each point to its subdomain's network (RoutedXPINN).
-* The L-bracket subnetworks carry no Williams enrichment (a filleted corner is smooth),
-  exactly as in the single-network fillet case.
-"""
-
 import math
 from typing import Dict
 
@@ -34,12 +13,7 @@ from atlas.energy_xpinn import (DecomposedEnergyProblem, FAR_MARGIN, MID_MARGIN)
 from atlas.energy_solver import train_energy
 
 
-
 class RoutedXPINN(nn.Module):
-    """Holds the subnetworks and evaluates a point with the network that owns its
-    subdomain (router(coords, p) -> long tensor of subdomain indices).
-    """
-
     def __init__(self, subnets, router):
         super().__init__()
         self.subnets = nn.ModuleList(subnets)
@@ -61,7 +35,6 @@ class RoutedXPINN(nn.Module):
         return out
 
 
-
 class XPINNDesign(DesignCase):
     base_cls = None
     n_sub = 0
@@ -70,7 +43,6 @@ class XPINNDesign(DesignCase):
                  neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                  al_stages: int = 3, warm_start: int = 1000, **kw):
         super().__init__(device, dtype, hidden_layers, neurons)
-        # training recipe of the decomposed solver (see energy_xpinn.train_decomposed)
         self.al_stages, self.warm_start = int(al_stages), int(warm_start)
         self.base = self.base_cls(device=device, dtype=dtype, hidden_layers=hidden_layers,
                                   neurons=neurons, **kw)
@@ -81,13 +53,12 @@ class XPINNDesign(DesignCase):
         self.gamma_u, self.gamma_t = gamma_u, gamma_t
         self.length = self._length()
 
-    def __getattr__(self, name):                      # L, W, H, s, ... live on the base case
+    def __getattr__(self, name):
         base = self.__dict__.get('base')
         if base is None:
             raise AttributeError(name)
         return getattr(base, name)
 
-    # ---- delegated pieces
     def amplitude(self, p):
         return self.base.amplitude(p)
 
@@ -133,9 +104,6 @@ class XPINNDesign(DesignCase):
 
     def fit(self, net, p: float, epochs: int = 2000, lbfgs_iters: int = 1500, lr: float = 2e-3,
             verbose: bool = True):
-        """Forward training at design p with the decomposed recipe (warm start and
-        augmented-Lagrangian interface coupling when enabled).
-        """
         from atlas.energy_xpinn import train_decomposed
         self.prepare(net, p)
         train_decomposed(net, self.problem(p), epochs=epochs, lr=lr, lbfgs_per_stage=lbfgs_iters,
@@ -143,9 +111,6 @@ class XPINNDesign(DesignCase):
                          warm_start=self.warm_start)
 
     def resolve(self, net, p: float, iters: int = 300, chunk: int = 50):
-        """Re-equilibrate at a new design p; with al_stages the L-BFGS iterations are split
-        into al_stages + 1 parts with a multiplier update between them.
-        """
         self.prepare(net, p)
         prob = self.problem(p)
         n = max(chunk, iters // (self.al_stages + 1))
@@ -236,7 +201,6 @@ class PlateHoleXPINNDesign(XPINNDesign):
         split = math.atan2(H, W)
         specs = [(0.0, split, lambda th: W / np.cos(th)),
                  (split, 0.5 * math.pi, lambda th: H / np.sin(th))]
-        # per (sector, ring): angular grid, radial grid, outer-radius array (far ring only)
         self._rings = []
         for th_lo, th_hi, rho_sq in specs:
             th_p, th_w = _ref(np.linspace(th_lo, th_hi, n_th + 1), ng)
@@ -303,7 +267,7 @@ class LBracketXPINNDesign(XPINNDesign):
         return self.base.s
 
     def _mk_net(self):
-        return self.base.make_net()                    # smooth: no Williams enrichment
+        return self.base.make_net()
 
     def _router(self, coords, p):
         s = self.base.s
@@ -318,7 +282,7 @@ class LBracketXPINNDesign(XPINNDesign):
         s = self.base.s
         blocks = list(self._base_blocks)
         cx, cy = s - f, s + f
-        for TH, XI, K, WT in self._patch:                       # fillet patch -> subdomain 0
+        for TH, XI, K, WT in self._patch:
             rho = f + XI * (K * f - f)
             jac = rho * (K * f - f)
             pts = torch.stack([(cx + rho * torch.cos(TH)).reshape(-1),

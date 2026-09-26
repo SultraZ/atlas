@@ -1,20 +1,10 @@
-"""Independent PINN baseline built with the open-source DeepXDE library
-(Lu, Meng, Mao, Karniadakis, SIAM Review 63(1):208-228, 2021; https://github.com/lululxvi/deepxde)
-on the three ATLAS benchmarks. Nothing of the ATLAS solver is used for training:
+"""Run from the project root (all options: --help):
+    python scripts/deepxde_baseline.py --benchmark {cantilever,plate_hole,l_bracket,notched_plate,multicutout} [--configured]
 
-  * library components only: dde.geometry, dde.data.PDE, dde.icbc.OperatorBC, dde.nn.FNN
-    (tanh, Glorot), Adam then the library's own L-BFGS, soft boundary conditions, random /
-    Hammersley collocation, default loss weights (all 1);
-  * the problem is the same plane-stress elasticity problem (geometry, loads, symmetry
-    conditions) written in DeepXDE's own form; displacements are scaled by an analytic
-    characteristic displacement u_s and stresses by the load sigma_0 (a standard
-    non-dimensionalisation, nothing taken from FEM).
-
-Outputs: results/comparison/data/<benchmark>_deepxde.{json,npz} (same layout as the other
-solvers) and results/comparison/convergence_timing/<benchmark>_deepxde.json.
-
-    DDE_BACKEND=pytorch python scripts/deepxde_baseline.py --benchmark plate_hole
+Example:
+    python scripts/deepxde_baseline.py --benchmark cantilever --configured
 """
+
 import argparse
 import json
 import os
@@ -35,14 +25,13 @@ from atlas.validation import (compute_von_mises_metrics, default_exclusion_radiu
                               relative_l2, sampler_geometry_dict, singular_locations)
 
 E_MOD, NU, SIGMA0 = 210e9, 0.3, 1e6
-EH = E_MOD / SIGMA0            # modulus in units of the load
+EH = E_MOD / SIGMA0
 C11 = EH / (1 - NU ** 2)
 G12 = EH / (2 * (1 + NU))
 close = np.isclose
 
 
 def stresses(x, y):
-    """(sigma_x, sigma_y, tau_xy) in units of SIGMA0 from the physical displacement y."""
     ux = dde.grad.jacobian(y, x, i=0, j=0)
     uy = dde.grad.jacobian(y, x, i=0, j=1)
     vx = dde.grad.jacobian(y, x, i=1, j=0)
@@ -62,7 +51,6 @@ def pde(x, y):
 
 
 def traction_bc(geom, on, normal, target, comp):
-    """Traction component `comp` on the edge picked by `on`, minus its target (units of SIGMA0)."""
     def fn(inputs, outputs, X):
         sx, sy, tau = stresses(inputs, outputs)
         n = normal(inputs.detach())
@@ -73,7 +61,6 @@ def traction_bc(geom, on, normal, target, comp):
 
 
 def fixed_bc(geom, on, comp, u_s):
-    """Prescribed zero displacement component, normalised by u_s so it is O(1) like the tractions."""
     def fn(inputs, outputs, X):
         return outputs[:, comp:comp + 1] / u_s
     return dde.icbc.OperatorBC(geom, fn, on)
@@ -88,9 +75,6 @@ def zero(p):
 
 
 def build_problem(b, n_domain, n_boundary, hard_clamp=False, anchors=None):
-    """(data, u_s, n_fix): n_fix = number of soft displacement-constraint terms (placed right
-    after the two PDE residuals in the loss list).
-    """
     n_fix = 2
     if b == 'cantilever':
         L, H, P = 4.0, 1.0, -1e6
@@ -233,8 +217,6 @@ def main():
 
     anchors = None
     if args.configured:
-        # extra collocation points near the stress concentrations of each benchmark (geometry only,
-        # chosen in advance; no FEM values are consulted)
         rng = np.random.default_rng(args.seed)
         if b == 'multicutout':
             from atlas.benchmarks import multicutout as mc
@@ -246,16 +228,16 @@ def main():
             near |= np.hypot(cand[:, 0] - mc.CORNER[0], cand[:, 1] - mc.CORNER[1]) < 0.05
         elif b == 'cantilever':
             cand = rng.uniform([0, 0], [4.0, 1.0], size=(200000, 2))
-            near = cand[:, 0] < 0.4                                   # clamped end
+            near = cand[:, 0] < 0.4
         elif b == 'plate_hole':
             cand = rng.uniform(0.0, 2.0, size=(200000, 2))
             rad = np.hypot(cand[:, 0], cand[:, 1])
             cand, rad = cand[rad >= 0.3], rad[rad >= 0.3]
-            near = rad < 0.6                                          # ring around the hole
-        else:                                                          # l_bracket
+            near = rad < 0.6
+        else:
             cand = rng.uniform(0.0, 2.0, size=(200000, 2))
             cand = cand[~((cand[:, 0] < 1.0) & (cand[:, 1] > 1.0))]
-            near = np.hypot(cand[:, 0] - 1.0, cand[:, 1] - 1.0) < 0.35  # re-entrant corner
+            near = np.hypot(cand[:, 0] - 1.0, cand[:, 1] - 1.0) < 0.35
         anchors = cand[near][:4000]
     data, u_s, n_fix = build_problem(b, args.n_domain, args.n_boundary, hard_clamp=args.configured,
                                      anchors=anchors)
@@ -263,10 +245,10 @@ def main():
     if args.configured:
         if b == 'multicutout':
             from atlas.benchmarks import multicutout as mc
-            tr = lambda x, y: u_s * (mc.LEG - x[:, 0:1]) * y                  # clamp at x = LEG
+            tr = lambda x, y: u_s * (mc.LEG - x[:, 0:1]) * y
         elif b in ('cantilever', 'l_bracket'):
-            tr = lambda x, y: u_s * x[:, 0:1] * y                             # clamp at x = 0
-        else:                                                                  # plate_hole symmetry
+            tr = lambda x, y: u_s * x[:, 0:1] * y
+        else:
             tr = lambda x, y: u_s * torch.cat([x[:, 0:1] * y[:, 0:1], x[:, 1:2] * y[:, 1:2]], dim=1)
         net.apply_output_transform(tr)
     else:
@@ -360,7 +342,6 @@ def main():
     n_trac = len(data.bcs) - n_fix
     weights = [args.w_pde] * 2 + [args.w_fix] * n_fix + [args.w_trac] * n_trac
     if args.configured:
-        # balance: every loss term starts at 1 (uses the initial training losses only)
         model.compile("adam", lr=args.lr, loss_weights=[1.0] * len(weights))
         model.train(iterations=0, display_every=1000)
         l0 = np.asarray(model.train_state.loss_train, dtype=float)
@@ -371,8 +352,6 @@ def main():
     n_adam = model.train_state.step
     if args.lbfgs > 0:
         dde.optimizers.set_LBFGS_options(maxiter=args.lbfgs)
-        # library default is up to 1000 iterations per optimizer step; use 100 so the
-        # budget is exact and callbacks (probes) run every 100 L-BFGS iterations
         dde.optimizers.config.LBFGS_options["iter_per_step"] = 100
         dde.optimizers.config.LBFGS_options["fun_per_step"] = 125
         model.compile("L-BFGS", loss_weights=weights)

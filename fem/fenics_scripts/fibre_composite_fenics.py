@@ -1,19 +1,7 @@
-"""fibre_composite_fenics.py - legacy FEniCS (dolfin + mshr) plane-stress reference for the
-fibre-composite benchmark (atlas/benchmarks/fibre_composite.py).
-
-    plate [0,2] x [0,1], eight glass fibres (r = 0.15) in epoxy, rollers on x = 0 and y = 0,
-    uniform tension on x = 2.
-
-The mesh conforms to every fibre (mshr subdomains, 128-segment circles, within 5e-5 m of the circle) and is refined in bands
-around the interfaces; P2 displacements, element-wise DG1 stresses (exact for P2). Evaluated on
-  * a uniform 0.01 grid                          -> fibre_composite_{coords,u,v,vonmises}.npy
-  * a 0.004 grid within 0.03 of any interface    -> fibre_composite_roi_*.npy
-Points within 1e-3 of an interface are skipped. Two mesh levels are compared. The FEM result is
-used ONLY to score the ATLAS solvers, never in training.
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/fibre_composite_fenics.py
 """
+
 import json
 import os
 import sys

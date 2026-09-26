@@ -1,19 +1,3 @@
-"""fibre_composite.py - fibre-reinforced composite benchmark: an epoxy plate reinforced by a
-4 x 2 array of stiff glass fibres, loaded in transverse tension. Tests ATLAS-XPINN
-(one subnetwork for the fibres, one for the matrix, interfaces on every fibre boundary) against
-the single-network ATLAS energy solver. Protocol: results/multi_material/failed_candidates/fibre_composite/PROTOCOL.md.
-
-    plate    [0, W] x [0, H], W = 2, H = 1, split into 4 x 2 square cells of side S = 0.5
-    fibres   radius RF = 0.15 at every cell centre (28 % fibre volume fraction)
-    fibre    E-glass  E = 72 GPa,  nu = 0.22     matrix  epoxy  E = 3.5 GPa, nu = 0.35
-    BCs      symmetry rollers on x = 0 and y = 0 (exact via the mask 'sym'),
-             uniform tension SIGMA on x = W, y = H traction-free, perfect bonding
-
-Quadrature (identical for both solvers, only the subdomain labels differ), per cell:
-    fibre   polar block rho in [0, RF], graded toward the interface
-    matrix  four polar blocks from the fibre to the cell's square boundary, graded toward the fibre
-"""
-
 import math
 
 import numpy as np
@@ -33,7 +17,6 @@ CENTRES = [((i + 0.5) * S, (j + 0.5) * S) for j in range(int(round(H / S))) for 
 
 
 def fibre_index(x, y):
-    """Index of the fibre containing each point, -1 in the matrix."""
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     out = np.full(x.shape, -1)
     for k, (cx, cy) in enumerate(CENTRES):
@@ -51,13 +34,11 @@ def material_arrays(x, y):
 
 
 def materials():
-    """(matrix, fibre) plane-stress models in training units."""
     return (PlaneStressElasticity(E=E_MAT / STRESS_SCALE, nu=NU_MAT),
             PlaneStressElasticity(E=E_FIB / STRESS_SCALE, nu=NU_FIB))
 
 
 def blocks(n_th_fib: int = 24, n_xi_fib: int = 6, n_th_side: int = 6, n_xi_mat: int = 8, ng: int = 3):
-    """[(sub, pts, w, physics)]: sub 0 = fibres, sub 1 = matrix."""
     mat, fib = materials()
     h = 0.5 * S
     sides = [(-0.25 * math.pi, 0.25 * math.pi, lambda th: h / np.cos(th)),
@@ -81,7 +62,6 @@ def loads(sigma: float):
 
 
 def interfaces(n_cells: int = 32, ng: int = 4):
-    """Every fibre boundary; normal from the fibre (a=0) into the matrix (b=1)."""
     mat, fib = materials()
     th, w = _gauss_on_edges(np.linspace(0.0, 2 * math.pi, n_cells + 1), ng)
     n = np.stack([np.cos(th), np.sin(th)], axis=1)
@@ -101,7 +81,6 @@ def _setup():
 
 
 def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over fibres and matrix. Returns (net, problem)."""
     sigma, u_s, escale = _setup()
     mat, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -112,8 +91,6 @@ def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu',
 
 
 class RoutedFibreModel(nn.Module):
-    """Two subnetworks routed by phase: 0 inside any fibre, 1 in the matrix."""
-
     def __init__(self, sub0: nn.Module, sub1: nn.Module):
         super().__init__()
         self.subnets = nn.ModuleList([sub0, sub1])
@@ -135,8 +112,6 @@ class RoutedFibreModel(nn.Module):
 
 def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS-XPINN: one subnetwork for all fibres, one for the matrix, tied on every fibre
-    boundary. Both keep the global input box and the symmetry mask."""
     sigma, u_s, escale = _setup()
     mat, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -148,7 +123,6 @@ def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float =
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords; the stress uses each point's own phase."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)

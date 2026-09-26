@@ -1,20 +1,7 @@
-"""multicutout_fenics.py - geometry mesh / quadrature and FEM reference for the multi-cutout
-bracket (atlas/benchmarks/multicutout.py). Legacy FEniCS (dolfin + mshr).
-
-  1. Quadrature (geometry only, NO solution): each of the three ATLAS-XPINN subdomains is
-     meshed on its own (so no triangle straddles an interface), refined around the cutouts and
-     the re-entrant corner, and a 6-point degree-4 Gauss rule is placed on every triangle (plus an independent 7-point
-     degree-5 check rule)
-     -> atlas/data/multicutout_quadrature.npz. The single network uses the union of the points.
-  2. FEM reference: P2 displacements on a finer, locally refined mesh of the whole bracket;
-     stresses recovered by projection onto continuous P1; evaluated on a uniform 0.005 m grid of
-     material points -> fem/reference/multicutout_{coords,u,v,vonmises}.npy. Two refinement
-     levels are solved to report mesh convergence of the peak stresses and of the compliance.
-  3. Load-path check: peak von Mises near every cutout (the spec's original loading left two
-     of the four cutouts almost unloaded).
-
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/multicutout_fenics.py
 """
+
 import json
 import os
 import sys
@@ -31,7 +18,6 @@ df.set_log_level(40)
 SEG = 96
 REF = os.path.join(ROOT, "fem", "reference")
 
-# Dunavant degree-4 rule (barycentric coordinates, weights sum to 1)
 _A, _WA = 0.445948490915965, 0.223381589678011
 _B, _WB = 0.091576213509771, 0.109951743655322
 BARY = np.array([[_A, _A, 1 - 2 * _A], [_A, 1 - 2 * _A, _A], [1 - 2 * _A, _A, _A],
@@ -60,7 +46,6 @@ def geometry():
 
 
 def feature_distance(pts):
-    """Distance of points to the nearest cutout boundary / the re-entrant corner."""
     d = np.full(len(pts), np.inf)
     for cx, cy, r in mc.HOLES:
         d = np.minimum(d, np.abs(np.hypot(pts[:, 0] - cx, pts[:, 1] - cy) - r))
@@ -92,10 +77,10 @@ def quadrature(res=24, radii=((0.03, 0.08),)):
         mesh = refine(mshr.generate_mesh(reg, res), radii)
         X = mesh.coordinates()
         T = mesh.cells()
-        tri = X[T]                                    # (n, 3, 2)
+        tri = X[T]
         ar = 0.5 * np.abs((tri[:, 1, 0] - tri[:, 0, 0]) * (tri[:, 2, 1] - tri[:, 0, 1])
                           - (tri[:, 2, 0] - tri[:, 0, 0]) * (tri[:, 1, 1] - tri[:, 0, 1]))
-        pts = np.einsum("qk,nkd->nqd", BARY, tri).reshape(-1, 2)          # training: degree 4, 6 pts
+        pts = np.einsum("qk,nkd->nqd", BARY, tri).reshape(-1, 2)
         w = (ar[:, None] * BW[None, :]).reshape(-1)
         out[f"pts{i}"], out[f"w{i}"] = pts, w
         out[f"chk_pts{i}"] = np.einsum("qk,nkd->nqd", BARY7, tri).reshape(-1, 2)

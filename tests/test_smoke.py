@@ -1,6 +1,7 @@
-"""Smoke test: import every module, build every sampler/model, and run one
-loss computation + backward to catch import/signature/device errors.
+"""Run from the project root:
+    python tests/test_smoke.py
 """
+
 import os, sys, traceback
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _root)

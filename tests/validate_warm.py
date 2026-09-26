@@ -1,3 +1,7 @@
+"""Run from the project root:
+    python tests/validate_warm.py
+"""
+
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch, numpy as np, json
@@ -12,7 +16,7 @@ model, trainer, sampler, phy = train_forward_solver(
     n_interior=1000, n_boundary=200, n_interface=100,
     hidden_layers=5, neurons=128, warm_start_eb=True, prefit_epochs=6000,
     use_lbfgs=True, lbfgs_steps=15, lbfgs_max_iter_per_step=50,
-    formulation='residual',   # the EB warm start is a residual-solver feature
+    formulation='residual',
 )
 os.makedirs(str(RESULTS_DIR), exist_ok=True)
 torch.save(model.state_dict(), str(RESULTS_DIR / "_warm_cantilever_model.pt"))

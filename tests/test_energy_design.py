@@ -1,4 +1,7 @@
-"""Unit checks for atlas/energy_design.py (CPU, well under a minute)."""
+"""Run from the project root:
+    python tests/test_energy_design.py
+"""
+
 import math
 import os
 import sys
@@ -46,16 +49,11 @@ def t_areas():
 
 
 def t_fillet_is_a_real_fillet():
-    """Patch points lie in the square [s-f,s]x[s,s+f] and OUTSIDE the disk of
-    radius f about (s-f, s+f): i.e. between the corner and the arc, so the
-    corner-adjacent notch points become material (the old sampler filled the
-    complementary disk instead).
-    """
     f = 0.2
     case = LBracketFilletDesign()
     with torch.no_grad():
         interior, _, _ = case.geometry(case._pt(f))
-    pts = torch.cat([p for p, _ in interior[3:]]).numpy()          # the two patch blocks
+    pts = torch.cat([p for p, _ in interior[3:]]).numpy()
     assert pts[:, 0].min() >= 1.0 - f - 1e-9 and pts[:, 0].max() <= 1.0 + 1e-9
     assert pts[:, 1].min() >= 1.0 - 1e-9 and pts[:, 1].max() <= 1.0 + f + 1e-9
     assert (np.hypot(pts[:, 0] - (1.0 - f), pts[:, 1] - (1.0 + f)) >= f - 1e-9).all()
@@ -76,7 +74,6 @@ def t_autodiff_gradient_matches_fd_and_beam_theory():
     g_fd = (vals[1] - vals[0]) / 0.1
     print(f"    dC/dH: autodiff {g_ad:.2f}  finite-difference {g_fd:.2f}")
     assert g_ad < 0 and abs(g_ad - g_fd) / abs(g_fd) < 0.08, (g_ad, g_fd)
-    # Euler-Bernoulli: C = P^2 L^3 / (3 E I),  dC/dH = -3 C / H  (2D shear adds a few %)
     case.resolve(net, p, 500)
     c = case.compliance(net, p)
     assert abs(g_ad - (-3.0 * c / p)) / abs(3.0 * c / p) < 0.12, (g_ad, -3.0 * c / p)

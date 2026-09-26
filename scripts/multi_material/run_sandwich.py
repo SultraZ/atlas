@@ -1,19 +1,10 @@
-"""Train and score one solver on the sandwich-panel benchmark (atlas/benchmarks/sandwich.py).
+"""Run from the project root (all options: --help):
+    python scripts/multi_material/run_sandwich.py --solver {atlas,xpinn,atlas_wide} [--seed N]
 
-Solvers
-    atlas        single 4 x 64 network over all three layers (ATLAS energy)
-    xpinn        three subnetworks, one per layer, tied on the two interfaces (ATLAS-XPINN)
-    atlas_wide   single 4 x 112 network, parameter-matched to `xpinn` (control)
-
-Scored against the FEM reference (fem/reference/sandwich_*.npy, never used in training) every
-`--probe-every` iterations (probing time excluded from the clock) and at the end: displacement
-vector L2, von Mises L2 excluding the four clamp singularities (also per layer type), tip
-deflection at (L, H/2) and compliance vs FEM.
-
-Writes results/multi_material/failed_candidates/sandwich/<solver>/seed<seed>.{json,npz} (+ model .pt).
-
+Example:
     python scripts/multi_material/run_sandwich.py --solver xpinn --seed 42
 """
+
 import argparse
 import json
 import os
@@ -31,7 +22,7 @@ from atlas.benchmarks import sandwich as sw
 from atlas.paths import FEM_REFERENCE_DIR, RESULTS_DIR
 from atlas.validation import default_exclusion_radius
 
-WIDE_NEURONS = 112         # 4 x 112 single network ~ 38.5k parameters = three 4 x 64 subnetworks
+WIDE_NEURONS = 112
 
 
 def rel(a, b):

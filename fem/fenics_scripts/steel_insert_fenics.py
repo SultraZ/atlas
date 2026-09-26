@@ -1,12 +1,7 @@
-"""steel_insert_fenics.py - legacy FEniCS plane-stress reference for the steel insert in an
-aluminium plate (atlas/benchmarks/steel_insert.py). Same interface-conforming mesh, refinement, evaluation grids
-and mesh-convergence check as bimaterial_fenics.py; only the materials differ.
-
-    -> fem/reference/steel_insert_{coords,u,v,vonmises}.npy, steel_insert_roi_*.npy, steel_insert_meta.json
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/steel_insert_fenics.py
 """
+
 import json
 import os
 import sys

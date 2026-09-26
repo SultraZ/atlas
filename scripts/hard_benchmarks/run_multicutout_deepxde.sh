@@ -1,6 +1,6 @@
 #!/bin/bash
-# DeepXDE PINN baselines on the multi-cutout bracket: library defaults, then the "configured" run
-# (settings fixed in advance from standard DeepXDE practice, never from FEM error). One GPU job at a time.
+# Run from the project root:
+#   bash scripts/hard_benchmarks/run_multicutout_deepxde.sh
 cd /home/sultra/atlas_main
 PY=/home/sultra/miniconda3/envs/Atlas/bin/python
 L=results/hard_single_material/multicutout/logs; rm -f $L/DDEDONE

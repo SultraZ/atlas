@@ -1,19 +1,7 @@
-"""notched_plate_fenics.py - legacy FEniCS (dolfin + mshr) plane-stress reference for the
-notched-plate benchmark (atlas/benchmarks/notched_plate.py).
-
-    plate [0,1] x [0,2], U-notch from the left edge at y = 1 (depth 0.25, root radius 0.025)
-    y = 0  clamped (u = v = 0);  y = 2  uniform traction t_y = sigma;  all else free.
-
-The mesh is refined in nested discs around the notch root; P2 displacements, stresses
-recovered by L2 projection onto continuous P1 (so the root is not polluted by the
-element-wise-constant DG0 jumps), evaluated on
-  * a uniform grid (spacing 0.01) over the material  -> notched_plate_{coords,u,v,vonmises}.npy
-  * a dense grid (spacing 0.0025) around the root   -> notched_plate_roi_*.npy
-The FEM result is used ONLY to score the ATLAS solvers, never in training.
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/notched_plate_fenics.py
 """
+
 import json
 import os
 import sys
@@ -69,7 +57,7 @@ def evaluate(uh, comps, pts):
     out = np.full((len(pts), 5), np.nan)
     for i, p in enumerate(pts):
         P = df.Point(*p)
-        if tree.compute_first_entity_collision(P) > 10 ** 9:       # just outside: nudge inward
+        if tree.compute_first_entity_collision(P) > 10 ** 9:
             P = df.Point(p[0] * (1 - 1e-9) + 5e-10, p[1] * (1 - 1e-9) + 5e-10)
         try:
             u = uh(P)

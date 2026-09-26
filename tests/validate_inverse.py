@@ -1,8 +1,7 @@
-"""Inverse design smoke check for the plate hole radius, for BOTH forward
-formulations: the deep-energy default (inner loop = energy re-solve at the new
-radius) and the original residual path (inner loop = residual training).
-Passes if the radius moves and everything stays finite.
+"""Run from the project root:
+    python tests/validate_inverse.py
 """
+
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("MPLBACKEND", "Agg")

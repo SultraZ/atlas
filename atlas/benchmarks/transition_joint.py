@@ -1,18 +1,3 @@
-"""transition_joint.py - steel-aluminium transition joint with a wavy bonded interface, used to
-test ATLAS-XPINN (subdomain interface on the bond line) against the single-network ATLAS
-energy solver. Protocol: results/multi_material/failed_candidates/transition_joint/PROTOCOL.md.
-
-    plate      [0, W] x [0, H], W = 2, H = 1 (upper half of a joint symmetric about y = 0)
-    bond line  x = f(y) = X0 + A cos(2 pi y / LAM), X0 = 1, A = 0.1, LAM = 0.5
-    steel      x < f(y): E = 210 GPa, nu = 0.30      aluminium  x > f(y): E = 70 GPa, nu = 0.33
-    BCs        symmetry rollers on x = 0 and y = 0 (exact via the mask 'sym'),
-               uniform tension SIGMA on x = W, y = H traction-free
-
-Quadrature (identical for both solvers, only the subdomain labels differ): each side is a
-tensor Gauss block in (s, y) mapped onto the curved region, x = s f(y) on the steel side and
-x = f(y) + s (W - f(y)) on the aluminium side, graded toward the bond line.
-"""
-
 import math
 
 import numpy as np
@@ -29,7 +14,7 @@ STRESS_SCALE = 1e11
 SIGMA = 1e6
 W, H = 2.0, 1.0
 X0, A, LAM = 1.0, 0.1, 0.5
-SINGULAR = [(X0 + A * math.cos(2 * math.pi * H / LAM), H)]      # bond line meets the free edge
+SINGULAR = [(X0 + A * math.cos(2 * math.pi * H / LAM), H)]
 
 
 def f(y):
@@ -50,13 +35,11 @@ def material_arrays(x, y):
 
 
 def materials():
-    """(steel, aluminium) plane-stress models in training units."""
     return (PlaneStressElasticity(E=E_ST / STRESS_SCALE, nu=NU_ST),
             PlaneStressElasticity(E=E_AL / STRESS_SCALE, nu=NU_AL))
 
 
 def blocks(ns: int = 20, ny: int = 40, ng: int = 3):
-    """[(sub, pts, w, physics)]: sub 0 = steel, sub 1 = aluminium."""
     steel, alu = materials()
     yp, yw = _gauss_on_edges(np.linspace(0.0, H, ny + 1), ng)
     out = []
@@ -80,7 +63,6 @@ def loads(sigma: float):
 
 
 def interfaces(n_cells: int = 40, ng: int = 4):
-    """The bond line, normal from the steel (a=0) into the aluminium (b=1)."""
     steel, alu = materials()
     y, wy = _gauss_on_edges(np.linspace(0.0, H, n_cells + 1), ng)
     g = df(y)
@@ -100,7 +82,6 @@ def _setup():
 
 
 def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over both metals. Returns (net, problem)."""
     sigma, u_s, escale = _setup()
     steel, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -111,8 +92,6 @@ def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu',
 
 
 class RoutedJointModel(nn.Module):
-    """Two subnetworks routed by the bond line: 0 steel (x < f(y)), 1 aluminium."""
-
     def __init__(self, sub0: nn.Module, sub1: nn.Module):
         super().__init__()
         self.subnets = nn.ModuleList([sub0, sub1])
@@ -133,8 +112,6 @@ class RoutedJointModel(nn.Module):
 
 def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS-XPINN: one subnetwork per metal, tied on the bond line. Both keep the global
-    input box and the symmetry mask."""
     sigma, u_s, escale = _setup()
     steel, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -146,7 +123,6 @@ def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float =
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords; the stress uses each point's own metal."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)

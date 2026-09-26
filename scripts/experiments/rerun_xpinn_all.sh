@@ -1,6 +1,6 @@
 #!/bin/bash
-# Re-run every ATLAS-XPINN result with the improved default recipe
-# (augmented-Lagrangian interfaces + single-network warm start), one GPU job at a time.
+# Run from the project root:
+#   bash scripts/experiments/rerun_xpinn_all.sh
 cd /home/sultra/atlas_main
 PY=/home/sultra/miniconda3/envs/Atlas/bin/python
 L=results/atlas_xpinn_energy/logs

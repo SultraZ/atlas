@@ -1,20 +1,10 @@
-"""Train and score one solver on the fibre-composite benchmark (atlas/benchmarks/fibre_composite.py).
+"""Run from the project root (all options: --help):
+    python scripts/multi_material/run_fibre_composite.py --solver {atlas,xpinn,atlas_wide} [--seed N]
 
-Solvers
-    atlas        single 4 x 64 network over fibres and matrix (ATLAS energy)
-    xpinn        two subnetworks, fibres + matrix, tied on every fibre boundary (ATLAS-XPINN)
-    atlas_wide   single 4 x 91 network, parameter-matched to `xpinn` (control)
-
-Scored against the FEM reference (fem/reference/fibre_composite_*.npy, never used in training)
-every `--probe-every` iterations (probing time excluded from the clock) and at the end:
-  * displacement vector L2 and von Mises L2 on the uniform grid (also per phase)
-  * von Mises L2 within 0.03 m of the interfaces, fibre side and matrix side
-  * compliance vs FEM
-
-Writes results/multi_material/failed_candidates/fibre_composite/<solver>/seed<seed>.{json,npz} (+ model .pt).
-
+Example:
     python scripts/multi_material/run_fibre_composite.py --solver xpinn --seed 42
 """
+
 import argparse
 import json
 import os
@@ -31,7 +21,7 @@ import torch
 from atlas.benchmarks import fibre_composite as fc
 from atlas.paths import FEM_REFERENCE_DIR, RESULTS_DIR
 
-WIDE_NEURONS = 91          # 4 x 91 single network ~ 25.6k parameters = two 4 x 64 subnetworks
+WIDE_NEURONS = 91
 
 
 def load_ref(tag):

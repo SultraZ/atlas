@@ -1,7 +1,7 @@
-"""Unit tests for the von Mises exclusion-radius metric (validation/metrics-only).
-
-Usage: python tests/test_validation_exclusion.py
+"""Run from the project root:
+    python tests/test_validation_exclusion.py
 """
+
 import os
 import sys
 import traceback
@@ -60,7 +60,7 @@ def test_missing_geometry_warns():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         c = singular_locations('cantilever', {'L': 4.0})
-    assert len(c) == 1, c  # (0,0) resolves, (0,g['H']) cannot
+    assert len(c) == 1, c
     assert any("singular location" in str(x.message) for x in w), "expected a warning"
 
 
@@ -101,14 +101,13 @@ def test_von_mises_metrics_identity():
 
 
 def test_von_mises_metrics_excl_isolates_bad_region():
-    coords = _grid(step=0.05, n=30)  # dense grid so bad region has many pts
+    coords = _grid(step=0.05, n=30)
     ref = coords[:, 0:1]
     pred = ref.copy()
     inside = np.hypot(coords[:, 0] - 0.0, coords[:, 1] - 0.0) < 0.3
-    pred[inside] += 50.0  # huge error only inside the excluded disk
+    pred[inside] += 50.0
     m = compute_von_mises_metrics(pred, ref, coords, [(0.0, 0.0)], 0.3)
     assert m['von_mises_l2_global'] > 1.0
-    # outside the disk the fields still agree => excluded L2 ~ 0
     assert m['von_mises_l2_excl'] is not None and m['von_mises_l2_excl'] < 1e-9, m
 
 
@@ -136,8 +135,6 @@ def test_validate_mock_graceful_new_keys():
     sam = PlateWithHoleSampler(W=2.0, H=2.0, r_init=0.3, n_interior=60, n_boundary=20, n_interface=10, device=device)
     model = create_xpinn_for_benchmark("plate_hole", device=device)
     phys = PlaneStressElasticity(E=2.1e-2, nu=0.3)
-    # Empty data_dir forces the mock path - the real fem/reference must not
-    # be found here, so use a scratch dir to guarantee no von Mises field.
     with tempfile.TemporaryDirectory() as td:
         res = FEMValidator(phys, device=device).validate(model, sam, benchmark="plate_hole",
                                                          use_mock=True, data_dir=td, r_excl=0.1)

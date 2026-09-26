@@ -1,5 +1,4 @@
 "use strict";
-/* ATLAS console frontend: talks to /api/{health,forward,inverse,jobs}. */
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 1500;
@@ -21,7 +20,6 @@ const PLOT_TITLES = {
 let activeJob = null;
 let pollTimer = null;
 
-/* ── theme ─────────────────────────────────────────────────────────────── */
 const savedTheme = localStorage.getItem("atlas-theme");
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
 else if (window.matchMedia("(prefers-color-scheme: light)").matches)
@@ -33,7 +31,6 @@ $("themeToggle").addEventListener("click", () => {
   localStorage.setItem("atlas-theme", next);
 });
 
-/* ── mode switch (Results ⇄ Live solver) ───────────────────────────────── */
 const modeSwitch = $("modeSwitch");
 let resultsLoaded = false;
 
@@ -44,7 +41,7 @@ function setMode(mode) {
   $("mode-results").hidden = mode !== "results";
   $("mode-live").hidden = mode !== "live";
   document.getElementById("mode-" + mode).style.animation = "none";
-  void document.getElementById("mode-" + mode).offsetWidth;   // restart the entrance animation
+  void document.getElementById("mode-" + mode).offsetWidth;
   document.getElementById("mode-" + mode).style.animation = "";
   if (mode === "results" && !resultsLoaded) loadResults();
   localStorage.setItem("atlas-mode", mode);
@@ -54,7 +51,6 @@ modeSwitch.addEventListener("click", (e) => {
   if (btn) setMode(btn.dataset.mode);
 });
 
-/* ── controls ──────────────────────────────────────────────────────────── */
 const benchmarkEl = $("benchmark");
 
 function refreshControls() {
@@ -78,7 +74,6 @@ async function api(path, body) {
   return res.json();
 }
 
-/* ── health + job list ─────────────────────────────────────────────────── */
 async function refreshHealth() {
   const pill = $("healthPill");
   try {
@@ -100,14 +95,13 @@ async function refreshJobs() {
       <li><span class="dot ${j.status}"></span>
         <span>${j.kind}</span>
         <span class="muted">${(j.finished || j.started || j.created || "").slice(11, 19)}</span></li>`).join("");
-  } catch { /* the health pill already reports an unreachable backend */ }
+  } catch {}
 }
 
 refreshHealth();
 refreshJobs();
 setInterval(() => { refreshHealth(); refreshJobs(); }, 5000);
 
-/* ── running a job ─────────────────────────────────────────────────────── */
 function setBusy(busy, which) {
   ["run-forward", "run-inverse"].forEach((id) => {
     const b = $(id);
@@ -165,7 +159,6 @@ async function poll(jobId) {
   refreshJobs();
 }
 
-/* ── rendering ─────────────────────────────────────────────────────────── */
 function setChip(state, text) {
   const chip = $("runChip");
   chip.className = `chip ${state}`;
@@ -226,7 +219,6 @@ function setKpi(key, text, pass) {
   countUp(el, num, text);
 }
 
-/* count the number up to its final value; `text` supplies the suffix (%, s, …) */
 function countUp(el, target, text) {
   const suffix = text.replace(/^[\d.\-+]+/, "");
   const decimals = (text.split(".")[1] || "").replace(/[^\d]/g, "").length;
@@ -258,7 +250,7 @@ function renderMetrics(j) {
     rows.push(["von Mises L² (excl.)", pct(m.von_mises_l2_excl), ok]);
     rows.push(["von Mises L² (global)", pct(m.von_mises_l2_global), null]);
   }
-  const d = m;   // inverse-design jobs return their result inside `metrics`
+  const d = m;
   if (d.p_star !== undefined) {
     const val = Number(d.p_star).toFixed(4);
     setKpi("design", val, d.converged === undefined ? null : !!d.converged);
@@ -287,7 +279,6 @@ function renderPlots(plots) {
   fillGrid($("plotGrid"), html);
 }
 
-/* ── shared helpers ────────────────────────────────────────────────────── */
 function fillGrid(el, html) {
   el.innerHTML = html;
   el.querySelectorAll("img").forEach((img) => {
@@ -302,19 +293,16 @@ function plotCard(title, src, i = 0) {
     </figure>`;
 }
 
-/* reveal cards as they scroll into view */
 const revealer = new IntersectionObserver((entries) => {
   entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); revealer.unobserve(e.target); } });
 }, { rootMargin: "0px 0px -40px 0px" });
 function observeReveals() { document.querySelectorAll(".reveal:not(.in)").forEach((el) => revealer.observe(el)); }
 
-/* click a figure to open the full-size image in a new tab */
 document.addEventListener("click", (e) => {
   const img = e.target.closest(".plot img");
   if (img) window.open(img.src, "_blank", "noopener");
 });
 
-/* ── results mode ──────────────────────────────────────────────────────── */
 const SOLVER_ROWS = [
   ["atlas_xpinn", "ATLAS-XPINN", true],
   ["atlas", "ATLAS energy (single network)", false],
@@ -412,5 +400,4 @@ function renderBenchmark() {
   observeReveals();
 }
 
-/* ── start ─────────────────────────────────────────────────────────────── */
 setMode(localStorage.getItem("atlas-mode") || "results");

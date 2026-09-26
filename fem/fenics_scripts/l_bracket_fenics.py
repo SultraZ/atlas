@@ -1,27 +1,5 @@
-"""l_bracket_fenics.py - Legacy FEniCS (dolfin + mshr) plane-stress reference
-solve for the ATLAS L-bracket benchmark.
-
-    Geometry: L-shape = big square [0,2s] x [0,2s] MINUS the top-left
-              square [0,s] x [s,2s]. Equivalently: union of the bottom
-              rectangle [0,2s] x [0,s] (subdomains 0+1 in the sampler) and
-              the top-right rectangle [s,2s] x [s,2s] (subdomain 2). The
-              re-entrant (stress concentration) corner sits at (s, s).
-
-    BCs:
-      - x=0, y in [0,s]:      fixed (u = v = 0)          -- left face of sub 0
-      - x=2s, y in [s,2s]:    PARABOLIC t_x = 6P*((y-s)/s)*(1-(y-s)/s),
-                              t_y = 0                   -- right face of sub 2
-      - everything else:      traction-free (natural BC, no term needed):
-            x=2s, y in [0,s]      (right face of sub 1)
-            y=0,  x in [0,2s]     (bottom, sub 0 + sub 1)
-            y=2s, x in [s,2s]     (top of sub 2)
-            x=s,  y in [s,2s]     (inner vertical face of the re-entrant notch)
-            y=s,  x in [0,s]      (inner horizontal face of the re-entrant notch)
-
-    Material: plane stress, E, nu (same constants as physics.py)
-
-Run:  python l_bracket_fenics.py
-Needs legacy FEniCS + mshr (`conda install -c conda-forge fenics mshr`).
+"""Run from the project root with the FEniCS env on PATH:
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/l_bracket_fenics.py
 """
 
 import dolfin as df
@@ -29,17 +7,16 @@ import mshr
 import numpy as np
 import os
 
-# ---- must match sampling.py / physics.py exactly ---------------------------
-s = 1.0             # LBracketSampler(size=...)
+s = 1.0
 E, nu = 210e9, 0.3
-P = 1e6              # same sign/meaning as train_forward_solver's P for l_bracket
-MESH_RESOLUTION = 80  # bump up for a tighter reference
+P = 1e6
+MESH_RESOLUTION = 80
 
 OUT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "reference"))
 BENCHMARK = "l_bracket"
 
 mu = E / (2.0 * (1.0 + nu))
-lmbda = E * nu / (1.0 - nu**2)  # plane-stress effective lambda
+lmbda = E * nu / (1.0 - nu**2)
 
 
 def sigma(u):
@@ -55,8 +32,6 @@ def main():
 
     V = df.VectorFunctionSpace(mesh, "Lagrange", degree=2)
 
-    # Fixed face: only exists for y in [0, s] since the domain doesn't
-    # extend to x=0 for y>s (that's inside the removed notch).
     def fixed(x, on_boundary):
         return on_boundary and df.near(x[0], 0.0)
 

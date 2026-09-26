@@ -1,23 +1,10 @@
-"""Train / load ONE solver variant on ONE benchmark and store its FEM comparison.
+"""Run from the project root (all options: --help):
+    python scripts/compare_solvers.py --benchmark {cantilever,l_bracket,plate_hole} --variant {pinn,atlas,xpinn_energy}
 
-Variants
-    pinn         standard PINN: a single network over the whole domain, strong-form
-                 residual loss (same loss terms, scaling and load-amplitude
-                 constraints as ATLAS), no domain decomposition, none of ATLAS's
-                 accuracy aids. Widened so its parameter count matches the XPINN.
-    atlas        current ATLAS solver: deep-energy (Ritz) formulation, hard BCs, ONE
-                 network (loaded from results/atlas_energy/forward/<benchmark>_model.pt).
-    xpinn_energy the same deep-energy formulation and hard BCs, but domain-decomposed
-                 (one subnetwork per subdomain + interface displacement/traction
-                 continuity, penalty continuation): the paper's XPINN structure.
-
-Writes <benchmark>_<variant>.{npz,json} into results/atlas_energy/forward (atlas),
-results/atlas_xpinn_energy/forward (xpinn_energy) or results/comparison (all others). Evaluation goes through
-the unchanged atlas.validation path against fem/reference/. The FEM reference is
-never used in training.
-
-    python scripts/compare_solvers.py --benchmark plate_hole --variant pinn
+Example:
+    python scripts/compare_solvers.py --benchmark plate_hole --variant xpinn_energy
 """
+
 import argparse
 import json
 import os

@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# The benchmark protocol, one GPU job at a time:
-#   FEM reference (with a free-memory guard) -> seed 42: atlas, xpinn
-#   -> atlas_wide only if xpinn beats atlas on displacement AND von Mises
-#   -> seeds 43-46 for xpinn and the better single network only if xpinn beats both.
-#
-#   bash scripts/multi_material/run_protocol.sh <bench> <vm_key> [--skip-fem]
-#   e.g. bash scripts/multi_material/run_protocol.sh filled_slot vm_l2
-# expects fem/fenics_scripts/<bench>_fenics.py and scripts/multi_material/run_<bench>.py; results and logs go
-# to results/multi_material/<bench>/ (or failed_candidates/<bench>/ if that folder already exists).
+# Run from the project root:
+#   bash scripts/multi_material/run_protocol.sh <benchmark> <vm_key> [--skip-fem]
+# Example:
+#   bash scripts/multi_material/run_protocol.sh steel_insert vm_l2
 set -u
 cd "$(dirname "$0")/../.."
 B=$1; VM=$2; SKIP_FEM=${3:-}
@@ -28,11 +23,11 @@ if [ "$SKIP_FEM" != "--skip-fem" ]; then
   grep -E "change|stress|Kt|saved" $L/fem.log
 fi
 
-run() {   # solver seed
+run() {
   $PY scripts/multi_material/run_${B}.py --solver $1 --seed $2 > $L/${1}_seed$2.log 2>&1
   grep DONE $L/${1}_seed$2.log || { echo "FAILED $1 seed $2"; tail -n 3 $L/${1}_seed$2.log; exit 1; }
 }
-beats() {   # does xpinn beat solver $1 at seed 42 on both metrics?
+beats() {
   $PY -c "
 import json,sys
 x=json.load(open('$R/xpinn/seed42.json'))['final']; a=json.load(open('$R/$1/seed42.json'))['final']

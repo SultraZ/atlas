@@ -1,13 +1,7 @@
-"""Figures and table for the ATLAS energy vs ATLAS-XPINN convergence /
-processing-time study (input: results/comparison/convergence_timing/*.json written
-by scripts/run_convergence_timing.py).
-
-Outputs (same folder):
-  convergence_vs_iteration.png   error vs iteration, both solvers, 3 benchmarks
-  convergence_vs_time.png        error vs training wall-clock
-  processing_time.png            total training time and time-to-target bars
-  CONVERGENCE_TIMING.md          the numbers
+"""Run from the project root:
+    python scripts/make_convergence_timing_report.py
 """
+
 import json
 import os
 import sys
@@ -34,7 +28,6 @@ def load(b, s):
 
 
 def first_below(rows, key, thr, x):
-    """First probe where the metric is below thr and stays below afterwards."""
     vals = [r[key] for r in rows]
     for i in range(len(vals)):
         if all(v is not None and v < thr for v in vals[i:]):

@@ -1,16 +1,10 @@
-"""Aggregate the per-solver *.{npz,json} written by scripts/compare_solvers.py
-(results/comparison, results/atlas_energy/forward, results/atlas_xpinn_energy/forward) into a
-folder results/comparison/<out-sub>/ containing
+"""Run from the project root (all options: --help):
+    python scripts/make_comparison_report.py [--only VARIANT ...] [--out-sub FOLDER]
 
-    COMPARISON.md                 table of errors vs FEM (+ compliance, pointwise maxima)
-    <benchmark>_comparison.png    FEM | each solver: fields + displacement error
-    comparison_summary.png        grouped bars: displacement, von Mises, compliance errors
-
-    python scripts/make_comparison_report.py                                  # all_solvers/
-    python scripts/make_comparison_report.py --only deepxde xpinn_energy \
-        --out-sub standard_pinn_vs_atlas_xpinn
-    python scripts/make_comparison_report.py --only atlas xpinn_energy --out-sub atlas_vs_atlas_xpinn
+Example:
+    python scripts/make_comparison_report.py --only deepxde deepxde_configured xpinn_energy --out-sub deepxde_vs_atlas_xpinn
 """
+
 import argparse
 import json
 import os
@@ -28,7 +22,7 @@ from atlas.sampling import CantileverBeamSampler, LBracketSampler, PlateWithHole
 from atlas.visualization import _inside_material
 
 CMP = RESULTS_DIR / "comparison"
-DATA = CMP / "data"                 # PINN / DeepXDE npz+json written by the baseline scripts
+DATA = CMP / "data"
 DATA_DIR = {"atlas": RESULTS_DIR / "atlas_energy" / "forward",
             "xpinn_energy": RESULTS_DIR / "atlas_xpinn_energy" / "forward"}
 BENCHES = ["cantilever", "plate_hole", "l_bracket"]
@@ -39,17 +33,12 @@ VARIANTS = [("pinn", "Standard PINN (in-house)"), ("deepxde", "PINN (DeepXDE, li
             ("atlas", "ATLAS (energy, single net)"), ("xpinn_energy", "ATLAS-XPINN")]
 COLORS = {"pinn": "#c0504d", "deepxde": "#e69f00", "deepxde_configured": "#8c6d1f", "atlas": "#2e8b57",
           "xpinn_energy": "#7b3fa0"}
-OUT = CMP / "all_solvers"          # set in __main__ (--out-sub); data files stay in CMP
+OUT = CMP / "all_solvers"
 SAMPLERS = {"cantilever": CantileverBeamSampler, "plate_hole": PlateWithHoleSampler,
             "l_bracket": LBracketSampler}
 
 
 def compliance(bench, coords, u, v):
-    """Compliance C = int t.u ds over the loaded edge [N m per unit thickness], from the
-    displacement at the reference nodes on that edge (P2 nodes, trapezoid rule). The
-    tractions are those of the benchmarks: parabolic tip shear (cantilever, P=-1e6, H=1),
-    uniform sigma_inf=1e6 (plate), parabolic t_x on the upper right face (L-bracket).
-    """
     x, y = coords[:, 0], coords[:, 1]
     if bench == "cantilever":
         m = np.isclose(x, 4.0)
@@ -68,10 +57,6 @@ def compliance(bench, coords, u, v):
 
 
 def vector_l2(z):
-    """Relative L2 error of the displacement VECTOR field, sqrt(sum |d - d_fem|^2 / sum |d_fem|^2).
-    Unlike the magnitude-based metric of atlas.validation (which compares sqrt(u^2+v^2)),
-    this cannot hide a sign flip: a mirror-image solution scores ~200 %, not ~10 %.
-    """
     du, dv = z["u"] - z["u_fem"], z["v"] - z["v_fem"]
     return float(np.sqrt((du ** 2 + dv ** 2).sum() / (z["u_fem"] ** 2 + z["v_fem"] ** 2).sum()))
 

@@ -1,18 +1,8 @@
-"""run_repeatability_study.py - automates the paper's stated methodology:
-    "For each benchmark, five independent runs with different random
-    initializations will be executed to check the consistency and
-    repeatability of the results."
+"""Run from the project root (all options: --help):
+    python scripts/run_repeatability_study.py --benchmark {cantilever,l_bracket,plate_hole} [--seeds N ...] [--formulation F]
 
-Usage:
-    python run_repeatability_study.py --benchmark cantilever
-    python run_repeatability_study.py --benchmark l_bracket --epochs 8000 --use-mock-fem
-    python run_repeatability_study.py --benchmark plate_hole --seeds 42 43 44 45 46
-
-Outputs (in results/repeatability_<benchmark>/, or results/atlas_energy/repeatability/<benchmark>/
-with --formulation energy):
-    summary.json        - per-seed results + mean/std across seeds
-    summary.png          - bar chart of displacement L2 error per seed,
-                            with the paper's 5% target line drawn in
+Example:
+    python scripts/run_repeatability_study.py --benchmark plate_hole --formulation energy_xpinn --seeds 42 43 44 45 46
 """
 
 import argparse
@@ -39,10 +29,8 @@ def run_one_seed(benchmark: str, seed: int, epochs: int, use_mock_fem: bool,
     device = setup_device(seed=seed)
     kwargs = {'formulation': formulation}
     if formulation == 'energy':
-        # deep-energy solver: `epochs` Adam steps + 1500 L-BFGS iterations
         kwargs.update(use_lbfgs=True, lbfgs_steps=15, lbfgs_max_iter_per_step=100)
     if formulation == 'energy_xpinn':
-        # decomposed deep-energy solver: `epochs` Adam steps + 2000 L-BFGS iterations
         kwargs.update(use_lbfgs=True, lbfgs_steps=20, lbfgs_max_iter_per_step=100)
     if formulation == 'residual' and benchmark == 'cantilever':
         kwargs['warm_start_eb'] = True

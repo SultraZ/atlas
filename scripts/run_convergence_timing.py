@@ -1,10 +1,10 @@
-"""Convergence and processing-time study: ATLAS energy (single network) vs
-ATLAS-XPINN (domain-decomposed), same iteration budget, same seed.
+"""Run from the project root (all options: --help):
+    python scripts/run_convergence_timing.py --benchmark {cantilever,plate_hole,l_bracket} --solver {atlas,xpinn,pinn}
 
-Writes results/comparison/convergence_timing/<benchmark>_<solver>.json.
-
-    python scripts/run_convergence_timing.py --benchmark plate_hole --solver atlas
+Example:
+    python scripts/run_convergence_timing.py --benchmark plate_hole --solver xpinn
 """
+
 import argparse
 import copy
 import json
@@ -27,8 +27,6 @@ from atlas.visualization import _evaluate_model_on_grid, evaluate_von_mises_on_p
 
 E_MOD, NU, STRESS_SCALE = 210e9, 0.3, 1e11
 
-# --local-norm: bounding box of each subdomain, so every subnetwork maps ITS OWN region to
-# [-1, 1]^2 (default: every subnetwork normalises over the whole domain).
 LOCAL_BOXES = {'cantilever': [((0.0, 0.0), (2.0, 1.0)), ((2.0, 0.0), (4.0, 1.0))],
                'plate_hole': [((0.0, 0.0), (0.6, 0.6)), ((0.0, 0.0), (0.9, 0.9)),
                               ((0.0, 0.0), (2.0, 2.0))],
@@ -136,7 +134,7 @@ def main():
         sync()
         t = time.perf_counter()
         elapsed = t - t_start - state["probe_s"]
-        snap = copy.deepcopy(net).float()   # scored in float32, as validation.py does
+        snap = copy.deepcopy(net).float()
         u, v = _evaluate_model_on_grid(snap, samp, coords[:, 0:1], coords[:, 1:2], device)
         vec = float(np.sqrt(np.sum((u - u_f) ** 2 + (v - v_f) ** 2) / np.sum(u_f ** 2 + v_f ** 2)))
         mag = float(relative_l2(np.sqrt(u ** 2 + v ** 2), mag_f))

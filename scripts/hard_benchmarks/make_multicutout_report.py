@@ -1,9 +1,7 @@
-"""Figures for the multi-cutout bracket (results/hard_single_material/multicutout/): convergence.png and fields.png.
-
-Reads the seed-42 runs listed in RUNS and draws
-  * error against training wall-clock (displacement, von Mises, cutout zones),
-  * FEM vs each solver: |displacement|, von Mises, displacement error map.
+"""Run from the project root:
+    python scripts/hard_benchmarks/make_multicutout_report.py
 """
+
 import json
 import os
 import sys
@@ -43,7 +41,7 @@ def main():
             if d is None:
                 continue
             pts = [(r["seconds"], max(r[key], 1e-4)) for r in d["probes"] if r.get(key) is not None]
-            if not pts:          # e.g. the DeepXDE runs only record the cutout metric at the end
+            if not pts:
                 continue
             ax.semilogy(*zip(*pts), "-", lw=1.5, color=col, label=name)
         if thr:
@@ -58,7 +56,7 @@ def main():
     ref = next(z for t, *_ in RUNS if (z := data[t][1]) is not None)
     c = ref["coords"]
     tri = Triangulation(c[:, 0], c[:, 1])
-    cx, cy = c[tri.triangles].mean(axis=1).T                 # blank the cutouts and the outside
+    cx, cy = c[tri.triangles].mean(axis=1).T
     tri.set_mask(~mc.material(cx, cy))
     cols = [("FEM (reference)", None)] + [(n, t) for t, n, _ in RUNS if data[t][1] is not None]
     fig, axes = plt.subplots(3, len(cols), figsize=(3.1 * len(cols), 9.6))

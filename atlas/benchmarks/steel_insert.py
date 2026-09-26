@@ -1,12 +1,3 @@
-"""steel_insert.py - a bonded steel insert in an aluminium plate: the inclusion benchmark
-(atlas/benchmarks/bimaterial.py) with the materials swapped to a STIFF inclusion. Same geometry, quadrature,
-interface and routing; only the materials differ. Protocol: results/multi_material/steel_insert/PROTOCOL.md.
-
-    quarter plate [0, 2]^2, insert rho < 0.3 at the origin
-    plate  aluminium E = 70 GPa, nu = 0.33      insert  steel E = 210 GPa, nu = 0.30
-    symmetry rollers on x = 0 and y = 0, tension SIGMA on x = 2, y = 2 traction-free
-"""
-
 import numpy as np
 import torch
 
@@ -22,13 +13,11 @@ in_inclusion = bm.in_inclusion
 
 
 def materials():
-    """(plate, insert) plane-stress models in training units."""
     return (PlaneStressElasticity(E=E_AL / STRESS_SCALE, nu=NU_AL),
             PlaneStressElasticity(E=E_ST / STRESS_SCALE, nu=NU_ST))
 
 
 def blocks(**quad):
-    """The inclusion benchmark's quadrature with this benchmark's materials."""
     plate, insert = materials()
     return [(s, p, w, insert if s == 0 else plate) for s, p, w, _ in bm.blocks(1.0, **quad)]
 
@@ -49,7 +38,6 @@ def _setup():
 
 
 def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over insert and plate. Returns (net, problem)."""
     sigma, u_s, escale = _setup()
     plate, _ = materials()
     lp, lw, tr = bm.loads(sigma)
@@ -61,7 +49,6 @@ def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu',
 
 def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS-XPINN: subnetwork 0 on the insert, 1 on the plate, tied on the interface."""
     sigma, u_s, escale = _setup()
     plate, _ = materials()
     lp, lw, tr = bm.loads(sigma)
@@ -73,7 +60,6 @@ def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float =
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords; the stress uses each point's own material."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)

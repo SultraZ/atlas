@@ -1,14 +1,10 @@
-"""Train one ATLAS benchmark, validate against the FEM reference, save artifacts.
+"""Run from the project root (all options: --help):
+    python scripts/run_benchmark.py --benchmark {cantilever,l_bracket,plate_hole} [--seed N]
 
+Example:
     python scripts/run_benchmark.py --benchmark cantilever
-    python scripts/run_benchmark.py --benchmark l_bracket --seed 1 --tag seed1
-
-Writes into results/<out-dir>/ (default results/atlas_energy/forward/): <benchmark>_model.pt (state dict),
-<benchmark>_validation.json, <benchmark>_fem_comparison.png,
-<benchmark>_convergence.png, <benchmark>_history.json, <benchmark>_displacement.png,
-<benchmark>_stress.png, <benchmark>_deformed.png. Exit code 0 only if both targets pass
-(displacement L2 < 5%, von Mises L2 excluded-region < 10%).
 """
+
 import argparse
 import json
 import os

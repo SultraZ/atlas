@@ -1,24 +1,3 @@
-"""energy_design.py - Parametric inverse shape design on top of the deep-energy solver.
-
-    cantilever : beam height H            (metric: compliance)
-    plate_hole : hole radius r            (metric: compliance, hole-edge peak von Mises)
-    l_bracket  : re-entrant fillet radius (metric: peak von Mises on the fillet, compliance)
-
-How it works
-------------
-* Each case builds its quadrature as a torch function of p (points AND weights
-  AND load traction), so the potential energy Pi(u; p) is differentiable in p.
-* The displacement network is a function of physical (x, y) on a fixed box that
-  covers every admissible p, so a converged network warm-starts the next p.
-* Compliance C = 2U = external work, and at equilibrium Pi* = -C/2. By the
-  envelope theorem  dPi*/dp = dPi/dp at fixed network, i.e. autograd through the
-  quadrature gives the EXACT shape derivative dC/dp with no re-solve
-  (checked against finite differences in tests/test_energy_design.py).
-* The root of g is found with a safeguarded Newton/secant iteration (Newton with
-  the autodiff gradient for compliance targets, secant on the warm-started
-  re-solves for stress targets), each iterate re-solving the energy problem.
-"""
-
 import math
 from typing import Callable, Dict, List, Optional
 
@@ -34,7 +13,6 @@ E_MOD, NU, STRESS_SCALE = 210e9, 0.3, 1e11
 
 
 def von_mises_at(net, pts: np.ndarray, physics_real, device, dtype) -> np.ndarray:
-    """Physical von Mises stress [Pa] of `net` at scattered points (plane stress)."""
     c = torch.tensor(pts, dtype=dtype, device=device, requires_grad=True)
     uv = net(c)
     gu = torch.autograd.grad(uv[:, 0].sum(), c, retain_graph=True)[0]
@@ -48,8 +26,6 @@ def von_mises_at(net, pts: np.ndarray, physics_real, device, dtype) -> np.ndarra
 
 
 class DesignCase:
-    """One benchmark + one design parameter. Subclasses define geometry(p)."""
-
     benchmark = ''
     param_name = ''
     param_unit = 'm'
@@ -58,7 +34,6 @@ class DesignCase:
     p0 = 0.5
     default_metric = 'compliance'
     metrics_available = ('compliance', 'volume')
-    # direction convention only used for user-facing help text
     hint = ''
 
     def __init__(self, device: str = 'cpu', dtype=torch.float64,
@@ -70,11 +45,7 @@ class DesignCase:
         self.physics_train = PlaneStressElasticity(E=E_MOD / STRESS_SCALE, nu=NU)
         self.physics_real = PlaneStressElasticity(E=E_MOD, nu=NU)
 
-    # ---- to be provided by subclasses -------------------------------------
     def geometry(self, p):
-        """(interior [(pts, w)], loads [(pts, w, traction)], area), torch,
-        differentiable in p (p may be a python float or a 0-d tensor).
-        """
         raise NotImplementedError
 
     def make_net(self) -> EnergyNet:
@@ -84,21 +55,17 @@ class DesignCase:
         raise NotImplementedError
 
     def amplitude(self, p):
-        """Network output scale u_s(p) (float or tensor). Constant by default."""
         return self._u_s
 
     def stress_points(self, p: float) -> Optional[np.ndarray]:
         return None
 
     def outline(self, p: float) -> np.ndarray:
-        """(N,2) closed polyline of the solid's boundary at design value p."""
         raise NotImplementedError
 
     def inside(self, X: np.ndarray, Y: np.ndarray, p: float) -> np.ndarray:
-        """Boolean mask: which grid points are material at design value p."""
         raise NotImplementedError
 
-    # ---- shared machinery ---------------------------------------------------
     def _t(self, a):
         return torch.as_tensor(np.asarray(a) if not torch.is_tensor(a) else a,
                                dtype=self.dtype, device=self.device)
@@ -126,13 +93,10 @@ class DesignCase:
             return float(self.geometry(self._pt(p))[2])
 
     def compliance(self, net, p: float) -> float:
-        """External work / compliance C = int t.u ds in physical units [N m per
-        unit thickness] (equals 2x the strain energy at equilibrium).
-        """
         prob = self.problem(p)
         self.prepare(net, p)
         with torch.no_grad():
-            we = prob.external_work(net)      # scaled-load units (not normalised)
+            we = prob.external_work(net)
         return float(we) * STRESS_SCALE
 
     def peak_vm(self, net, p: float) -> Optional[float]:
@@ -151,10 +115,6 @@ class DesignCase:
         return m
 
     def dcompliance_dp(self, net, p: float) -> float:
-        """Exact d(compliance)/dp in physical units via autograd through the
-        differentiable quadrature (envelope theorem: Pi* = -C/2, so
-        dC/dp = -2 dPi/dp at the converged, frozen network).
-        """
         pt = self._pt(p, grad=True)
         interior, loads, _ = self.geometry(pt)
         prob = EnergyProblem(self.physics_train, interior, loads, self.energy_scale(),
@@ -170,11 +130,9 @@ class DesignCase:
         return float(-2.0 * g) * self.energy_scale() * STRESS_SCALE
 
     def resolve(self, net, p: float, iters: int = 300, chunk: int = 50):
-        """Re-equilibrate `net` (warm start) for the geometry at p."""
         self.prepare(net, p)
         train_energy(net, self.problem(p), epochs=0, lbfgs_iters=iters,
                      lbfgs_chunk=chunk, verbose=False, keep_best=True)
-
 
 
 class CantileverDesign(DesignCase):
@@ -199,8 +157,6 @@ class CantileverDesign(DesignCase):
         self._S, self._SW = self._t(s_p), self._t(s_w)
 
     def amplitude(self, p):
-        # Euler-Bernoulli scaling of the tip displacement at fixed load, so the
-        # network only has to learn the (nearly H-independent) shape.
         return self._u_s * (self.p0 / p) ** 3
 
     def geometry(self, p):
@@ -225,7 +181,6 @@ class CantileverDesign(DesignCase):
 
     def inside(self, X, Y, p):
         return (Y <= p + 1e-12) & (X >= 0) & (X <= self.L) & (Y >= 0)
-
 
 
 class PlateHoleDesign(DesignCase):
@@ -281,22 +236,14 @@ class PlateHoleDesign(DesignCase):
 
     def outline(self, p):
         th = np.linspace(0.5 * math.pi, 0.0, 60)
-        arc = np.stack([p * np.cos(th), p * np.sin(th)], axis=1)          # (0,r) -> (r,0)
+        arc = np.stack([p * np.cos(th), p * np.sin(th)], axis=1)
         return np.concatenate([arc, [[self.W, 0.0], [self.W, self.H], [0.0, self.H], [0.0, p]]])
 
     def inside(self, X, Y, p):
         return np.hypot(X, Y) >= p
 
 
-
 class LBracketFilletDesign(DesignCase):
-    """L = [0,2s]x[0,s] U [s,2s]x[s,2s] with the re-entrant corner (s,s) rounded
-    by a fillet of radius f: material is ADDED in the square [s-f,s]x[s,s+f]
-    OUTSIDE the disk of radius f centred at C=(s-f, s+f) (the region between the
-    corner and the arc). The smooth network has no singular enrichment, since the
-    corner itself is removed.
-    """
-
     benchmark = 'l_bracket'
     param_name = 'fillet radius'
     lo, hi, p0 = 0.05, 0.4, 0.1
@@ -319,7 +266,7 @@ class LBracketFilletDesign(DesignCase):
         for th_lo, th_hi, kind in [(-0.25 * math.pi, 0.0, 'x'), (-0.5 * math.pi, -0.25 * math.pi, 'y')]:
             th_p, th_w = _gauss_on_edges(np.linspace(th_lo, th_hi, n_th + 1), ng)
             TH, XI = np.meshgrid(th_p, xi_p, indexing='ij')
-            k = 1.0 / np.cos(TH) if kind == 'x' else 1.0 / (-np.sin(TH))   # rho_sq / f
+            k = 1.0 / np.cos(TH) if kind == 'x' else 1.0 / (-np.sin(TH))
             self._patch.append((self._t(TH), self._t(XI), self._t(k),
                                 self._t(np.outer(th_w, xi_w))))
 
@@ -329,7 +276,7 @@ class LBracketFilletDesign(DesignCase):
         interior = list(self._base)
         cx, cy = s - f, s + f
         for TH, XI, K, WT in self._patch:
-            rho = f + XI * (K * f - f)            # from the arc (rho=f) to the square
+            rho = f + XI * (K * f - f)
             jac = rho * (K * f - f)
             pts = torch.stack([(cx + rho * torch.cos(TH)).reshape(-1),
                                (cy + rho * torch.sin(TH)).reshape(-1)], dim=1)
@@ -349,13 +296,13 @@ class LBracketFilletDesign(DesignCase):
         th = np.linspace(-0.5 * math.pi, 0.0, 181)
         cx, cy = s - p, s + p
         arc = np.stack([cx + p * np.cos(th), cy + p * np.sin(th)], axis=1)
-        e1 = np.stack([np.linspace(s - 0.5, s - p, 60), np.full(60, s)], axis=1)     # y=s, x<s-f
-        e2 = np.stack([np.full(60, s), np.linspace(s + p, s + 0.5, 60)], axis=1)     # x=s, y>s+f
+        e1 = np.stack([np.linspace(s - 0.5, s - p, 60), np.full(60, s)], axis=1)
+        e2 = np.stack([np.full(60, s), np.linspace(s + p, s + 0.5, 60)], axis=1)
         return np.concatenate([arc, e1, e2], axis=0)
 
     def outline(self, p):
         s = self.s
-        th = np.linspace(0.0, -0.5 * math.pi, 60)                        # (s,s+f) -> (s-f,s)
+        th = np.linspace(0.0, -0.5 * math.pi, 60)
         arc = np.stack([s - p + p * np.cos(th), s + p + p * np.sin(th)], axis=1)
         head = [[0, 0], [2 * s, 0], [2 * s, 2 * s], [s, 2 * s]]
         return np.concatenate([head, arc, [[0, s], [0, 0]]])
@@ -378,18 +325,16 @@ def make_case(benchmark: str, device: str = 'cpu', **kw) -> DesignCase:
     return CASES[benchmark](device=device, **kw)
 
 
-
 def train_forward(case: DesignCase, epochs: int = 2000, lbfgs_iters: int = 1500,
                   lr: float = 2e-3, p: Optional[float] = None, net: Optional[EnergyNet] = None,
                   seed: Optional[int] = 42, verbose: bool = True) -> EnergyNet:
-    """Solve the forward problem at design value p (default: the case baseline)."""
     if seed is not None:
         torch.manual_seed(seed)
         np.random.seed(seed)
     p = case.p0 if p is None else p
     net = net if net is not None else case.new_net()
     case.prepare(net, p)
-    if hasattr(case, 'fit'):                  # decomposed cases: interface-aware training
+    if hasattr(case, 'fit'):
         case.fit(net, p, epochs=epochs, lbfgs_iters=lbfgs_iters, lr=lr, verbose=verbose)
     else:
         train_energy(net, case.problem(p), epochs=epochs, lr=lr, lbfgs_iters=lbfgs_iters,
@@ -402,10 +347,6 @@ def solve_inverse(case: DesignCase, net: EnergyNet, metric: str, target: float,
                   resolve_iters: int = 300, polish_iters: int = 1000,
                   use_autodiff: bool = True, verbose: bool = True,
                   callback: Optional[Callable[[Dict], None]] = None) -> Dict:
-    """Find p in [case.lo, case.hi] with metric(p) = target (relative tolerance
-    `tol`). `net` must already be converged at p_init. Returns a dict with the
-    iteration history, the final design and status.
-    """
     if metric not in case.metrics_available:
         raise ValueError(f"metric '{metric}' not available for {case.benchmark}; "
                          f"choose from {case.metrics_available}")
@@ -429,20 +370,19 @@ def solve_inverse(case: DesignCase, net: EnergyNet, metric: str, target: float,
         return m, g
 
     m, g = evaluate(p, max(resolve_iters, 100), 'start')
-    bracket = {'neg': None, 'pos': None}   # p with g<0 / g>0
+    bracket = {'neg': None, 'pos': None}
 
     def note(p_, g_):
         bracket['neg' if g_ < 0 else 'pos'] = (p_, g_)
 
     note(p, g)
-    prev = None                              # last (p, g) for the secant slope
+    prev = None
     status = 'max_iter'
     slope = None
     for k in range(max_iter):
         if abs(g) < tol:
             status = 'converged'
             break
-        # ---- slope of g at p
         source = 'secant'
         if metric == 'compliance' and use_autodiff:
             slope = case.dcompliance_dp(net, p) / target
@@ -463,7 +403,6 @@ def solve_inverse(case: DesignCase, net: EnergyNet, metric: str, target: float,
             status = 'flat'
             break
         p_new = p - g / slope
-        # ---- safeguards: bounded step, bounds, keep inside the bracket
         max_step = 0.35 * (hi - lo)
         p_new = p + float(np.clip(p_new - p, -max_step, max_step))
         p_new = float(np.clip(p_new, lo, hi))
@@ -502,7 +441,7 @@ def solve_inverse(case: DesignCase, net: EnergyNet, metric: str, target: float,
         m, g = evaluate(p, polish_iters, 'refine')
         if abs(g) < best[0]:
             best = (abs(g), p, m, g)
-    if best[1] != p:                       # last correction was worse: return to the best
+    if best[1] != p:
         p = best[1]
         m, g = evaluate(p, polish_iters, 'restore')
     if abs(g) < tol:
@@ -521,13 +460,7 @@ def run_inverse_design(benchmark: str, metric: Optional[str] = None,
                        net: Optional[EnergyNet] = None, forward_epochs: int = 2000,
                        forward_lbfgs: Optional[int] = None, seed: int = 42, verbose: bool = True,
                        decomposed: bool = False, **solver_kw) -> Dict:
-    """Forward-solve the baseline design, then solve the inverse problem.
-
-    The target is `target_value` (physical units) or `target_ratio` x the
-    baseline metric at case.p0. Returns the solve_inverse dict plus the case,
-    the trained network and the baseline metrics.
-    """
-    if decomposed:                      # paper-faithful ATLAS-XPINN solver (subnetworks + interfaces)
+    if decomposed:
         from atlas.energy_xpinn_design import make_xpinn_case
         case = make_xpinn_case(benchmark, device=device)
     else:
@@ -554,9 +487,6 @@ def run_inverse_design(benchmark: str, metric: Optional[str] = None,
 
 
 def design_fields(case: DesignCase, net: EnergyNet, p: float, n: int = 140) -> Dict:
-    """Displacement and von Mises on a regular grid over the solid at design value
-    p (NaN outside the material). Returns numpy arrays X, Y, u, v, disp, vm.
-    """
     case.prepare(net, p)
     if case.benchmark == 'cantilever':
         xs, ys = np.linspace(0, case.L, n), np.linspace(0, p, max(12, n // 4))

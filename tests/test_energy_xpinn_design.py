@@ -1,4 +1,7 @@
-"""Checks for atlas/energy_xpinn_design.py (decomposed inverse design), CPU."""
+"""Run from the project root:
+    python tests/test_energy_xpinn_design.py
+"""
+
 import math
 import os
 import sys
@@ -52,9 +55,6 @@ def t_areas_and_interfaces():
 
 
 def t_router_matches_blocks():
-    """Every quadrature point must be evaluated by the network of the block it was
-    built for, and lie on the correct side of every interface normal.
-    """
     for b, ps in (('cantilever', (0.7, 1.4)), ('plate_hole', (0.15, 0.7)), ('l_bracket', (0.06, 0.35))):
         case = make_xpinn_case(b)
         for p in ps:

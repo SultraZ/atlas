@@ -1,3 +1,7 @@
+"""Run from the project root:
+    python scripts/checks/check_env.py
+"""
+
 import sys
 print("python:", sys.version)
 for mod in ["torch", "numpy", "matplotlib"]:

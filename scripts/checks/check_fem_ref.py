@@ -1,3 +1,7 @@
+"""Run from the project root:
+    python scripts/checks/check_fem_ref.py
+"""
+
 import numpy as np, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from atlas.paths import FEM_REFERENCE_DIR

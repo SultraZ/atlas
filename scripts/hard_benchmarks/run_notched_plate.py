@@ -1,21 +1,10 @@
-"""Train and score one solver on the notched-plate benchmark (atlas/benchmarks/notched_plate.py).
+"""Run from the project root (all options: --help):
+    python scripts/hard_benchmarks/run_notched_plate.py --solver {atlas,xpinn,atlas_wide} [--seed N]
 
-Solvers
-    atlas        single network, deep-energy formulation (ATLAS energy)
-    xpinn        two subnetworks (root patch + rest) with interface continuity (ATLAS-XPINN)
-    atlas_wide   single network widened to the parameter count of `xpinn` (control)
-
-Scored against the FEM reference (fem/reference/notched_plate_*.npy, never used in
-training) every `--probe-every` iterations (probing time excluded from the clock) and at the end:
-  * displacement: vector L2 and |u| L2 on the uniform grid
-  * von Mises L2 with the singular exclusion (root apex and the two clamp corners)
-  * the notch zone: von Mises / displacement L2 on the dense grid around the root, and the
-    ratio of the predicted to the FEM peak von Mises there
-
-Writes results/hard_single_material/notched_plate/<solver>/seed<seed>.{json,npz} (+ model .pt).
-
+Example:
     python scripts/hard_benchmarks/run_notched_plate.py --solver xpinn --seed 42
 """
+
 import argparse
 import json
 import os
@@ -35,7 +24,7 @@ from atlas.paths import FEM_REFERENCE_DIR, RESULTS_DIR
 from atlas.physics import PlaneStressElasticity
 from atlas.validation import compute_von_mises_metrics, default_exclusion_radius, relative_l2
 
-WIDE_NEURONS = 91          # 4 x 91 single network ~ 25.6k parameters = two 4 x 64 subnetworks
+WIDE_NEURONS = 91
 
 
 def load_ref(tag):

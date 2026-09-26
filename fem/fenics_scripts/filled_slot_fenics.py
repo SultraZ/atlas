@@ -1,16 +1,7 @@
-"""filled_slot_fenics.py - legacy FEniCS (dolfin + mshr) plane-stress reference for the
-epoxy-filled elliptical slot in a steel plate (atlas/benchmarks/filled_slot.py).
-
-The mesh conforms to the ellipse (mshr subdomain, 1024 segments) and is refined in bands around it;
-P2 displacements, element-wise DG1 stresses (exact for P2). Evaluated on
-  * a uniform 0.01 grid                        -> filled_slot_{coords,u,v,vonmises}.npy
-  * a 0.0025 grid within 0.05 of the interface -> filled_slot_roi_*.npy
-Points within 1e-3 of the interface (along the ray) are skipped. Two mesh levels are compared. The
-FEM result is used ONLY to score the ATLAS solvers, never in training.
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/filled_slot_fenics.py
 """
+
 import json
 import os
 import sys
@@ -32,7 +23,7 @@ df.set_log_level(40)
 
 def build_mesh(levels, base=48, segments=1024):
     dom = mshr.Rectangle(df.Point(0, 0), df.Point(W, H))
-    dom.set_subdomain(1, mshr.Ellipse(df.Point(0, 0), AX, BY, segments))   # mshr clips it to the plate
+    dom.set_subdomain(1, mshr.Ellipse(df.Point(0, 0), AX, BY, segments))
     mesh = mshr.generate_mesh(dom, base)
     for band in [0.20, 0.10, 0.05, 0.025][:levels]:
         mid = np.array([c.midpoint().array()[:2] for c in df.cells(mesh)])

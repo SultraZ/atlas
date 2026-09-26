@@ -1,17 +1,3 @@
-"""filled_slot.py - epoxy-filled elliptical slot in a steel plate, used to test ATLAS-XPINN
-(subdomain interface on the filler boundary) against the single-network ATLAS energy solver.
-Protocol: results/multi_material/filled_slot/PROTOCOL.md.
-
-    quarter plate [0, 2]^2, elliptical filler (x/AX)^2 + (y/BY)^2 < 1, AX = 0.2 (along the load),
-    BY = 0.4 (across it)
-    plate  steel E = 210 GPa, nu = 0.30      filler  epoxy E = 3.5 GPa, nu = 0.35
-    symmetry rollers on x = 0 and y = 0, tension SIGMA on x = 2, y = 2 traction-free
-
-Quadrature (identical for both solvers): polar blocks whose inner / outer radius follows the ellipse
-r_e(theta) - the filler from the centre to r_e, the plate from r_e to the square boundary (split at
-the diagonal) - graded toward the interface.
-"""
-
 import math
 
 import numpy as np
@@ -30,7 +16,6 @@ AX, BY = 0.2, 0.4
 
 
 def r_e(th):
-    """Radius of the ellipse along the ray at polar angle th."""
     c, s = np.cos(th), np.sin(th)
     return AX * BY / np.sqrt((BY * c) ** 2 + (AX * s) ** 2)
 
@@ -45,19 +30,16 @@ def in_filler(x, y):
 
 
 def radial_distance(x, y):
-    """|rho - r_e(theta)|: distance to the interface along the ray (for grids and bands)."""
     x, y = np.asarray(x), np.asarray(y)
     return np.abs(np.hypot(x, y) - r_e(np.arctan2(y, x)))
 
 
 def materials():
-    """(plate, filler) plane-stress models in training units."""
     return (PlaneStressElasticity(E=E_ST / STRESS_SCALE, nu=NU_ST),
             PlaneStressElasticity(E=E_EP / STRESS_SCALE, nu=NU_EP))
 
 
 def blocks(n_th: int = 24, n_xi_fill: int = 12, n_xi_plate: int = 24, ng: int = 3):
-    """[(sub, pts, w, physics)]: sub 0 = filler, sub 1 = plate (two blocks split at the diagonal)."""
     plate, filler = materials()
     out = [(0, *_polar_block(0.0, r_e, 0.0, 0.5 * math.pi, n_th, n_xi_fill, 1.5, 'b', ng), filler)]
     split = math.atan2(H, W)
@@ -74,7 +56,6 @@ def loads(sigma: float):
 
 
 def interfaces(n_cells: int = 32, ng: int = 4):
-    """The ellipse, normal from the filler (a=0) into the plate (b=1)."""
     plate, filler = materials()
     th, wth = _gauss_on_edges(np.linspace(0.0, 0.5 * math.pi, n_cells + 1), ng)
     r, dr = r_e(th), dr_e(th)
@@ -95,7 +76,6 @@ def _setup():
 
 
 def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over filler and plate. Returns (net, problem)."""
     sigma, u_s, escale = _setup()
     plate, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -106,8 +86,6 @@ def build_single(hidden_layers: int = 4, neurons: int = 64, device: str = 'cpu',
 
 
 class RoutedSlotModel(nn.Module):
-    """Two subnetworks routed by the ellipse: 0 filler, 1 plate."""
-
     def __init__(self, sub0: nn.Module, sub1: nn.Module):
         super().__init__()
         self.subnets = nn.ModuleList([sub0, sub1])
@@ -128,7 +106,6 @@ class RoutedSlotModel(nn.Module):
 
 def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS-XPINN: subnetwork 0 on the filler, 1 on the plate, tied on the ellipse."""
     sigma, u_s, escale = _setup()
     plate, _ = materials()
     lp, lw, tr = loads(sigma)
@@ -140,7 +117,6 @@ def build_decomposed(hidden_layers: int = 4, neurons: int = 64, gamma_u: float =
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords; the stress uses each point's own material."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)

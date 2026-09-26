@@ -1,21 +1,10 @@
-"""Train and score one solver on the multi-cutout bracket (atlas/benchmarks/multicutout.py).
+"""Run from the project root (all options: --help):
+    python scripts/hard_benchmarks/run_multicutout.py --solver {atlas,xpinn,atlas_wide} [--seed N]
 
-Solvers
-    atlas        ATLAS energy: one network
-    xpinn        ATLAS-XPINN: three subnetworks (upper arm / corner region / horizontal
-                 arm), augmented-Lagrangian interfaces + warm start (the default recipe)
-    atlas_wide   one network with about the parameter count of `xpinn` (control)
-
-Scored against the FEM reference (fem/reference/multicutout_*.npy, never used in training)
-every --probe-every iterations (probing time excluded from the clock) and at the end:
-  displacement vector L2 / |u| L2, von Mises L2 excluding the re-entrant corner and the two
-  clamp corners, von Mises L2 in a 0.03 m band around each cutout, and the predicted / FEM
-  peak von Mises at each cutout.
-
-Writes results/hard_single_material/multicutout/<tag>/seed<seed>.{json,npz,_model.pt}.
-
+Example:
     python scripts/hard_benchmarks/run_multicutout.py --solver xpinn --seed 42
 """
+
 import argparse
 import json
 import os
@@ -34,8 +23,8 @@ from atlas.paths import FEM_REFERENCE_DIR, RESULTS_DIR
 from atlas.physics import PlaneStressElasticity
 from atlas.validation import compute_von_mises_metrics, default_exclusion_radius, relative_l2
 
-GOOD_TOL, STOP_TOL = 0.0015, 0.003   # energy-check guard (no FEM data): keep / stop thresholds on |ratio - 1|
-WIDE_NEURONS = 112        # one 4 x 112 network ~ 38.4k parameters = three 4 x 64 subnetworks
+GOOD_TOL, STOP_TOL = 0.0015, 0.003
+WIDE_NEURONS = 112
 
 
 def main():
@@ -85,9 +74,6 @@ def main():
                               device=device)
 
     def energy_check():
-        """Strain energy on an independent quadrature / on the training quadrature (no FEM data):
-        ~1 while the network is resolved by the training points; drifts if it exploits the gaps.
-        """
         return float(chk.strain_energy(model).detach() / train_all.strain_energy(model).detach())
 
     def score():
@@ -151,7 +137,6 @@ def main():
     sync()
     total = time.perf_counter() - t0 - st["probe_s"]
     final, (up, vp, vm) = score()
-    # compliance C = int t.u over the loaded edge, from the network, vs the FEM value
     lp, lw, tr = mc.loads(mc.SIGMA)
     ul, vl, _ = mc.predict(model, lp, device)
     C = float(np.sum(lw * (tr[:, 0] * ul + tr[:, 1] * vl)))

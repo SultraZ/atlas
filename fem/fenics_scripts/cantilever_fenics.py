@@ -1,36 +1,21 @@
-"""choosed (0.0, t_y) -> parabolic tip shear on the right edge
-Matches CantileverBeamSampler exactly:
-    domain:  [0, L] x [0, H]
-    left edge (x=0):  fully fixed (u = v = 0)
-    right edge (x=L): PARABOLIC shear traction t_y = 6*(P/H)*(y/H)*(1-y/H)
-                      (t_x = 0) - integrates to exactly P, zero at the
-                      corners, identical profile to sampling.py
-    top/bottom:       traction-free
-    material:         plane stress, E, nu
-
-Run:  python cantilever_fenics.py
-Needs legacy FEniCS (`conda install -c conda-forge fenics` or the FEniCS
-Docker image). If you're on FEniCSx (dolfinx) instead, the API differs
-enough (dolfinx.fem, ufl imports, PETSc vectors) that this won't run as-is -
-say so and I'll port it.
+"""Run from the project root with the FEniCS env on PATH:
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/cantilever_fenics.py
 """
 
 import dolfin as df
 import numpy as np
 import os
 
-# ---- must match sampling.py / physics.py exactly ---------------------------
 L, H = 4.0, 1.0
 E, nu = 210e9, 0.3
-P = -1e6            # same sign/meaning as train_forward_solver's P for cantilever
-NX, NY = 160, 40     # mesh resolution; bump up if you want a tighter reference
+P = -1e6
+NX, NY = 160, 40
 
 OUT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "reference"))
 BENCHMARK = "cantilever"
 
-# ---- plane stress constitutive law, same coefficients as physics.py --------
 mu = E / (2.0 * (1.0 + nu))
-lmbda = E * nu / (1.0 - nu**2)  # plane-stress effective lambda (not 3D lambda)
+lmbda = E * nu / (1.0 - nu**2)
 
 
 def sigma(u):
@@ -42,7 +27,6 @@ def main():
     mesh = df.RectangleMesh(df.Point(0, 0), df.Point(L, H), NX, NY)
     V = df.VectorFunctionSpace(mesh, "Lagrange", degree=2)
 
-    # left edge fixed
     def left(x, on_boundary):
         return on_boundary and df.near(x[0], 0.0)
 
@@ -73,11 +57,8 @@ def main():
     uh = df.Function(V, name="displacement")
     df.solve(a == Lform, uh, bc)
 
-    # ---- export in the exact shape/name validation.py expects --------------
     os.makedirs(OUT_DIR, exist_ok=True)
     coords = V.tabulate_dof_coordinates()
-    # VectorFunctionSpace interleaves (u,v) dofs; split them cleanly via
-    # the sub-space dof maps rather than assuming even/odd ordering.
     Vx, Vy = V.sub(0).collapse(), V.sub(1).collapse()
     ux = df.project(uh.sub(0), Vx)
     uy = df.project(uh.sub(1), Vy)

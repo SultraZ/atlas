@@ -1,22 +1,3 @@
-"""notched_plate.py - first "difficult" benchmark: a rectangular plate with one U-shaped
-edge notch, used to test whether the domain-decomposed deep-energy solver (ATLAS-XPINN
-energy) beats the single-network one (ATLAS energy) on a multi-scale problem.
-
-    plate    [0, W] x [0, H],  W = 1, H = 2
-    notch    U-shaped, cut from the left edge x = 0 at mid-height y0 = H/2:
-             a slot of half-width r running from x = 0 to x = cx = h - r, closed by a
-             semicircular root of radius r centred at C = (cx, y0). Depth h = 0.25.
-             Base tier r = 0.025 (h/r = 10, Kt ~ 3.73 by Peterson/Roark).
-    BCs      y = 0  : clamped (u = v = 0)         -> exact via the mask 'clamp_y0'
-             y = H  : uniform tension t_y = sigma
-             rest   : traction-free (natural), including the notch boundary
-
-Quadrature (identical for both solvers, only the subdomain labels differ):
-  patch (sub 0)  half-square [cx, cx+R] x [y0-R, y0+R] minus the root half-disc, as three
-                 polar wedges around C (right, top, bottom), graded toward the root
-  rest  (sub 1)  five rectangles that tile the remaining material
-"""
-
 import math
 from typing import Dict, List, Tuple
 
@@ -29,7 +10,7 @@ from atlas.energy_solver import (EnergyNet, EnergyProblem, _gauss_on_edges, grad
 from atlas.energy_xpinn import DecomposedEnergyProblem, _polar_block
 
 E_MOD, NU, STRESS_SCALE = 210e9, 0.3, 1e11
-SIGMA = 1e6                      # applied traction [Pa]
+SIGMA = 1e6
 
 
 class NotchGeometry:
@@ -37,13 +18,12 @@ class NotchGeometry:
                  R: float = 0.15):
         self.W, self.H, self.h, self.r, self.R = W, H, h, r, R
         self.y0 = 0.5 * H
-        self.cx = h - r                       # root-circle centre x
+        self.cx = h - r
         self.C = (self.cx, self.y0)
-        self.apex = (h, self.y0)              # deepest point of the notch
+        self.apex = (h, self.y0)
         assert R > 2 * r and self.cx + R < W and self.y0 - R > 0 and self.y0 + R < H
 
     def material(self, x, y):
-        """Boolean mask of points that lie in the material (the notch is void)."""
         x, y = np.asarray(x), np.asarray(y)
         inside = (x >= 0) & (x <= self.W) & (y >= 0) & (y <= self.H)
         slot = (x < self.cx) & (np.abs(y - self.y0) < self.r)
@@ -51,7 +31,6 @@ class NotchGeometry:
         return inside & ~slot & ~disc
 
     def in_patch(self, x, y):
-        """Points owned by subnetwork 0 (the root patch)."""
         return ((np.asarray(x) >= self.cx) & (np.asarray(x) <= self.cx + self.R)
                 & (np.abs(np.asarray(y) - self.y0) <= self.R))
 
@@ -62,7 +41,6 @@ class NotchGeometry:
 
 def notch_blocks(g: NotchGeometry, n_th: int = 8, n_xi: int = 14, power: float = 2.0,
                  ng: int = 3, n_rect: Tuple[int, int] = (10, 14)) -> List[Tuple[int, np.ndarray, np.ndarray]]:
-    """[(sub_id, pts, w)]: sub 0 = root patch (3 wedges), sub 1 = five rectangles."""
     cx, y0, r, R, W, H = g.cx, g.y0, g.r, g.R, g.W, g.H
     blocks = []
     wedges = [(-0.25 * math.pi, 0.25 * math.pi, lambda th: R / np.cos(th)),
@@ -74,11 +52,11 @@ def notch_blocks(g: NotchGeometry, n_th: int = 8, n_xi: int = 14, power: float =
     nx, ny = n_rect
     gx = lambda a, b, toward, pw=1.6: graded_nodes(a, b, nx, pw, toward)
     gy = lambda a, b, toward, pw=1.6: graded_nodes(a, b, ny, pw, toward)
-    rects = [((0.0, cx, 'b'), (y0 + r, H, 'a')),          # left of the notch, above the slot
-             ((0.0, cx, 'b'), (0.0, y0 - r, 'both')),     # left of the notch, below the slot
-             ((cx, W, 'a'), (y0 + R, H, 'a')),            # above the patch
-             ((cx, W, 'a'), (0.0, y0 - R, 'both')),       # below the patch
-             ((cx + R, W, 'a'), (y0 - R, y0 + R, 'none'))]  # right of the patch
+    rects = [((0.0, cx, 'b'), (y0 + r, H, 'a')),
+             ((0.0, cx, 'b'), (0.0, y0 - r, 'both')),
+             ((cx, W, 'a'), (y0 + R, H, 'a')),
+             ((cx, W, 'a'), (0.0, y0 - R, 'both')),
+             ((cx + R, W, 'a'), (y0 - R, y0 + R, 'none'))]
     for (xa, xb, tx), (ya, yb, ty) in rects:
         p, w = rect_quadrature(gx(xa, xb, tx), gy(ya, yb, ty), ng)
         blocks.append((1, p, w))
@@ -92,7 +70,6 @@ def notch_loads(g: NotchGeometry, sigma: float):
 
 
 def notch_interfaces(g: NotchGeometry):
-    """Patch (a=0) -> rest (b=1) interface segments with outward normals of the patch."""
     cx, y0, r, R = g.cx, g.y0, g.r, g.R
     segs = [((cx + R, y0 - R), (cx + R, y0 + R), (1.0, 0.0)),
             ((cx, y0 + R), (cx + R, y0 + R), (0.0, 1.0)),
@@ -112,7 +89,6 @@ def characteristic_displacement(g: NotchGeometry) -> float:
 
 def build_single(physics_train, g: NotchGeometry = None, hidden_layers: int = 4,
                  neurons: int = 64, device: str = 'cpu', dtype=torch.float64, **quad):
-    """ATLAS energy: ONE network over the whole plate. Returns (net, problem)."""
     g = g or NotchGeometry()
     sigma = SIGMA / STRESS_SCALE
     u_s = characteristic_displacement(g)
@@ -126,20 +102,12 @@ def build_single(physics_train, g: NotchGeometry = None, hidden_layers: int = 4,
 
 
 def split_interfaces(g: NotchGeometry, n_cells: int = 24, ng: int = 4):
-    """'split' layout: the ligament y = y0, x in [h, W] (apex to right edge), graded toward
-    the apex. Normal from the top subdomain (a=0) into the bottom one (b=1).
-    """
     p, w = _gauss_on_edges(graded_nodes(g.h, g.W, n_cells, 2.0, 'a'), ng)
     pts = np.stack([p, np.full_like(p, g.y0)], axis=1)
     return [dict(a=0, b=1, pts=pts, w=w, n=np.tile([0.0, -1.0], (len(p), 1)))]
 
 
 class RoutedNotchModel(nn.Module):
-    """Two subnetworks with geometric routing for evaluation. Exposes
-    get_subdomain_network(i) so DecomposedEnergyProblem trains it unchanged.
-    layout 'patch': sub0 = root patch, sub1 = rest;  'split': sub0 = y >= y0, sub1 = y < y0.
-    """
-
     def __init__(self, g: NotchGeometry, sub0: nn.Module, sub1: nn.Module, layout: str = 'patch'):
         super().__init__()
         self.g = g
@@ -164,15 +132,6 @@ class RoutedNotchModel(nn.Module):
 def build_decomposed(physics_train, g: NotchGeometry = None, hidden_layers: int = 4,
                      neurons: int = 64, gamma_u: float = 30.0, gamma_t: float = 0.1,
                      device: str = 'cpu', dtype=torch.float64, layout: str = 'patch', **quad):
-    """ATLAS-XPINN, two subnetworks.
-    layout 'patch': subnetwork 0 on the root patch, subnetwork 1 on the rest, tied on the
-                    patch boundary (the slot stays inside subnetwork 1).
-    layout 'split': the plate is cut along the notch line y = y0; subnetwork 0 = upper half,
-                    subnetwork 1 = lower half, tied only on the ligament ahead of the root.
-                    The slot faces then belong to different subnetworks, so the
-                    displacement jump across the slot is not something either has to fit.
-    Both use exactly the single-network quadrature points; only the labels differ.
-    """
     g = g or NotchGeometry()
     sigma = SIGMA / STRESS_SCALE
     u_s = characteristic_displacement(g)
@@ -203,7 +162,6 @@ def build_decomposed(physics_train, g: NotchGeometry = None, hidden_layers: int 
 
 
 def predict(net_or_model, coords: np.ndarray, device: str = 'cpu'):
-    """(u, v, von Mises [Pa]) at coords for a float64 net or RoutedNotchModel."""
     dt = next(net_or_model.parameters()).dtype
     X = torch.tensor(coords, dtype=dt, device=device, requires_grad=True)
     uv = net_or_model(X)

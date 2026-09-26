@@ -1,5 +1,6 @@
 #!/bin/bash
-# Waits for the DeepXDE queue, then: ATLAS-XPINN with fix B + per-subdomain input normalisation.
+# Run from the project root:
+#   bash scripts/hard_benchmarks/run_multicutout_localnorm.sh
 cd /home/sultra/atlas_main
 L=results/hard_single_material/multicutout/logs
 while [ ! -f $L/DDEDONE ]; do sleep 30; done

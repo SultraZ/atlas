@@ -1,4 +1,3 @@
-"""design_plots.py - figures for inverse-design results (atlas/energy_design.py)."""
 import os
 from typing import Dict, Optional
 
@@ -15,7 +14,6 @@ _LABEL = {'compliance': 'Compliance C [N m]', 'peak_vm': 'Peak von Mises [Pa]',
 
 
 def plot_design_history(result: Dict, save_path: Optional[str] = None):
-    """Design parameter and metric versus iteration, with the target marked."""
     h = [r for r in result['history'] if r['tag'] != 'probe' and r['tag'] != 'return']
     name, metric = result['param_name'], result['metric']
     fig, ax = plt.subplots(1, 3, figsize=(14, 3.8))
@@ -39,9 +37,6 @@ def plot_design_history(result: Dict, save_path: Optional[str] = None):
 
 
 def plot_design_result(result: Dict, save_path: Optional[str] = None, n: int = 140):
-    """Baseline vs optimised geometry, and the displacement / von Mises fields of
-    the optimised design.
-    """
     case, net, p0, ps = result['case'], result['net'], result['case'].p0, result['p_star']
     f = design_fields(case, net, ps, n)
     fig, ax = plt.subplots(1, 3, figsize=(15, 4.2))

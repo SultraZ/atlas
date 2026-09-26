@@ -1,5 +1,3 @@
-"""loss_functions.py - Comprehensive Loss Function Implementation for XPINN"""
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -11,19 +9,6 @@ class XPINNLoss:
     def __init__(self, physics: PlaneStressElasticity,
                  weights: Optional[Dict[str, float]] = None,
                  scales: Optional[Dict[str, float]] = None):
-        """        scales: optional per-term SQUARED reference values used to make each
-        loss component dimensionless ~O(1) (see atlas_main.train_forward_solver
-        for where they come from). Keys: pde, dirichlet, neumann,
-        interface_u, interface_t. Without it the raw (unit-ful) losses create
-        two failure modes (both observed live):
-          - physical units: pde ~ (1e9)^2 dominating / float32-frozen,
-          - stress_scale-divided units: every term ~1e-8..1e-10 so the
-            trivially-zero "elasticity" field (which scores ~0 everywhere and
-            only "misses" the tiny scaled load) mathematically wins over the
-            true solution, and training collapses into zero deformation.
-        Each loss method below divides by its reference^2 so that "ignoring
-        the load" costs O(1) and the true solution's residuals are ~0.
-        """
         self.physics = physics
         self.weights = weights or {
             'pde': 1.0,
@@ -41,8 +26,6 @@ class XPINNLoss:
 
         self.resultants: Optional[List[Dict]] = None
 
-        # energy_context: (interior_cuts, loaded_edges) enabling the signed
-        # total-potential-energy term (monolith only). See energy_loss().
         self.energy_context: Optional[Tuple[List[Dict], List[Dict]]] = None
 
         self.anchor_data: Optional[Tuple[torch.Tensor, torch.Tensor, float]] = None
@@ -53,7 +36,6 @@ class XPINNLoss:
 
     def resultant_loss(self, network: nn.Module, data: Dict,
                        weight: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        """        Enforce global force/moment equilibrium on a constrained section."""
         x = data['x'].detach().requires_grad_(True)
         y = data['y'].detach().requires_grad_(True)
         coords = torch.cat([x, y], dim=1)
@@ -66,11 +48,11 @@ class XPINNLoss:
         losses = {}
         loss_weight = data.get('weight', weight)
         for label, (target, scale) in data['targets'].items():
-            if label == 'sxx':                    # section mean of axial
+            if label == 'sxx':
                 pred = torch.mean(sig_xx)
-            elif label == 'sxy':                  # section mean of shear
+            elif label == 'sxy':
                 pred = torch.mean(sig_xy)
-            elif label == 'moment':               # section mean of (y-yc)*sig_xx
+            elif label == 'moment':
                 pred = torch.mean((y - data['y_center']) * sig_xx)
             else:
                 raise ValueError(f"Unknown resultant target: {label}")
@@ -93,16 +75,6 @@ class XPINNLoss:
 
     def energy_loss(self, network: nn.Module, interior: List[Dict],
                     loaded_edges: List[Dict]) -> torch.Tensor:
-        """        Total potential energy PI = 1/2 * integral(sigma:eps) - integral(t.u)
-        over the (monolith) domain, MINIMIZED directly (signed value kept).
-
-        interior: list of subdomain-data dicts (x, y) -> strain-energy block.
-        loaded_edges: list of boundary dicts of type 'neumann' that carry the
-        APPLIED traction (their t_x/t_y and the geometric panel length);
-        free edges and wall (dirichlet) entries are excluded by the caller.
-        Every dict may carry an 'area'/'length' (numerical quadrature weight
-        for the panel). Falls back to raw means if absent.
-        """
         n_sub = len(interior)
         strain = torch.tensor(0.0, device=self.device_or(interior))
         px = py = None
@@ -142,7 +114,6 @@ class XPINNLoss:
     def dirichlet_loss(self, network: nn.Module, x: torch.Tensor, y: torch.Tensor,
                        u_prescribed: torch.Tensor, v_prescribed: torch.Tensor,
                        constrain_u: bool = True, constrain_v: bool = True) -> torch.Tensor:
-        """        Supports partial constraints (e.g. symmetry rollers)."""
         coords = torch.cat([x, y], dim=1)
         uv = network(coords)
         u_pred, v_pred = uv[:, 0:1], uv[:, 1:2]
@@ -182,14 +153,12 @@ class XPINNLoss:
         y = y.requires_grad_(True)
         coords = torch.cat([x, y], dim=1)
 
-        # Network A
         uv_A = network_A(coords)
         u_A, v_A = uv_A[:, 0:1], uv_A[:, 1:2]
         eps_xx_A, eps_yy_A, eps_xy_A = self.physics.compute_strains(u_A, v_A, x, y)
         sig_xx_A, sig_yy_A, sig_xy_A = self.physics.compute_stresses(eps_xx_A, eps_yy_A, eps_xy_A)
         t_x_A, t_y_A = self.physics.compute_surface_traction(sig_xx_A, sig_yy_A, sig_xy_A, n_x, n_y)
 
-        # Network B (opposite normal)
         x = x.detach().requires_grad_(True)
         y = y.detach().requires_grad_(True)
         coords = torch.cat([x, y], dim=1)
@@ -204,9 +173,6 @@ class XPINNLoss:
     def compute_total_loss(self, model, subdomain_data: List[Dict],
                            interface_data: List[Dict],
                            boundary_data: List[Dict]) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        """        Aggregate every loss term (weighted by self.weights) across all
-        subdomains/boundaries/interfaces for a given XPINNModel.
-        """
         device = model.device
         losses = {
             'pde': torch.tensor(0.0, device=device),
@@ -280,8 +246,6 @@ class XPINNTrainer:
         self.model = xpinn_model
         self.physics = physics
         self.loss_fn = XPINNLoss(physics, loss_weights, scales=loss_scales)
-        # Seed of the per-component weights used by adaptive balancing so a
-        # phase-2 run can drift weights without permanently editing them.
         self._base_weights: Dict[str, float] = dict(self.loss_fn.weights)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -293,16 +257,12 @@ class XPINNTrainer:
             'resultant': [], 'anchor': [],
         }
         self.adam_epoch_count: Optional[int] = None
-        # Optional monitor(iteration) for the convergence/timing study; called
-        # every `probe_every` Adam epochs and after each L-BFGS outer step.
         self.probe = None
         self.probe_every = 100
 
     def compute_total_loss(self, subdomain_data: List[Dict],
                            interface_data: List[Dict],
                            boundary_data: List[Dict]) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        # Delegates to XPINNLoss.compute_total_loss (see its docstring) so
-        # there's a single implementation shared with InverseDesignOptimizer.
         return self.loss_fn.compute_total_loss(
             self.model, subdomain_data, interface_data, boundary_data
         )
@@ -323,7 +283,6 @@ class XPINNTrainer:
 
     def _component_grad_norms(self, subdomain_data, interface_data, boundary_data,
                               keys) -> Dict[str, float]:
-        """Unweighted per-component gradient norms w.r.t. all model params."""
         params = list(self.model.parameters())
         self.optimizer.zero_grad()
         _total, comps = self.compute_total_loss(
@@ -345,7 +304,6 @@ class XPINNTrainer:
 
     def adapt_weights(self, subdomain_data, interface_data, boundary_data,
                       keys, lo: float = 0.2, hi: float = 5.0) -> Dict[str, float]:
-        """Gradient-norm balancing of the per-component loss weights."""
         norms = self._component_grad_norms(
             subdomain_data, interface_data, boundary_data, keys)
         if not norms:
@@ -368,25 +326,6 @@ class XPINNTrainer:
               lbfgs_max_iter_per_step: int = 20, lbfgs_history_size: int = 50,
               lbfgs_print_every: int = 5,
               adaptive_weights: bool = False, adapt_every: int = 100):
-        """        Two-stage training, matching the paper's stated methodology
-        ("The optimizer for training is Adam, and for fine-tuning, L-BFGS."):
-
-          Stage 1 (Adam, `epochs` steps): fast, robust, stochastic-friendly
-          first-order optimization. Gets the network from a random init into
-          a good basin quickly, but Adam only uses gradient *direction* (with
-          per-parameter adaptive scaling) - it has no model of loss curvature,
-          so it tends to plateau well short of the best achievable residual.
-
-          Stage 2 (L-BFGS, `lbfgs_steps` x `lbfgs_max_iter_per_step` internal
-          iterations, only if use_lbfgs=True): quasi-Newton fine-tuning.
-          L-BFGS builds a low-rank approximation of the loss Hessian from the
-          last `lbfgs_history_size` gradient/step pairs and takes much better
-          (curvature-aware) steps once you're already close to a minimum -
-          exactly the regime Adam leaves you in. This is standard practice
-          in the PINN literature (Raissi et al. 2019 and most work since)
-          for squeezing the last 1-2 orders of magnitude out of the PDE
-          residual after Adam plateaus.
-        """
         print("Starting XPINN Training (Stage 1: Adam)...")
         print("=" * 60)
         for epoch in range(epochs):
@@ -456,7 +395,6 @@ class XPINNTrainer:
                      history_size: int = 50, line_search_fn: str = 'strong_wolfe',
                      tolerance_grad: float = 1e-8, tolerance_change: float = 1e-10,
                      print_every: int = 5):
-        """        Stage 2 fine-tuning with L-BFGS. See train()'s docstring for why."""
         self.lbfgs_optimizer = torch.optim.LBFGS(
             self.model.parameters(),
             lr=1.0,

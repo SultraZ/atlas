@@ -1,19 +1,7 @@
-"""sandwich_fenics.py - legacy FEniCS plane-stress reference for the sandwich-panel benchmark
-(atlas/benchmarks/sandwich.py).
-
-    cantilever [0,4] x [0,1], steel faces y < 0.1 and y > 0.9, polymer core between,
-    x = 0 clamped, pressure 1 MPa downward on y = 1.
-
-Structured crossed mesh whose rows line up with both interfaces, refined locally at the clamp
-around the four singular points (the clamp corners and the interface ends); P2 displacements, element-wise DG1
-stresses (exact for P2, so the stress jump at each interface is kept). Evaluated on a uniform
-0.01 grid -> sandwich_{coords,u,v,vonmises}.npy; grid rows within 1e-3 of an interface are
-skipped (ambiguous side). Two mesh levels are compared. The FEM result is used ONLY to score
-the ATLAS solvers, never in training.
-
-Run from the repo root with the Atlas env's bin on PATH:
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/sandwich_fenics.py
 """
+
 import json
 import os
 import sys
@@ -35,7 +23,7 @@ df.set_log_level(40)
 def build_mesh(level):
     n = 2 ** level
     mesh = df.RectangleMesh(df.Point(0, 0), df.Point(L, H), 40 * n, 10 * n, "crossed")
-    for rad in (0.1, 0.05, 0.025, 0.0125):          # only around the four singular points on the clamp
+    for rad in (0.1, 0.05, 0.025, 0.0125):
         mid = np.array([c.midpoint().array()[:2] for c in df.cells(mesh)])
         mark = df.MeshFunction("bool", mesh, mesh.topology().dim(), False)
         mark.array()[:] = np.min([np.hypot(mid[:, 0] - a, mid[:, 1] - b) for a, b in SINGULAR], axis=0) < rad

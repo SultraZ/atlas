@@ -1,16 +1,10 @@
-"""Table and figures for the two-material benchmark (results/multi_material/bimaterial/).
+"""Run from the project root (all options: --help):
+    python scripts/multi_material/make_report.py [--bench {bimaterial,steel_insert,filled_slot}]
 
-For each contrast found under results/multi_material/bimaterial/c<contrast>/ (or, with --bench steel_insert /
-filled_slot, for results/multi_material/steel_insert/ or results/multi_material/filled_slot/) writes
-  * table.md          seed-42 metrics of every solver (and 5-seed means where they exist)
-  * convergence.png   displacement / von Mises error against training wall-clock
-  * fields.png        FEM vs each solver: von Mises and displacement error
-  * profiles.png      von Mises along y = 0 and x = 0, across the interface
-
-    python scripts/multi_material/make_report.py
+Example:
     python scripts/multi_material/make_report.py --bench steel_insert
-    python scripts/multi_material/make_report.py --bench filled_slot
 """
+
 import argparse
 import json
 import os
@@ -28,7 +22,7 @@ from atlas.benchmarks import bimaterial as bm
 from atlas.paths import RESULTS_DIR
 
 D = RESULTS_DIR / "multi_material" / "bimaterial"
-SEMI_AXES = (bm.R_INC, bm.R_INC)       # interface (x/a)^2 + (y/b)^2 = 1; the filled slot is an ellipse
+SEMI_AXES = (bm.R_INC, bm.R_INC)
 SOLVERS = [("atlas", "ATLAS energy (single 4x64)", "#2e75b6"),
            ("atlas_wide", "ATLAS energy (single 4x91, parameter-matched)", "#6fa8dc"),
            ("xpinn", "ATLAS-XPINN (inclusion + matrix)", "#d9822b")]

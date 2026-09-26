@@ -1,0 +1,20 @@
+{
+  "relative_L2_u": 0.001694883693121081,
+  "relative_L2_v": 0.00431529112076446,
+  "relative_L2_displacement": 0.001863389908600265,
+  "von_mises_l2_excl": 0.025810056420277304,
+  "von_mises_l2_global": 0.026981736942332316,
+  "von_mises_l2_roi": 0.003163220805110386,
+  "max_pointwise_von_mises_error": 2840042.851520725,
+  "benchmark": "plate_hole",
+  "variant": "atlas",
+  "seed": 42,
+  "params": 12802,
+  "train_seconds": null,
+  "pred_max_abs_disp": 1.0673356882762164e-05,
+  "fem_max_abs_disp": 1.0686597931656835e-05,
+  "config": {
+    "formulation": "energy",
+    "note": "loaded from results/energy_runs"
+  }
+}

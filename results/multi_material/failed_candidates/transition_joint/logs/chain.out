@@ -1,0 +1,4 @@
+DONE transition_joint/atlas seed 42: train 351.0s  disp 0.692%  vM 6.352%  band vM st/al 29.741%/23.695%  C err -0.440%
+DONE transition_joint/xpinn seed 42: train 412.0s  disp 1.976%  vM 4.843%  band vM st/al 12.472%/7.971%  C err -0.981%
+ATLAS_BEATS_XPINN -> joint stops here
+JOINT_SEED42_FINISHED

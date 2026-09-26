@@ -1,0 +1,17 @@
+{
+  "L": 4.0,
+  "H": 1.0,
+  "T": 0.1,
+  "E_face": 210000000000.0,
+  "nu_face": 0.3,
+  "E_core": 3000000000.0,
+  "nu_core": 0.35,
+  "q": 1000000.0,
+  "cells": 116748,
+  "compliance": 22942.457081342487,
+  "tip_deflection": -0.010222849172432621,
+  "compliance_change_last_level": 1.7387731915147424e-06,
+  "disp_change_last_level": 1.5830212458981832e-06,
+  "vm_change_last_level_away_from_clamp": 0.001184124217983662,
+  "n_main": 39699
+}

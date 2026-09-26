@@ -1,0 +1,26 @@
+{
+  "relative_L2_u": 0.24332466006420903,
+  "relative_L2_v": 0.6987167269002195,
+  "relative_L2_displacement": 0.2616460374342151,
+  "von_mises_l2_excl": 0.2230272138427704,
+  "von_mises_l2_global": 0.22315894808211637,
+  "von_mises_l2_roi": 0.20643545484737857,
+  "max_pointwise_von_mises_error": 4837963.017054869,
+  "benchmark": "plate_hole",
+  "variant": "xpinn",
+  "seed": 42,
+  "params": 38790,
+  "train_seconds": 1049.2,
+  "pred_max_abs_disp": 1.0739754543465097e-05,
+  "fem_max_abs_disp": 1.0686597931656835e-05,
+  "config": {
+    "epochs": 8000,
+    "print_every": 1000,
+    "use_lbfgs": true,
+    "lbfgs_steps": 60,
+    "lbfgs_max_iter_per_step": 20,
+    "formulation": "residual",
+    "seed": 42,
+    "use_singular_features": true
+  }
+}

@@ -1,0 +1,4 @@
+levels=2: cells=33606  compliance 2.0533379731e+01  peak vM near the interface 4.765909e+06
+levels=3: cells=108070  compliance 2.0533379872e+01  peak vM near the interface 4.765879e+06
+change between the last two levels: compliance 6.86e-09, interface-band von Mises L2 4.65e-04, peak 6.22e-06; Kt (peak / sigma) = 4.766
+saved 40390 main points and 6811 interface-band points

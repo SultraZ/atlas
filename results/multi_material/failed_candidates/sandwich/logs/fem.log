@@ -1,0 +1,4 @@
+level 2: cells=29282  compliance 2.2942417190e+04  tip deflection -1.02228345e-02
+level 3: cells=116748  compliance 2.2942457081e+04  tip deflection -1.02228492e-02
+change between levels: compliance 1.74e-06, displacement L2 1.58e-06, von Mises L2 (> 0.1 m from the clamp singularities) 1.18e-03
+saved 39699 points; tip deflection -1.022285e-02 m (sandwich beam theory -1.087360e-02)

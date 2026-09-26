@@ -1,0 +1,91 @@
+================ 2026-09-18 12:10:56 :: phase1d_full :: lbfgs :: l_bracket (epochs=5000) ================
+
+========================================================================
+BENCHMARK: L_BRACKET  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 5000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50}
+======================================================================
+FORWARD SOLVE — L_BRACKET
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 4.147196e+01
+  PDE: 2.6575e+00 | Dirichlet: 7.3922e-03 | Neumann: 3.7813e+00
+  Interface u: 1.4297e-02 | Interface t: 5.9567e-03
+Epoch  1000 | Total Loss: 6.602738e+00
+  PDE: 2.3436e+00 | Dirichlet: 4.8147e-03 | Neumann: 3.5578e-01
+  Interface u: 1.5378e-02 | Interface t: 3.3022e-03
+Epoch  1500 | Total Loss: 5.827692e+00
+  PDE: 2.1266e+00 | Dirichlet: 3.5806e-03 | Neumann: 2.8556e-01
+  Interface u: 2.4691e-02 | Interface t: 1.2026e-02
+Epoch  2000 | Total Loss: 3.617270e+00
+  PDE: 1.8804e+00 | Dirichlet: 3.1531e-03 | Neumann: 1.2150e-01
+  Interface u: 1.6376e-02 | Interface t: 2.1423e-03
+Epoch  2500 | Total Loss: 3.179592e+00
+  PDE: 1.7176e+00 | Dirichlet: 3.0768e-03 | Neumann: 9.6583e-02
+  Interface u: 1.5200e-02 | Interface t: 1.8261e-03
+Epoch  3000 | Total Loss: 2.748457e+00
+  PDE: 1.5048e+00 | Dirichlet: 3.1743e-03 | Neumann: 6.7381e-02
+  Interface u: 2.2477e-02 | Interface t: 1.3821e-03
+Epoch  3500 | Total Loss: 3.903551e+00
+  PDE: 1.3624e+00 | Dirichlet: 3.4534e-03 | Neumann: 1.9808e-01
+  Interface u: 1.9119e-02 | Interface t: 1.1891e-03
+Epoch  4000 | Total Loss: 4.553242e+00
+  PDE: 1.2353e+00 | Dirichlet: 3.7760e-03 | Neumann: 2.7200e-01
+  Interface u: 1.9622e-02 | Interface t: 1.2034e-03
+Epoch  4500 | Total Loss: 2.855127e+00
+  PDE: 1.1572e+00 | Dirichlet: 3.5075e-03 | Neumann: 1.0074e-01
+  Interface u: 2.4698e-02 | Interface t: 4.6402e-03
+Epoch  5000 | Total Loss: 3.269379e+00
+  PDE: 1.1530e+00 | Dirichlet: 3.8201e-03 | Neumann: 1.5585e-01
+  Interface u: 1.5549e-02 | Interface t: 1.0175e-03
+============================================================
+Adam stage complete! (5000 epochs, final loss 3.269379e+00)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 1.187904e+00
+  PDE: 5.9242e-01 | Dirichlet: 1.7403e-03 | Neumann: 1.1726e-02
+  Interface u: 1.8778e-02 | Interface t: 2.1444e-03
+L-BFGS step  10/15 | Total Loss: 9.384660e-01
+  PDE: 4.7995e-01 | Dirichlet: 1.7528e-03 | Neumann: 1.1507e-02
+  Interface u: 1.0221e-02 | Interface t: 2.2756e-03
+L-BFGS step  15/15 | Total Loss: 8.159139e-01
+  PDE: 3.9622e-01 | Dirichlet: 1.7016e-03 | Neumann: 8.8496e-03
+  Interface u: 6.6573e-03 | Interface t: 3.3384e-03
+============================================================
+L-BFGS stage complete! (final loss 8.159139e-01)
+Training Complete!
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 9.092000e-01
+  Relative L2 error (v)      : 5.962438e-01
+  Relative L2 error (|disp|) : 7.092782e-01  (70.93%)
+  [Paper target: <5% displacement L2] FAIL (70.93% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 7.714906e-01 (77.15%)
+  Relative L2 error (von Mises, EXCL.)    : 7.676991e-01 (76.77%) [excluded 13/29808 pts, r_excl=0.0219277]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (76.77% >= 10%)
+  Max pointwise von Mises error       : 2.597277e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+
+--- l_bracket validation summary ---
+  relative_L2_u: 0.9092000216030202
+  relative_L2_v: 0.5962437870825876
+  relative_L2_displacement: 0.7092781613500405
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 0.7714906103198398
+  von_mises_l2_excl: 0.7676990821442873
+  von_mises_exclusion_radius: 0.02192767483456329
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  l_bracket    |disp| L2 70.93%  [5% target FAIL]  | von Mises excl 76.77%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+python rc=0
+SNAPSHOT done phase1d_full lbfgs l_bracket
+PHASE1D_FULL_DONE 2026-09-18 12:39:57

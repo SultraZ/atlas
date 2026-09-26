@@ -1,0 +1,25 @@
+{
+  "W": 2.0,
+  "H": 2.0,
+  "r": 0.3,
+  "E": 210000000000.0,
+  "E_inclusion": 70000000000.0,
+  "nu": 0.3,
+  "contrast": 3.0,
+  "sigma": 1000000.0,
+  "cells": 110282,
+  "compliance": 19.461505203608958,
+  "compliance_change_last_level": 2.396992632744731e-10,
+  "band_vm_change_last_level": 8.854976090961363e-05,
+  "peak_vm_band": 1819579.5949388829,
+  "inclusion_stress_over_sigma": [
+    0.609920390482869,
+    -0.016743628090202016
+  ],
+  "goodier_infinite_plate": [
+    0.5971479500891265,
+    -0.0089126559714795
+  ],
+  "n_main": 40385,
+  "n_roi": 7417
+}

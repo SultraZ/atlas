@@ -1,0 +1,57 @@
+================ 2026-09-18 10:27:28 :: phase1b :: lbfgs :: l_bracket (epochs=2000) ================
+
+========================================================================
+BENCHMARK: L_BRACKET  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50}
+======================================================================
+FORWARD SOLVE — L_BRACKET
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 5.297310e-01
+  PDE: 2.3196e-01 | Dirichlet: 4.0244e-04 | Neumann: 1.9240e-02
+  Interface u: 3.2552e-03 | Interface t: 1.6288e-03
+Epoch  1000 | Total Loss: 1.248504e+00
+  PDE: 2.0802e-01 | Dirichlet: 6.2255e-04 | Neumann: 8.2441e-02
+  Interface u: 3.2204e-03 | Interface t: 6.0809e-03
+Epoch  1500 | Total Loss: 4.339293e-01
+  PDE: 1.9579e-01 | Dirichlet: 3.2021e-04 | Neumann: 1.7691e-02
+  Interface u: 1.8394e-03 | Interface t: 5.4079e-04
+Epoch  2000 | Total Loss: 3.684348e-01
+  PDE: 1.6496e-01 | Dirichlet: 1.0438e-04 | Neumann: 1.5337e-02
+  Interface u: 1.0679e-03 | Interface t: 1.4494e-03
+============================================================
+Adam stage complete! (2000 epochs, final loss 3.684348e-01)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 1.362342e-01
+  PDE: 1.0657e-01 | Dirichlet: 5.7108e-05 | Neumann: 9.7235e-04
+  Interface u: 4.5965e-04 | Interface t: 2.4586e-04
+L-BFGS step  10/15 | Total Loss: 1.167145e-01
+  PDE: 9.8283e-02 | Dirichlet: 3.2428e-05 | Neumann: 5.1462e-04
+  Interface u: 3.6486e-04 | Interface t: 2.2672e-04
+L-BFGS step  15/15 | Total Loss: 1.100673e-01
+  PDE: 9.4353e-02 | Dirichlet: 3.0895e-05 | Neumann: 4.5447e-04
+  Interface u: 3.7322e-04 | Interface t: 1.7648e-04
+============================================================
+L-BFGS stage complete! (final loss 1.100673e-01)
+Training Complete!
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 1.026751e+00
+  Relative L2 error (v)      : 9.901206e-01
+  Relative L2 error (|disp|) : 9.687170e-01  (96.87%)
+  [Paper target: <5% displacement L2] FAIL (96.87% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 8.488018e-01 (84.88%)
+  Relative L2 error (von Mises, EXCL.)    : 8.464000e-01 (84.64%) [excluded 13/29808 pts, r_excl=0.0219277]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (84.64% >= 10%)
+  Max pointwise von Mises error       : 2.614558e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+scripts/_phase_run.sh: line 13:  4526 Killed                     timeout 1800 $PY tests/validate_all_benchmarks.py --benchmark "$bench" --epochs "$EPOCHS" $LBFGS_FLAG
+python rc=137
+SNAPSHOT done phase1b lbfgs l_bracket
+PHASE1B_DONE 2026-09-18 10:39:35

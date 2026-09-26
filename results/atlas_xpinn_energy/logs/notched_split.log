@@ -1,0 +1,33 @@
+notched_plate / xpinn seed 42: 25604 params, 9324 quadrature points, device cuda
+  it  1000  t=   74.7s  disp(vec)=7971.784%  vm=10063.006%  notch vm=5051.121%  peak ratio=15.410
+  it  1100  t=   82.9s  disp(vec)=153.568%  vm=282.920%  notch vm=177.342%  peak ratio=0.931
+  it  1200  t=   91.5s  disp(vec)=71.870%  vm=125.410%  notch vm=90.481%  peak ratio=0.595
+  it  1300  t=   98.6s  disp(vec)=68.443%  vm=65.059%  notch vm=67.643%  peak ratio=0.436
+  it  1400  t=  107.2s  disp(vec)=46.315%  vm=67.349%  notch vm=61.413%  peak ratio=0.370
+  it  1500  t=  115.4s  disp(vec)=39.343%  vm=55.303%  notch vm=58.585%  peak ratio=0.313
+  it  1600  t=  124.9s  disp(vec)=35.926%  vm=48.802%  notch vm=58.184%  peak ratio=0.280
+  it  1700  t=  132.9s  disp(vec)=34.518%  vm=45.461%  notch vm=58.364%  peak ratio=0.261
+  it  1800  t=  140.3s  disp(vec)=34.027%  vm=43.822%  notch vm=58.565%  peak ratio=0.252
+  it  1900  t=  148.6s  disp(vec)=33.878%  vm=43.113%  notch vm=58.676%  peak ratio=0.248
+  it  2000  t=  156.5s  disp(vec)=33.834%  vm=42.844%  notch vm=58.722%  peak ratio=0.246
+  it  2100  t=  166.8s  disp(vec)=46.512%  vm=27.197%  notch vm=63.215%  peak ratio=0.122
+  it  2200  t=  178.5s  disp(vec)=40.314%  vm=25.998%  notch vm=62.155%  peak ratio=0.132
+  it  2300  t=  190.0s  disp(vec)=35.619%  vm=23.913%  notch vm=62.320%  peak ratio=0.123
+  it  2400  t=  202.4s  disp(vec)=30.864%  vm=22.719%  notch vm=58.715%  peak ratio=0.147
+  it  2500  t=  220.1s  disp(vec)=30.897%  vm=22.886%  notch vm=57.834%  peak ratio=0.151
+  it  2600  t=  230.0s  disp(vec)=35.850%  vm=23.524%  notch vm=57.276%  peak ratio=0.154
+  it  2700  t=  242.1s  disp(vec)=37.389%  vm=22.683%  notch vm=56.449%  peak ratio=0.154
+  it  2800  t=  255.4s  disp(vec)=33.987%  vm=21.070%  notch vm=55.783%  peak ratio=0.167
+  it  2900  t=  272.0s  disp(vec)=26.435%  vm=20.890%  notch vm=55.090%  peak ratio=0.188
+  it  3000  t=  283.7s  disp(vec)=25.726%  vm=20.446%  notch vm=53.708%  peak ratio=0.197
+  it  3100  t=  293.6s  disp(vec)=28.377%  vm=20.676%  notch vm=54.357%  peak ratio=0.191
+  it  3200  t=  307.2s  disp(vec)=26.928%  vm=20.168%  notch vm=53.116%  peak ratio=0.206
+  it  3300  t=  319.5s  disp(vec)=27.530%  vm=19.464%  notch vm=52.003%  peak ratio=0.218
+  it  3400  t=  334.4s  disp(vec)=30.639%  vm=18.099%  notch vm=51.077%  peak ratio=0.237
+  it  3500  t=  347.8s  disp(vec)=25.700%  vm=18.138%  notch vm=50.693%  peak ratio=0.261
+  it  3600  t=  357.2s  disp(vec)=25.116%  vm=17.619%  notch vm=51.618%  peak ratio=0.248
+  it  3700  t=  368.1s  disp(vec)=22.140%  vm=17.404%  notch vm=50.489%  peak ratio=0.263
+  it  3800  t=  380.4s  disp(vec)=18.957%  vm=16.845%  notch vm=50.345%  peak ratio=0.284
+  it  3900  t=  393.7s  disp(vec)=15.902%  vm=16.618%  notch vm=49.381%  peak ratio=0.302
+  it  4000  t=  406.7s  disp(vec)=14.626%  vm=15.185%  notch vm=46.844%  peak ratio=0.333
+DONE notched_plate/xpinn seed 42: train 406.7s  disp(vec) 14.626%  vM(excl) 15.185%  notch vM 46.844%  peak ratio 0.333

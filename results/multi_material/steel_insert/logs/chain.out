@@ -1,0 +1,8 @@
+change between the last two levels: compliance 1.23e-10, interface-band von Mises L2 4.65e-05
+insert stress at (0.05, 0.05): sxx/sigma = 1.2652, syy/sigma = 0.0069
+saved 40385 main points and 7417 interface-band points
+DONE steel_insert/atlas seed 42: train 329.7s  disp 0.061%  vM 1.245%  band vM inc/mat 10.931%/9.447%  C err -0.020%
+DONE steel_insert/xpinn seed 42: train 378.4s  disp 0.021%  vM 0.117%  band vM inc/mat 0.362%/0.557%  C err -0.002%
+XPINN_BEATS_ATLAS -> running atlas_wide
+DONE steel_insert/atlas_wide seed 42: train 563.9s  disp 0.050%  vM 1.044%  band vM inc/mat 8.775%/9.056%  C err -0.005%
+INSERT_SEED42_FINISHED

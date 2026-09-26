@@ -1,0 +1,11 @@
+FEM baseline compliance = 1.272308e+03; target = 0.6000 x = 7.633849e+02
+FEM at ATLAS design p*=1.1928: compliance = 7.636307e+02 (+0.03% vs target)
+  FEM p=0.7753: compliance=2.682479e+03 (+251.39%)
+  FEM p=0.9423: compliance=1.513129e+03 (+98.21%)
+  FEM p=1.1093: compliance=9.414837e+02 (+23.33%)
+  FEM p=1.1928: compliance=7.636307e+02 (+0.03%)
+  FEM p=1.2763: compliance=6.289136e+02 (-17.62%)
+  FEM p=1.4433: compliance=4.433938e+02 (-41.92%)
+  FEM p=1.6000: compliance=3.320183e+02 (-56.51%)
+
+RESULT cantilever: FEM compliance at ATLAS p* is +0.03% from target (PASS <10%); p* vs FEM reference p: -0.01%

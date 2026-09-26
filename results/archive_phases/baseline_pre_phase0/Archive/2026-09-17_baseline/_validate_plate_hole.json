@@ -1,0 +1,14 @@
+{
+  "relative_L2_u": 0.3514183962290505,
+  "relative_L2_v": 0.6929367892548122,
+  "relative_L2_displacement": 0.36096397996958474,
+  "displacement_within_5pct_target": false,
+  "used_mock_data": false,
+  "geometry_warning": null,
+  "relative_L2_von_mises": 0.30063170272924256,
+  "max_pointwise_von_mises_error": 5243986.767054869,
+  "max_pointwise_von_mises_error_location": [
+    0.0,
+    0.31328124999999996
+  ]
+}

@@ -1,0 +1,23 @@
+  [adam]    500  Pi=-0.47239501  U=0.440745  W=0.913140
+  [adam]   1000  Pi=-0.48739507  U=0.470440  W=0.957835
+  [adam]    500  Pi=-0.48060493  U=0.379869  W=0.866316
+  [adam]   1000  Pi=-0.48907777  U=0.414371  W=0.909574
+  [lbfgs]    500  Pi=-0.5233473893  U=0.517998  W=1.047868
+  [stage 1] gamma_u=30  interface jump^2 (int) = 4.986e-12
+  [AL update 1] relative interface jump before update = 5.409e-03
+  [lbfgs]    500  Pi=-0.5197432780  U=0.519562  W=1.039449
+  [stage 2] gamma_u=30  interface jump^2 (int) = 2.480e-14
+  [AL update 2] relative interface jump before update = 3.775e-04
+  [lbfgs]    500  Pi=-0.5207156679  U=0.520393  W=1.041022
+  [stage 3] gamma_u=30  interface jump^2 (int) = 2.177e-15
+  [AL update 3] relative interface jump before update = 1.117e-04
+  [lbfgs]    500  Pi=-0.5210375105  U=0.520890  W=1.041937
+  [stage 4] gamma_u=30  interface jump^2 (int) = 2.681e-15
+baseline beam height=1.0: {'param': 1.0, 'compliance': 1270.1705017597392, 'volume': 4.0}
+target compliance = 7.621023e+02
+  [  start] beam height=1.00000  compliance=1.270090e+03  g=+6.6656e-01
+  [autodiff] beam height=1.13723  compliance=8.741497e+02  g=+1.4702e-01
+  [autodiff] beam height=1.18765  compliance=7.717275e+02  g=+1.2630e-02
+  [autodiff] beam height=1.19280  compliance=7.621166e+02  g=+1.8791e-05
+  [ polish] beam height=1.19280  compliance=7.625763e+02  g=+6.2194e-04
+Inverse design (cantilever): beam height = 1.1928 [converged]; artifacts in /home/sultra/atlas_main/results/atlas_xpinn_energy/inverse_design

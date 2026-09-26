@@ -1,0 +1,16 @@
+change between the last two levels: compliance 6.86e-09, interface-band von Mises L2 4.65e-04, peak 6.22e-06; Kt (peak / sigma) = 4.766
+saved 40390 main points and 6811 interface-band points
+DONE filled_slot/atlas seed 42: train 326.4s  disp 0.201%  vM 0.543%  band vM inc/mat 27.115%/3.089%  C err -0.034%
+DONE filled_slot/xpinn seed 42: train 362.8s  disp 0.066%  vM 0.433%  band vM inc/mat 0.324%/3.032%  C err -0.002%
+XPINN_BEATS_ATLAS -> running atlas_wide
+DONE filled_slot/atlas_wide seed 42: train 555.7s  disp 0.182%  vM 0.495%  band vM inc/mat 25.983%/2.368%  C err -0.036%
+PASSED_SEED42 -> 5 seeds for xpinn and atlas_wide
+DONE filled_slot/xpinn seed 43: train 357.5s  disp 0.068%  vM 0.452%  band vM inc/mat 0.920%/3.220%  C err +0.001%
+DONE filled_slot/atlas_wide seed 43: train 554.8s  disp 0.186%  vM 0.449%  band vM inc/mat 25.753%/2.465%  C err -0.027%
+DONE filled_slot/xpinn seed 44: train 361.8s  disp 0.055%  vM 0.669%  band vM inc/mat 0.311%/4.564%  C err +0.004%
+DONE filled_slot/atlas_wide seed 44: train 557.4s  disp 0.277%  vM 0.598%  band vM inc/mat 32.386%/3.085%  C err -0.038%
+DONE filled_slot/xpinn seed 45: train 356.2s  disp 0.056%  vM 0.400%  band vM inc/mat 1.037%/2.572%  C err -0.001%
+DONE filled_slot/atlas_wide seed 45: train 564.8s  disp 0.212%  vM 0.496%  band vM inc/mat 26.516%/2.830%  C err -0.036%
+DONE filled_slot/xpinn seed 46: train 360.2s  disp 0.043%  vM 0.381%  band vM inc/mat 0.132%/2.282%  C err -0.003%
+DONE filled_slot/atlas_wide seed 46: train 554.8s  disp 0.252%  vM 0.614%  band vM inc/mat 33.329%/3.703%  C err -0.051%
+ALL_SEEDS_FINISHED

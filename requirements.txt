@@ -1,0 +1,5 @@
+torch>=2.2
+numpy>=1.24
+matplotlib>=3.8
+fastapi>=0.110
+uvicorn>=0.29

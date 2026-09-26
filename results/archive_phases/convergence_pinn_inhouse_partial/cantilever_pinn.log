@@ -1,0 +1,243 @@
+cantilever / pinn: device cuda
+======================================================================
+FORWARD SOLVE — CANTILEVER
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+  it   100  t=   13.2s  disp(vec)=85.405%  disp(|u|)=83.478%  vm=60.036%
+  it   200  t=   24.1s  disp(vec)=96.722%  disp(|u|)=95.926%  vm=69.014%
+  it   300  t=   39.3s  disp(vec)=101.227%  disp(|u|)=96.816%  vm=73.926%
+  it   400  t=   53.0s  disp(vec)=97.613%  disp(|u|)=97.205%  vm=83.098%
+  it   500  t=   63.5s  disp(vec)=99.834%  disp(|u|)=98.855%  vm=82.836%
+  it   600  t=   73.4s  disp(vec)=102.346%  disp(|u|)=94.213%  vm=72.808%
+  it   700  t=   85.1s  disp(vec)=102.172%  disp(|u|)=94.873%  vm=74.954%
+  it   800  t=   96.8s  disp(vec)=103.240%  disp(|u|)=93.237%  vm=71.875%
+  it   900  t=  108.4s  disp(vec)=107.006%  disp(|u|)=89.562%  vm=65.677%
+  it  1000  t=  118.6s  disp(vec)=100.756%  disp(|u|)=93.274%  vm=72.411%
+Epoch  1000 | Total Loss: 2.159177e+01
+  PDE: 9.7917e-02 | Dirichlet: 5.7592e-04 | Neumann: 1.3469e+00
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 7.9669e+00 | Anchor (already-weighted, added once): 0.0000e+00
+  it  1100  t=  129.9s  disp(vec)=96.389%  disp(|u|)=94.747%  vm=78.270%
+  it  1200  t=  140.1s  disp(vec)=97.217%  disp(|u|)=96.153%  vm=74.991%
+  it  1300  t=  149.9s  disp(vec)=97.799%  disp(|u|)=96.677%  vm=77.572%
+  it  1400  t=  160.6s  disp(vec)=97.906%  disp(|u|)=92.624%  vm=77.400%
+  it  1500  t=  171.4s  disp(vec)=98.173%  disp(|u|)=97.580%  vm=75.466%
+  it  1600  t=  182.9s  disp(vec)=98.593%  disp(|u|)=97.832%  vm=77.167%
+  it  1700  t=  192.4s  disp(vec)=98.829%  disp(|u|)=98.241%  vm=74.380%
+  it  1800  t=  203.2s  disp(vec)=97.832%  disp(|u|)=96.209%  vm=69.785%
+  it  1900  t=  213.7s  disp(vec)=97.867%  disp(|u|)=97.080%  vm=72.496%
+  it  2000  t=  225.9s  disp(vec)=99.131%  disp(|u|)=98.891%  vm=75.988%
+Epoch  2000 | Total Loss: 7.138005e+00
+  PDE: 3.0117e-01 | Dirichlet: 4.7053e-04 | Neumann: 4.5425e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 2.2473e+00 | Anchor (already-weighted, added once): 0.0000e+00
+  it  2100  t=  236.4s  disp(vec)=99.036%  disp(|u|)=98.788%  vm=74.272%
+  it  2200  t=  246.8s  disp(vec)=97.553%  disp(|u|)=97.161%  vm=73.905%
+  it  2300  t=  257.7s  disp(vec)=97.910%  disp(|u|)=97.528%  vm=72.819%
+  it  2400  t=  268.3s  disp(vec)=98.133%  disp(|u|)=97.962%  vm=75.203%
+  it  2500  t=  278.4s  disp(vec)=97.739%  disp(|u|)=97.543%  vm=75.489%
+  it  2600  t=  289.2s  disp(vec)=98.788%  disp(|u|)=97.690%  vm=75.427%
+  it  2700  t=  299.9s  disp(vec)=98.801%  disp(|u|)=98.484%  vm=73.872%
+  it  2800  t=  310.9s  disp(vec)=97.596%  disp(|u|)=97.415%  vm=75.352%
+  it  2900  t=  321.5s  disp(vec)=98.372%  disp(|u|)=98.221%  vm=76.830%
+  it  3000  t=  333.5s  disp(vec)=98.973%  disp(|u|)=98.035%  vm=76.037%
+Epoch  3000 | Total Loss: 4.638064e+00
+  PDE: 3.7651e-01 | Dirichlet: 4.1207e-04 | Neumann: 4.1172e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 1.0312e-01 | Anchor (already-weighted, added once): 0.0000e+00
+  it  3100  t=  344.1s  disp(vec)=98.119%  disp(|u|)=97.495%  vm=73.769%
+  it  3200  t=  354.5s  disp(vec)=97.787%  disp(|u|)=97.577%  vm=75.637%
+  it  3300  t=  369.9s  disp(vec)=98.475%  disp(|u|)=97.795%  vm=71.031%
+  it  3400  t=  383.4s  disp(vec)=97.908%  disp(|u|)=97.724%  vm=75.136%
+  it  3500  t=  394.8s  disp(vec)=98.166%  disp(|u|)=97.995%  vm=75.414%
+  it  3600  t=  404.9s  disp(vec)=99.414%  disp(|u|)=98.549%  vm=71.825%
+  it  3700  t=  416.8s  disp(vec)=98.879%  disp(|u|)=98.406%  vm=72.299%
+  it  3800  t=  427.5s  disp(vec)=98.135%  disp(|u|)=97.153%  vm=72.372%
+  it  3900  t=  438.6s  disp(vec)=98.689%  disp(|u|)=97.946%  vm=74.007%
+  it  4000  t=  450.7s  disp(vec)=98.225%  disp(|u|)=97.935%  vm=71.304%
+Epoch  4000 | Total Loss: 3.904430e+00
+  PDE: 4.5257e-01 | Dirichlet: 3.8907e-04 | Neumann: 3.3172e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 9.5778e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  4100  t=  464.3s  disp(vec)=98.846%  disp(|u|)=98.560%  vm=73.556%
+  it  4200  t=  477.0s  disp(vec)=99.432%  disp(|u|)=99.053%  vm=75.818%
+  it  4300  t=  493.1s  disp(vec)=98.552%  disp(|u|)=98.230%  vm=73.534%
+  it  4400  t=  508.8s  disp(vec)=98.834%  disp(|u|)=97.956%  vm=71.897%
+  it  4500  t=  518.8s  disp(vec)=99.617%  disp(|u|)=99.009%  vm=73.003%
+  it  4600  t=  529.9s  disp(vec)=97.700%  disp(|u|)=97.450%  vm=72.108%
+  it  4700  t=  540.9s  disp(vec)=97.709%  disp(|u|)=97.301%  vm=70.889%
+  it  4800  t=  551.5s  disp(vec)=97.503%  disp(|u|)=97.183%  vm=71.914%
+  it  4900  t=  562.5s  disp(vec)=97.587%  disp(|u|)=97.303%  vm=71.842%
+  it  5000  t=  573.5s  disp(vec)=98.023%  disp(|u|)=97.567%  vm=71.064%
+Epoch  5000 | Total Loss: 2.405142e+00
+  PDE: 4.9719e-01 | Dirichlet: 4.0074e-04 | Neumann: 1.0468e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 8.2109e-01 | Anchor (already-weighted, added once): 0.0000e+00
+  it  5100  t=  584.8s  disp(vec)=98.284%  disp(|u|)=97.983%  vm=70.872%
+  it  5200  t=  596.8s  disp(vec)=97.609%  disp(|u|)=97.285%  vm=71.895%
+  it  5300  t=  607.3s  disp(vec)=98.312%  disp(|u|)=98.034%  vm=70.476%
+  it  5400  t=  618.3s  disp(vec)=98.140%  disp(|u|)=97.619%  vm=72.583%
+  it  5500  t=  632.8s  disp(vec)=97.673%  disp(|u|)=97.350%  vm=72.035%
+  it  5600  t=  644.2s  disp(vec)=97.786%  disp(|u|)=97.568%  vm=73.284%
+  it  5700  t=  655.7s  disp(vec)=98.208%  disp(|u|)=97.347%  vm=73.578%
+  it  5800  t=  668.2s  disp(vec)=97.000%  disp(|u|)=96.775%  vm=71.881%
+  it  5900  t=  680.5s  disp(vec)=96.772%  disp(|u|)=96.270%  vm=72.175%
+  it  6000  t=  691.3s  disp(vec)=97.237%  disp(|u|)=96.385%  vm=71.330%
+Epoch  6000 | Total Loss: 1.091705e+00
+  PDE: 5.2941e-01 | Dirichlet: 3.8976e-04 | Neumann: 3.3419e-02
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 1.8913e-01 | Anchor (already-weighted, added once): 0.0000e+00
+  it  6100  t=  704.1s  disp(vec)=98.346%  disp(|u|)=98.070%  vm=71.303%
+  it  6200  t=  718.1s  disp(vec)=97.822%  disp(|u|)=97.563%  vm=71.847%
+  it  6300  t=  731.6s  disp(vec)=97.130%  disp(|u|)=96.357%  vm=74.601%
+  it  6400  t=  745.0s  disp(vec)=98.426%  disp(|u|)=97.018%  vm=73.561%
+  it  6500  t=  759.1s  disp(vec)=97.481%  disp(|u|)=97.217%  vm=73.297%
+  it  6600  t=  771.5s  disp(vec)=97.926%  disp(|u|)=95.805%  vm=71.284%
+  it  6700  t=  782.7s  disp(vec)=97.334%  disp(|u|)=96.926%  vm=72.459%
+  it  6800  t=  795.1s  disp(vec)=97.197%  disp(|u|)=96.968%  vm=72.476%
+  it  6900  t=  810.1s  disp(vec)=97.175%  disp(|u|)=96.916%  vm=72.069%
+  it  7000  t=  821.5s  disp(vec)=96.970%  disp(|u|)=96.052%  vm=70.626%
+Epoch  7000 | Total Loss: 2.643510e+00
+  PDE: 5.0302e-01 | Dirichlet: 4.0906e-04 | Neumann: 1.8206e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 2.7902e-01 | Anchor (already-weighted, added once): 0.0000e+00
+  it  7100  t=  837.3s  disp(vec)=98.636%  disp(|u|)=97.481%  vm=71.935%
+  it  7200  t=  848.5s  disp(vec)=98.358%  disp(|u|)=97.652%  vm=72.219%
+  it  7300  t=  860.7s  disp(vec)=97.596%  disp(|u|)=97.263%  vm=72.156%
+  it  7400  t=  872.3s  disp(vec)=96.618%  disp(|u|)=96.403%  vm=72.130%
+  it  7500  t=  882.7s  disp(vec)=96.242%  disp(|u|)=96.006%  vm=71.358%
+  it  7600  t=  894.2s  disp(vec)=96.054%  disp(|u|)=95.783%  vm=70.396%
+  it  7700  t=  908.7s  disp(vec)=97.127%  disp(|u|)=96.893%  vm=72.256%
+  it  7800  t=  920.4s  disp(vec)=100.120%  disp(|u|)=99.118%  vm=74.680%
+  it  7900  t=  931.3s  disp(vec)=98.266%  disp(|u|)=97.711%  vm=72.549%
+  it  8000  t=  944.0s  disp(vec)=97.722%  disp(|u|)=97.489%  vm=73.716%
+Epoch  8000 | Total Loss: 8.537880e-01
+  PDE: 5.0683e-01 | Dirichlet: 3.1072e-04 | Neumann: 2.2112e-02
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Energy (PI, signed): 0.0000e+00
+  Resultant (already-weighted, added once): 9.4771e-02 | Anchor (already-weighted, added once): 0.0000e+00
+============================================================
+Adam stage complete! (8000 epochs, final loss 8.537880e-01)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+  it  8020  t=  947.6s  disp(vec)=97.231%  disp(|u|)=96.980%  vm=71.893%
+  it  8040  t=  952.0s  disp(vec)=96.521%  disp(|u|)=96.294%  vm=70.846%
+  it  8060  t=  954.8s  disp(vec)=94.912%  disp(|u|)=94.673%  vm=67.336%
+  it  8080  t=  958.3s  disp(vec)=93.385%  disp(|u|)=93.085%  vm=65.355%
+  it  8100  t=  962.6s  disp(vec)=92.160%  disp(|u|)=91.868%  vm=63.279%
+L-BFGS step   5/60 | Total Loss: 5.417619e-01
+  PDE: 3.9457e-01 | Dirichlet: 9.2450e-04 | Neumann: 1.8785e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 2.1731e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8120  t=  966.2s  disp(vec)=91.674%  disp(|u|)=91.377%  vm=61.225%
+  it  8140  t=  969.9s  disp(vec)=92.115%  disp(|u|)=91.788%  vm=60.298%
+  it  8160  t=  973.3s  disp(vec)=91.057%  disp(|u|)=90.713%  vm=57.311%
+  it  8180  t=  976.1s  disp(vec)=93.161%  disp(|u|)=92.712%  vm=57.849%
+  it  8200  t=  980.1s  disp(vec)=94.587%  disp(|u|)=94.206%  vm=59.009%
+L-BFGS step  10/60 | Total Loss: 4.730830e-01
+  PDE: 2.9684e-01 | Dirichlet: 1.1865e-03 | Neumann: 2.1677e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 1.1372e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8220  t=  983.5s  disp(vec)=96.762%  disp(|u|)=95.767%  vm=58.277%
+  it  8240  t=  986.9s  disp(vec)=99.172%  disp(|u|)=95.899%  vm=56.674%
+  it  8260  t=  989.8s  disp(vec)=103.117%  disp(|u|)=94.133%  vm=55.817%
+  it  8280  t=  993.4s  disp(vec)=105.082%  disp(|u|)=92.514%  vm=54.047%
+  it  8300  t=  997.0s  disp(vec)=107.869%  disp(|u|)=90.479%  vm=52.749%
+L-BFGS step  15/60 | Total Loss: 4.046996e-01
+  PDE: 2.3464e-01 | Dirichlet: 8.9354e-04 | Neumann: 6.0961e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 9.7347e-03 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8320  t= 1000.3s  disp(vec)=109.040%  disp(|u|)=89.925%  vm=53.591%
+  it  8340  t= 1003.5s  disp(vec)=110.517%  disp(|u|)=88.780%  vm=54.526%
+  it  8360  t= 1007.0s  disp(vec)=111.275%  disp(|u|)=88.139%  vm=54.058%
+  it  8380  t= 1011.6s  disp(vec)=111.391%  disp(|u|)=88.057%  vm=54.771%
+  it  8400  t= 1016.1s  disp(vec)=112.183%  disp(|u|)=87.344%  vm=56.294%
+L-BFGS step  20/60 | Total Loss: 3.601056e-01
+  PDE: 2.3155e-01 | Dirichlet: 6.8199e-04 | Neumann: 4.0333e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 1.1648e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8420  t= 1020.6s  disp(vec)=111.713%  disp(|u|)=87.691%  vm=55.977%
+  it  8440  t= 1024.4s  disp(vec)=113.864%  disp(|u|)=85.734%  vm=55.821%
+  it  8460  t= 1030.3s  disp(vec)=117.233%  disp(|u|)=82.612%  vm=57.850%
+  it  8480  t= 1035.0s  disp(vec)=117.579%  disp(|u|)=82.240%  vm=55.003%
+  it  8500  t= 1039.4s  disp(vec)=119.268%  disp(|u|)=80.563%  vm=53.936%
+L-BFGS step  25/60 | Total Loss: 3.225993e-01
+  PDE: 2.0846e-01 | Dirichlet: 5.3260e-04 | Neumann: 3.6489e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 1.2563e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8520  t= 1044.4s  disp(vec)=121.454%  disp(|u|)=78.361%  vm=51.344%
+  it  8540  t= 1049.9s  disp(vec)=125.199%  disp(|u|)=74.627%  vm=49.784%
+  it  8560  t= 1054.6s  disp(vec)=127.912%  disp(|u|)=71.910%  vm=49.691%
+  it  8580  t= 1058.6s  disp(vec)=129.748%  disp(|u|)=70.178%  vm=49.112%
+  it  8600  t= 1063.1s  disp(vec)=133.701%  disp(|u|)=66.283%  vm=49.732%
+L-BFGS step  30/60 | Total Loss: 2.782159e-01
+  PDE: 2.0018e-01 | Dirichlet: 2.3791e-04 | Neumann: 2.8960e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 1.2197e-02 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8620  t= 1067.3s  disp(vec)=139.770%  disp(|u|)=60.219%  vm=51.733%
+  it  8640  t= 1070.8s  disp(vec)=146.843%  disp(|u|)=53.179%  vm=49.455%
+  it  8660  t= 1074.8s  disp(vec)=148.612%  disp(|u|)=51.402%  vm=47.145%
+  it  8680  t= 1078.5s  disp(vec)=145.925%  disp(|u|)=54.064%  vm=45.408%
+  it  8700  t= 1081.6s  disp(vec)=148.951%  disp(|u|)=51.054%  vm=42.474%
+L-BFGS step  35/60 | Total Loss: 2.327344e-01
+  PDE: 1.8839e-01 | Dirichlet: 1.0703e-04 | Neumann: 1.9721e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 3.6320e-03 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8720  t= 1084.8s  disp(vec)=154.287%  disp(|u|)=45.730%  vm=40.446%
+  it  8740  t= 1087.9s  disp(vec)=157.919%  disp(|u|)=42.117%  vm=40.807%
+  it  8760  t= 1092.9s  disp(vec)=165.104%  disp(|u|)=34.931%  vm=38.382%
+  it  8780  t= 1096.8s  disp(vec)=164.502%  disp(|u|)=35.521%  vm=32.101%
+  it  8800  t= 1099.6s  disp(vec)=167.392%  disp(|u|)=32.638%  vm=30.602%
+L-BFGS step  40/60 | Total Loss: 1.726334e-01
+  PDE: 1.4866e-01 | Dirichlet: 3.5157e-05 | Neumann: 1.4308e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 3.0748e-03 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8820  t= 1102.6s  disp(vec)=172.335%  disp(|u|)=27.715%  vm=28.524%
+  it  8840  t= 1105.4s  disp(vec)=175.643%  disp(|u|)=24.427%  vm=27.145%
+  it  8860  t= 1108.2s  disp(vec)=175.417%  disp(|u|)=24.642%  vm=26.568%
+  it  8880  t= 1111.0s  disp(vec)=174.405%  disp(|u|)=25.662%  vm=27.318%
+  it  8900  t= 1114.8s  disp(vec)=179.929%  disp(|u|)=20.131%  vm=23.109%
+L-BFGS step  45/60 | Total Loss: 1.590345e-01
+  PDE: 1.3230e-01 | Dirichlet: 1.1081e-05 | Neumann: 1.5202e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 2.0136e-03 | Anchor (already-weighted, added once): 0.0000e+00
+  it  8920  t= 1117.6s  disp(vec)=180.788%  disp(|u|)=19.293%  vm=22.411%
+  it  8940  t= 1121.2s  disp(vec)=184.382%  disp(|u|)=15.707%  vm=19.103%
+  it  8960  t= 1126.0s  disp(vec)=185.195%  disp(|u|)=14.867%  vm=19.890%
+  it  8980  t= 1128.5s  disp(vec)=185.743%  disp(|u|)=14.314%  vm=18.498%
+  it  9000  t= 1131.3s  disp(vec)=185.408%  disp(|u|)=14.643%  vm=17.887%
+L-BFGS step  50/60 | Total Loss: 1.279470e-01
+  PDE: 1.0410e-01 | Dirichlet: 1.6852e-05 | Neumann: 2.0415e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 7.0360e-04 | Anchor (already-weighted, added once): 0.0000e+00
+  it  9020  t= 1134.7s  disp(vec)=181.404%  disp(|u|)=18.630%  vm=17.847%
+  it  9040  t= 1138.7s  disp(vec)=181.227%  disp(|u|)=18.806%  vm=17.888%
+  it  9060  t= 1142.5s  disp(vec)=182.121%  disp(|u|)=17.914%  vm=17.391%
+  it  9080  t= 1145.3s  disp(vec)=183.673%  disp(|u|)=16.368%  vm=18.056%
+  it  9100  t= 1148.2s  disp(vec)=186.071%  disp(|u|)=13.988%  vm=17.153%
+L-BFGS step  55/60 | Total Loss: 1.194208e-01
+  PDE: 9.5090e-02 | Dirichlet: 1.6976e-05 | Neumann: 2.0854e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 2.1318e-04 | Anchor (already-weighted, added once): 0.0000e+00
+  it  9120  t= 1152.2s  disp(vec)=186.456%  disp(|u|)=13.609%  vm=16.847%
+  it  9140  t= 1155.1s  disp(vec)=187.902%  disp(|u|)=12.178%  vm=16.693%
+  it  9160  t= 1159.0s  disp(vec)=189.166%  disp(|u|)=10.928%  vm=15.927%
+  it  9180  t= 1162.6s  disp(vec)=190.943%  disp(|u|)=9.189%  vm=15.345%
+  it  9200  t= 1166.7s  disp(vec)=194.557%  disp(|u|)=5.768%  vm=14.790%
+L-BFGS step  60/60 | Total Loss: 1.143571e-01
+  PDE: 9.2626e-02 | Dirichlet: 5.1658e-06 | Neumann: 1.9372e-03
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+  Resultant (already-weighted, added once): 2.2384e-04 | Anchor (already-weighted, added once): 0.0000e+00
+============================================================
+L-BFGS stage complete! (final loss 1.143571e-01)
+Training Complete!
+DONE cantilever/pinn: train 1166.7s (probing 11.0s excluded), final disp(vec) 194.557%, vm 14.790%

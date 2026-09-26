@@ -1,0 +1,33 @@
+multicutout / xpinn seed 42: 38406 params, 36120 quadrature points, device cuda
+  it  1000  t=  150.8s  disp(vec)=33.153%  vm=36.067%  cutouts vm=66.273%
+  it  1100  t=  168.9s  disp(vec)=45.503%  vm=51.032%  cutouts vm=79.446%
+  it  1200  t=  185.9s  disp(vec)=46.337%  vm=48.513%  cutouts vm=58.654%
+  it  1300  t=  202.7s  disp(vec)=46.807%  vm=47.888%  cutouts vm=57.405%
+  it  1400  t=  219.7s  disp(vec)=46.988%  vm=47.410%  cutouts vm=56.460%
+  it  1500  t=  236.5s  disp(vec)=47.008%  vm=47.064%  cutouts vm=55.941%
+  it  1600  t=  253.9s  disp(vec)=46.951%  vm=46.814%  cutouts vm=55.746%
+  it  1700  t=  271.1s  disp(vec)=46.875%  vm=46.642%  cutouts vm=55.711%
+  it  1800  t=  288.5s  disp(vec)=46.815%  vm=46.536%  cutouts vm=55.726%
+  it  1900  t=  306.4s  disp(vec)=46.781%  vm=46.483%  cutouts vm=55.742%
+  it  2000  t=  323.3s  disp(vec)=46.767%  vm=46.462%  cutouts vm=55.750%
+  it  2100  t=  343.1s  disp(vec)=25.122%  vm=31.437%  cutouts vm=60.820%
+  it  2200  t=  365.1s  disp(vec)=22.598%  vm=30.173%  cutouts vm=69.548%
+  it  2300  t=  386.6s  disp(vec)=21.641%  vm=28.064%  cutouts vm=63.646%
+  it  2400  t=  410.1s  disp(vec)=20.698%  vm=27.969%  cutouts vm=63.628%
+  it  2500  t=  432.8s  disp(vec)=19.361%  vm=27.608%  cutouts vm=60.751%
+  it  2600  t=  452.3s  disp(vec)=20.563%  vm=27.559%  cutouts vm=60.971%
+  it  2700  t=  473.6s  disp(vec)=19.420%  vm=27.127%  cutouts vm=59.811%
+  it  2800  t=  495.3s  disp(vec)=18.574%  vm=26.702%  cutouts vm=59.849%
+  it  2900  t=  516.9s  disp(vec)=17.642%  vm=26.562%  cutouts vm=60.330%
+  it  3000  t=  538.2s  disp(vec)=17.301%  vm=25.713%  cutouts vm=57.985%
+  it  3100  t=  557.8s  disp(vec)=16.931%  vm=25.939%  cutouts vm=61.575%
+  it  3200  t=  578.6s  disp(vec)=16.954%  vm=25.711%  cutouts vm=60.009%
+  it  3300  t=  600.5s  disp(vec)=15.666%  vm=24.517%  cutouts vm=56.637%
+  it  3400  t=  623.0s  disp(vec)=13.778%  vm=23.234%  cutouts vm=53.537%
+  it  3500  t=  646.3s  disp(vec)=13.395%  vm=22.366%  cutouts vm=52.398%
+  it  3600  t=  666.8s  disp(vec)=14.026%  vm=22.448%  cutouts vm=51.949%
+  it  3700  t=  687.8s  disp(vec)=13.075%  vm=21.820%  cutouts vm=48.126%
+  it  3800  t=  709.2s  disp(vec)=12.805%  vm=21.522%  cutouts vm=51.001%
+  it  3900  t=  731.7s  disp(vec)=12.851%  vm=21.118%  cutouts vm=48.749%
+  it  4000  t=  753.3s  disp(vec)=12.770%  vm=20.865%  cutouts vm=46.993%
+DONE multicutout/xpinn seed 42: train 753.3s  disp(vec) 12.770%  vM(excl) 20.865%  cutouts vM 46.993%  compliance -11.34%

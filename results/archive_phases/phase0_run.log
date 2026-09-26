@@ -1,0 +1,402 @@
+================ 2026-09-18 06:40:07 :: adam :: cantilever ================
+
+========================================================================
+BENCHMARK: CANTILEVER  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'warm_start_eb': True, 'prefit_epochs': 6000, 'use_lbfgs': False}
+======================================================================
+FORWARD SOLVE — CANTILEVER
+======================================================================
+======================================================================
+WARM START — EB/Timoshenko prefit (monolith network)
+======================================================================
+  [prefit] epoch 2000: loss 6.563e-11
+  [prefit] epoch 4000: loss 3.984e-11
+  [prefit] epoch 6000: loss 2.831e-11
+  [prefit] tip deflection: -1.2124 mm (EB target: -1.2190 mm)
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 1.169255e+03
+  PDE: 3.3057e+00 | Dirichlet: 1.4425e+00 | Neumann: 9.9194e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  1000 | Total Loss: 4.430150e+02
+  PDE: 5.1655e+00 | Dirichlet: 9.0258e-01 | Neumann: 3.0110e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  1500 | Total Loss: 3.769986e+02
+  PDE: 4.8743e+00 | Dirichlet: 6.4472e-01 | Neumann: 2.6378e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  2000 | Total Loss: 1.123610e+03
+  PDE: 3.8372e+00 | Dirichlet: 9.0958e-01 | Neumann: 9.9428e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+============================================================
+Adam stage complete! (2000 epochs, final loss 1.123610e+03)
+(use_lbfgs=False - skipping stage 2)
+Training Complete!
+============================================================
+FEM VALIDATION — CANTILEVER
+============================================================
+  Relative L2 error (u)      : 1.701631e+00
+  Relative L2 error (v)      : 9.003083e-02
+  Relative L2 error (|disp|) : 8.792501e-02  (8.79%)
+  [Paper target: <5% displacement L2] FAIL (8.79% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 1.312460e+00 (131.25%)
+  Relative L2 error (von Mises, EXCL.)    : 1.316937e+00 (131.69%) [excluded 16/26001 pts, r_excl=0.03125]
+  r_excl = 0.03125  (= 2.5x local point spacing near 2 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (131.69% >= 10%)
+  Max pointwise von Mises error       : 2.917997e+07 Pa at (x=0.0000, y=1.0000)
+============================================================
+
+--- cantilever validation summary ---
+  relative_L2_u: 1.7016314898584877
+  relative_L2_v: 0.09003083313476676
+  relative_L2_displacement: 0.08792500988370654
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 1.3124604617640672
+  von_mises_l2_excl: 1.316937272654547
+  von_mises_exclusion_radius: 0.031249999999999993
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  cantilever   |disp| L2 8.79%  [5% target FAIL]  | von Mises excl 131.69%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done adam cantilever
+================ 2026-09-18 06:47:45 :: adam :: l_bracket ================
+
+========================================================================
+BENCHMARK: L_BRACKET  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': False}
+======================================================================
+FORWARD SOLVE — L_BRACKET
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 4.707121e-01
+  PDE: 1.7634e-01 | Dirichlet: 9.2666e-05 | Neumann: 2.1026e-02
+  Interface u: 4.4834e-03 | Interface t: 1.5006e-03
+Epoch  1000 | Total Loss: 3.823755e-01
+  PDE: 1.5556e-01 | Dirichlet: 2.9131e-05 | Neumann: 1.8131e-02
+  Interface u: 1.3732e-03 | Interface t: 1.4430e-03
+Epoch  1500 | Total Loss: 2.666014e-01
+  PDE: 1.6936e-01 | Dirichlet: 1.0203e-06 | Neumann: 7.6267e-03
+  Interface u: 9.0104e-04 | Interface t: 5.9314e-04
+Epoch  2000 | Total Loss: 2.624240e-01
+  PDE: 1.5733e-01 | Dirichlet: 8.0287e-07 | Neumann: 8.0621e-03
+  Interface u: 9.0940e-04 | Interface t: 7.6472e-04
+============================================================
+Adam stage complete! (2000 epochs, final loss 2.624240e-01)
+(use_lbfgs=False - skipping stage 2)
+Training Complete!
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 9.944061e-01
+  Relative L2 error (v)      : 9.984956e-01
+  Relative L2 error (|disp|) : 9.938181e-01  (99.38%)
+  [Paper target: <5% displacement L2] FAIL (99.38% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 9.590893e-01 (95.91%)
+  Relative L2 error (von Mises, EXCL.)    : 9.584801e-01 (95.85%) [excluded 13/29808 pts, r_excl=0.0219277]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (95.85% >= 10%)
+  Max pointwise von Mises error       : 2.646842e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+
+--- l_bracket validation summary ---
+  relative_L2_u: 0.9944061099835527
+  relative_L2_v: 0.9984956281394519
+  relative_L2_displacement: 0.9938180742571872
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 0.9590892547130004
+  von_mises_l2_excl: 0.9584800854138698
+  von_mises_exclusion_radius: 0.02192767483456329
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  l_bracket    |disp| L2 99.38%  [5% target FAIL]  | von Mises excl 95.85%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done adam l_bracket
+================ 2026-09-18 06:57:56 :: adam :: plate_hole ================
+
+========================================================================
+BENCHMARK: PLATE_HOLE  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': False}
+======================================================================
+FORWARD SOLVE — PLATE_HOLE
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 6.207025e-01
+  PDE: 2.4600e-01 | Dirichlet: 3.0926e-04 | Neumann: 1.5044e-02
+  Interface u: 7.4262e-04 | Interface t: 9.2956e-03
+Epoch  1000 | Total Loss: 3.420489e-01
+  PDE: 8.5630e-02 | Dirichlet: 3.6373e-04 | Neumann: 9.9577e-03
+  Interface u: 5.7037e-04 | Interface t: 5.7382e-03
+Epoch  1500 | Total Loss: 2.309148e-01
+  PDE: 3.8404e-02 | Dirichlet: 1.6909e-04 | Neumann: 7.5855e-03
+  Interface u: 6.7886e-04 | Interface t: 4.6479e-03
+Epoch  2000 | Total Loss: 1.436880e-01
+  PDE: 2.6938e-02 | Dirichlet: 2.0377e-04 | Neumann: 5.7027e-03
+  Interface u: 6.5347e-04 | Interface t: 1.6406e-03
+============================================================
+Adam stage complete! (2000 epochs, final loss 1.436880e-01)
+(use_lbfgs=False - skipping stage 2)
+Training Complete!
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 3.361954e-01
+  Relative L2 error (v)      : 7.281924e-01
+  Relative L2 error (|disp|) : 3.465660e-01  (34.66%)
+  [Paper target: <5% displacement L2] FAIL (34.66% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 2.899868e-01 (29.00%)
+  Relative L2 error (von Mises, EXCL.)    : 2.899142e-01 (28.99%) [excluded 6/61433 pts, r_excl=0.0178548]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (28.99% >= 10%)
+  Max pointwise von Mises error       : 5.201445e+06 Pa at (x=0.0000, y=0.3133)
+============================================================
+
+--- plate_hole validation summary ---
+  relative_L2_u: 0.3361953958916237
+  relative_L2_v: 0.7281924037095875
+  relative_L2_displacement: 0.3465659729314789
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 0.2899868129502072
+  von_mises_l2_excl: 0.2899142497155058
+  von_mises_exclusion_radius: 0.017854768400187654
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  plate_hole   |disp| L2 34.66%  [5% target FAIL]  | von Mises excl 28.99%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done adam plate_hole
+================ 2026-09-18 07:03:58 :: lbfgs :: cantilever ================
+
+========================================================================
+BENCHMARK: CANTILEVER  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'warm_start_eb': True, 'prefit_epochs': 6000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50}
+======================================================================
+FORWARD SOLVE — CANTILEVER
+======================================================================
+======================================================================
+WARM START — EB/Timoshenko prefit (monolith network)
+======================================================================
+  [prefit] epoch 2000: loss 6.563e-11
+  [prefit] epoch 4000: loss 3.984e-11
+  [prefit] epoch 6000: loss 2.831e-11
+  [prefit] tip deflection: -1.2124 mm (EB target: -1.2190 mm)
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 1.169255e+03
+  PDE: 3.3057e+00 | Dirichlet: 1.4425e+00 | Neumann: 9.9194e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  1000 | Total Loss: 4.430150e+02
+  PDE: 5.1655e+00 | Dirichlet: 9.0258e-01 | Neumann: 3.0110e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  1500 | Total Loss: 3.769986e+02
+  PDE: 4.8743e+00 | Dirichlet: 6.4472e-01 | Neumann: 2.6378e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+Epoch  2000 | Total Loss: 1.123610e+03
+  PDE: 3.8372e+00 | Dirichlet: 9.0958e-01 | Neumann: 9.9428e+01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+============================================================
+Adam stage complete! (2000 epochs, final loss 1.123610e+03)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 3.127684e+01
+  PDE: 1.5040e+00 | Dirichlet: 9.8141e-02 | Neumann: 3.5663e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+L-BFGS step  10/15 | Total Loss: 2.575070e+01
+  PDE: 1.5809e+00 | Dirichlet: 7.3370e-02 | Neumann: 2.2834e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+L-BFGS step  15/15 | Total Loss: 2.491190e+01
+  PDE: 1.5433e+00 | Dirichlet: 7.3407e-02 | Neumann: 2.0787e-01
+  Interface u: 0.0000e+00 | Interface t: 0.0000e+00
+============================================================
+L-BFGS stage complete! (final loss 2.491190e+01)
+Training Complete!
+============================================================
+FEM VALIDATION — CANTILEVER
+============================================================
+  Relative L2 error (u)      : 1.715936e+00
+  Relative L2 error (v)      : 5.080165e-02
+  Relative L2 error (|disp|) : 6.305223e-02  (6.31%)
+  [Paper target: <5% displacement L2] FAIL (6.31% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 1.161245e+00 (116.12%)
+  Relative L2 error (von Mises, EXCL.)    : 1.164179e+00 (116.42%) [excluded 16/26001 pts, r_excl=0.03125]
+  r_excl = 0.03125  (= 2.5x local point spacing near 2 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (116.42% >= 10%)
+  Max pointwise von Mises error       : 3.763582e+07 Pa at (x=0.0000, y=1.0000)
+============================================================
+
+--- cantilever validation summary ---
+  relative_L2_u: 1.7159356528122598
+  relative_L2_v: 0.05080164547623495
+  relative_L2_displacement: 0.06305223499940242
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 1.1612447605745158
+  von_mises_l2_excl: 1.1641792711873764
+  von_mises_exclusion_radius: 0.031249999999999993
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  cantilever   |disp| L2 6.31%  [5% target FAIL]  | von Mises excl 116.42%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done lbfgs cantilever
+================ 2026-09-18 07:12:57 :: lbfgs :: l_bracket ================
+
+========================================================================
+BENCHMARK: L_BRACKET  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50}
+======================================================================
+FORWARD SOLVE — L_BRACKET
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 4.707121e-01
+  PDE: 1.7634e-01 | Dirichlet: 9.2666e-05 | Neumann: 2.1026e-02
+  Interface u: 4.4834e-03 | Interface t: 1.5006e-03
+Epoch  1000 | Total Loss: 3.823755e-01
+  PDE: 1.5556e-01 | Dirichlet: 2.9131e-05 | Neumann: 1.8131e-02
+  Interface u: 1.3732e-03 | Interface t: 1.4430e-03
+Epoch  1500 | Total Loss: 2.666014e-01
+  PDE: 1.6936e-01 | Dirichlet: 1.0203e-06 | Neumann: 7.6267e-03
+  Interface u: 9.0104e-04 | Interface t: 5.9314e-04
+Epoch  2000 | Total Loss: 2.624240e-01
+  PDE: 1.5733e-01 | Dirichlet: 8.0287e-07 | Neumann: 8.0621e-03
+  Interface u: 9.0940e-04 | Interface t: 7.6472e-04
+============================================================
+Adam stage complete! (2000 epochs, final loss 2.624240e-01)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 8.483717e-02
+  PDE: 6.7222e-02 | Dirichlet: 1.1069e-07 | Neumann: 7.6197e-04
+  Interface u: 2.0230e-04 | Interface t: 2.3136e-04
+L-BFGS step  10/15 | Total Loss: 7.116847e-02
+  PDE: 6.0071e-02 | Dirichlet: 5.0728e-07 | Neumann: 5.8034e-04
+  Interface u: 1.7718e-04 | Interface t: 1.1790e-04
+L-BFGS step  15/15 | Total Loss: 6.622830e-02
+  PDE: 5.6809e-02 | Dirichlet: 6.3747e-07 | Neumann: 4.9427e-04
+  Interface u: 1.2355e-04 | Interface t: 9.1341e-05
+============================================================
+L-BFGS stage complete! (final loss 6.622830e-02)
+Training Complete!
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 9.902036e-01
+  Relative L2 error (v)      : 9.984582e-01
+  Relative L2 error (|disp|) : 9.913789e-01  (99.14%)
+  [Paper target: <5% displacement L2] FAIL (99.14% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 9.550734e-01 (95.51%)
+  Relative L2 error (von Mises, EXCL.)    : 9.543897e-01 (95.44%) [excluded 13/29808 pts, r_excl=0.0219277]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (95.44% >= 10%)
+  Max pointwise von Mises error       : 2.645916e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+
+--- l_bracket validation summary ---
+  relative_L2_u: 0.9902035682232764
+  relative_L2_v: 0.9984581513378465
+  relative_L2_displacement: 0.9913788578885971
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 0.9550734473927388
+  von_mises_l2_excl: 0.9543896673026754
+  von_mises_exclusion_radius: 0.02192767483456329
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  l_bracket    |disp| L2 99.14%  [5% target FAIL]  | von Mises excl 95.44%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done lbfgs l_bracket
+================ 2026-09-18 07:23:28 :: lbfgs :: plate_hole ================
+
+========================================================================
+BENCHMARK: PLATE_HOLE  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50}
+======================================================================
+FORWARD SOLVE — PLATE_HOLE
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 6.207025e-01
+  PDE: 2.4600e-01 | Dirichlet: 3.0926e-04 | Neumann: 1.5044e-02
+  Interface u: 7.4262e-04 | Interface t: 9.2956e-03
+Epoch  1000 | Total Loss: 3.420489e-01
+  PDE: 8.5630e-02 | Dirichlet: 3.6373e-04 | Neumann: 9.9577e-03
+  Interface u: 5.7037e-04 | Interface t: 5.7382e-03
+Epoch  1500 | Total Loss: 2.309148e-01
+  PDE: 3.8404e-02 | Dirichlet: 1.6909e-04 | Neumann: 7.5855e-03
+  Interface u: 6.7886e-04 | Interface t: 4.6479e-03
+Epoch  2000 | Total Loss: 1.436880e-01
+  PDE: 2.6938e-02 | Dirichlet: 2.0377e-04 | Neumann: 5.7027e-03
+  Interface u: 6.5347e-04 | Interface t: 1.6406e-03
+============================================================
+Adam stage complete! (2000 epochs, final loss 1.436880e-01)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 5.301104e-02
+  PDE: 1.2876e-02 | Dirichlet: 9.6855e-05 | Neumann: 1.5446e-03
+  Interface u: 2.5053e-04 | Interface t: 2.3785e-04
+L-BFGS step  10/15 | Total Loss: 2.810708e-02
+  PDE: 8.3192e-03 | Dirichlet: 6.0578e-05 | Neumann: 6.3029e-04
+  Interface u: 2.3691e-04 | Interface t: 1.2435e-04
+L-BFGS step  15/15 | Total Loss: 1.742044e-02
+  PDE: 5.9964e-03 | Dirichlet: 2.8997e-05 | Neumann: 4.5262e-04
+  Interface u: 4.9827e-05 | Interface t: 7.9431e-05
+============================================================
+L-BFGS stage complete! (final loss 1.742044e-02)
+Training Complete!
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 3.672212e-01
+  Relative L2 error (v)      : 8.816263e-01
+  Relative L2 error (|disp|) : 3.689215e-01  (36.89%)
+  [Paper target: <5% displacement L2] FAIL (36.89% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 3.047858e-01 (30.48%)
+  Relative L2 error (von Mises, EXCL.)    : 3.047206e-01 (30.47%) [excluded 6/61433 pts, r_excl=0.0178548]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (30.47% >= 10%)
+  Max pointwise von Mises error       : 5.489115e+06 Pa at (x=0.0000, y=0.3133)
+============================================================
+
+--- plate_hole validation summary ---
+  relative_L2_u: 0.36722118002824206
+  relative_L2_v: 0.881626259833852
+  relative_L2_displacement: 0.3689214854925456
+  displacement_within_5pct_target: False
+  relative_L2_von_mises: 0.30478584548535265
+  von_mises_l2_excl: 0.3047206137295205
+  von_mises_exclusion_radius: 0.017854768400187654
+  von_mises_l2_excl_within_10pct: False
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  plate_hole   |disp| L2 36.89%  [5% target FAIL]  | von Mises excl 30.47%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results
+SNAPSHOT done lbfgs plate_hole
+PHASE0_ALL_DONE

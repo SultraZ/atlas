@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS Console</title>
+<link rel="stylesheet" href="/static/style.css?v=4">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">A</span>
+    <span class="brand-text">
+      <strong>ATLAS</strong>
+      <small>Adaptive Multi-Scale Framework for Structural Design</small>
+    </span>
+  </div>
+
+  <!-- sliding mode switch: stored study  ⇄  live solver -->
+  <div class="switch" id="modeSwitch" role="tablist" aria-label="Mode">
+    <span class="switch-pill" aria-hidden="true"></span>
+    <button class="switch-btn is-active" data-mode="results" role="tab">Results</button>
+    <button class="switch-btn" data-mode="live" role="tab">Live solver</button>
+  </div>
+
+  <div class="top-right">
+    <span class="pill pill-status" id="healthPill">connecting…</span>
+    <button class="icon-btn" id="themeToggle" title="Toggle dark / light" aria-label="Toggle dark or light theme">
+      <span class="theme-icon"></span>
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════ RESULTS MODE ══════════════════════════ -->
+<div class="mode" id="mode-results">
+
+  <section class="hero">
+    <div class="hero-text">
+      <h1>ATLAS meets both accuracy targets where standard PINNs fail</h1>
+      <p>Domain-decomposed deep-energy solver, validated against FEniCS on three benchmarks.
+         Every number below comes from the stored study — nothing is retrained in the browser.</p>
+    </div>
+    <div class="hero-kpis" id="heroKpis"></div>
+  </section>
+
+  <nav class="chips" id="benchChips" aria-label="Benchmark"></nav>
+
+  <section class="panel-grid">
+    <article class="card span-2" id="tableCard">
+      <h2 class="card-title">Accuracy vs the FEniCS reference <span class="tag" id="tableBench"></span></h2>
+      <div class="table-wrap">
+        <table class="table" id="solverTable"><tbody></tbody></table>
+      </div>
+      <p class="hint">Displacement and von Mises are relative L² errors; the von Mises metric excludes the
+        singular region. Targets: 5 % and 10 %.</p>
+    </article>
+
+    <article class="card" id="seedCard">
+      <h2 class="card-title">Repeatability</h2>
+      <div id="seedBody"></div>
+    </article>
+
+    <article class="card" id="invCard">
+      <h2 class="card-title">Inverse design</h2>
+      <div id="invBody"></div>
+    </article>
+  </section>
+
+  <section class="gallery-section">
+    <h2 class="section-title">Fields and validation <span class="tag" id="galleryBench"></span></h2>
+    <div class="plot-grid" id="resultPlots"></div>
+  </section>
+
+  <section class="gallery-section">
+    <h2 class="section-title">Across all benchmarks</h2>
+    <div class="plot-grid" id="globalPlots"></div>
+  </section>
+</div>
+
+<!-- ══════════════════════════ LIVE MODE ══════════════════════════ -->
+<div class="mode" id="mode-live" hidden>
+  <div class="layout">
+
+    <aside class="col col-left">
+      <section class="card">
+        <h2 class="card-title">Problem setup</h2>
+
+        <label class="field">Benchmark
+          <select id="benchmark">
+            <option value="cantilever" selected>Cantilever beam</option>
+            <option value="l_bracket">L-shaped bracket</option>
+            <option value="plate_hole">Plate with circular hole</option>
+          </select>
+        </label>
+
+        <dl class="spec">
+          <div><dt>Material</dt><dd>Steel</dd></div>
+          <div><dt>Young's modulus</dt><dd>210 GPa</dd></div>
+          <div><dt>Poisson ratio</dt><dd>0.30</dd></div>
+          <div><dt>Subdomains</dt><dd id="specSub">2</dd></div>
+          <div><dt>Network</dt><dd>4 × 64, tanh</dd></div>
+        </dl>
+
+        <div class="grid-2">
+          <label class="field">Epochs
+            <input id="epochs" type="number" value="2000" min="50" step="50">
+          </label>
+          <label class="field">Interior pts
+            <input id="n_interior" type="number" value="800" min="200" step="50">
+          </label>
+        </div>
+
+        <label class="check"><input id="lbfgs" type="checkbox"> <span>Adam + L-BFGS fine-tune</span></label>
+        <label class="check" data-only="cantilever"><input id="warm" type="checkbox" checked>
+          <span>EB / Timoshenko prefit</span></label>
+        <label class="field" data-only="cantilever">Prefit epochs
+          <input id="prefit_epochs" type="number" value="4000" min="0" step="500">
+        </label>
+
+        <div class="actions">
+          <button id="run-forward" class="btn btn-primary">
+            <span class="btn-label">Run forward + validate</span><span class="spinner" aria-hidden="true"></span>
+          </button>
+          <button id="run-inverse" class="btn">
+            <span class="btn-label">Run inverse design</span><span class="spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+        <p class="hint" id="hint"></p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Recent jobs</h2>
+        <ul class="job-list" id="jobList"><li class="muted">No jobs yet.</li></ul>
+      </section>
+    </aside>
+
+    <main class="col col-main">
+      <div class="kpis">
+        <article class="kpi"><span class="kpi-label">Displacement error</span>
+          <span class="kpi-value" data-kpi="disp">—</span><span class="kpi-sub">relative L² vs FEM</span></article>
+        <article class="kpi"><span class="kpi-label">Stress error</span>
+          <span class="kpi-value" data-kpi="vm">—</span><span class="kpi-sub">von Mises L², excl.</span></article>
+        <article class="kpi"><span class="kpi-label">Design result</span>
+          <span class="kpi-value" data-kpi="design">—</span><span class="kpi-sub">inverse design parameter</span></article>
+        <article class="kpi"><span class="kpi-label">Run time</span>
+          <span class="kpi-value" data-kpi="time">—</span><span class="kpi-sub">wall-clock of the last job</span></article>
+      </div>
+
+      <section class="card">
+        <div class="run-head">
+          <h2 class="card-title">Current job</h2>
+          <span class="chip-state" id="runChip">idle</span>
+        </div>
+        <div class="progress" id="progress" hidden><div class="progress-bar"></div></div>
+        <p class="muted" id="runText">No job yet — choose a benchmark and press run.</p>
+        <details class="log-details">
+          <summary>Solver log</summary>
+          <pre class="log" id="log">—</pre>
+        </details>
+      </section>
+
+      <div class="plot-grid" id="plotGrid">
+        <p class="muted placeholder">Plots appear here when a job finishes.</p>
+      </div>
+    </main>
+
+    <aside class="col col-right">
+      <section class="card">
+        <h2 class="card-title">Key results</h2>
+        <ul class="result-list" id="resultList"><li class="muted">Run a job to see its metrics.</li></ul>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Pipeline</h2>
+        <ol class="pipeline" id="pipeline">
+          <li data-step="setup"><i></i><span>Problem setup</span></li>
+          <li data-step="train"><i></i><span>Solver training</span></li>
+          <li data-step="predict"><i></i><span>Field prediction</span></li>
+          <li data-step="validate"><i></i><span>FEM validation</span></li>
+          <li data-step="plots"><i></i><span>Visualisation</span></li>
+        </ol>
+      </section>
+    </aside>
+  </div>
+</div>
+
+
+<script src="/static/app.js?v=4"></script>
+</body>
+</html>

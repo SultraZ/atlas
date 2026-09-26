@@ -1,0 +1,31 @@
+{
+  "relative_L2_u": 0.002305472446391791,
+  "relative_L2_v": 0.0019350659251430237,
+  "relative_L2_displacement": 0.0019229393366424039,
+  "displacement_within_5pct_target": true,
+  "used_mock_data": false,
+  "geometry_warning": null,
+  "relative_L2_von_mises": 0.029443155802374502,
+  "von_mises_l2_global": 0.029443155802374502,
+  "von_mises_l2_excl": 0.022856068131485628,
+  "von_mises_exclusion_radius": 0.031249999999999993,
+  "von_mises_exclusion_factor": 2.5,
+  "von_mises_excluded_points": 16,
+  "von_mises_total_points": 26001,
+  "von_mises_l2_excl_within_10pct": true,
+  "max_pointwise_von_mises_error": 15153613.651328884,
+  "max_pointwise_von_mises_error_location": [
+    0.0,
+    1.0
+  ],
+  "von_mises_l2_roi": 0.02138165649250819,
+  "von_mises_roi_excluded_points": 113,
+  "von_mises_roi_desc": "clamp corners (fixed-radius 0.10 disks)",
+  "von_mises_l2_roi_within_10pct": true,
+  "benchmark": "cantilever",
+  "formulation": "energy",
+  "seed": 42,
+  "epochs": 2000,
+  "lbfgs_iters": 1500,
+  "train_seconds": 510.1
+}

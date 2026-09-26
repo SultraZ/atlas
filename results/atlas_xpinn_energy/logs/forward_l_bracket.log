@@ -1,0 +1,31 @@
+  [adam]    500  Pi=-2.47611669  U=2.401761  W=4.877878
+  [adam]   1000  Pi=-2.49795532  U=2.448142  W=4.946097
+  [adam]    500  Pi=-2.56205512  U=2.376998  W=4.988059
+  [adam]   1000  Pi=-2.56653151  U=2.419103  W=5.036023
+  [lbfgs]    500  Pi=-2.5900485052  U=2.531145  W=5.171897
+  [stage 1] gamma_u=30  interface jump^2 (int) = 1.517e-13
+  [AL update 1] relative interface jump before update = 4.267e-03
+  [lbfgs]    500  Pi=-2.5424375026  U=2.536482  W=5.083379
+  [stage 2] gamma_u=30  interface jump^2 (int) = 2.165e-15
+  [AL update 2] relative interface jump before update = 5.139e-04
+  [lbfgs]    500  Pi=-2.5437203600  U=2.543860  W=5.089703
+  [stage 3] gamma_u=30  interface jump^2 (int) = 9.763e-16
+  [AL update 3] relative interface jump before update = 3.447e-04
+  [lbfgs]    500  Pi=-2.5441887714  U=2.541698  W=5.087528
+  [stage 4] gamma_u=30  interface jump^2 (int) = 5.160e-16
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 3.283905e-03
+  Relative L2 error (v)      : 2.646392e-03
+  Relative L2 error (|disp|) : 2.186681e-03  (0.22%)
+  [Paper target: <5% displacement L2] PASS (0.22% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 7.027193e-02 (7.03%)
+  Relative L2 error (von Mises, EXCL.)    : 4.552134e-02 (4.55%) [excluded 13/29808 pts, r_excl=0.0219277]
+  Relative L2 error (von Mises, ROI)      : 4.618778e-02 (4.62%), 29475/29808 pts kept  [re-entrant corner (fixed-radius 0.12 disk)]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (4.55% < 10%)
+  Max pointwise von Mises error       : 1.691572e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+
+RESULT l_bracket_xpinn_energy: disp L2 0.22%  vM excl L2 4.55%  params 38478

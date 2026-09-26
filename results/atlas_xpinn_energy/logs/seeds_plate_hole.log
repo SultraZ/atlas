@@ -1,0 +1,191 @@
+======================================================================
+REPEATABILITY STUDY — PLATE_HOLE
+Seeds: [42, 43, 44, 45, 46]  |  Epochs per run: 2000  |  FEM: real (/home/sultra/atlas_main/fem/reference)
+======================================================================
+
+--- Run 1/5 (seed=42) ---
+Using GPU: NVIDIA GeForce RTX 2050
+  [adam]    500  Pi=-0.51001099  U=0.509321  W=1.019332
+  [adam]   1000  Pi=-0.51044260  U=0.509492  W=1.019934
+  [adam]    500  Pi=-0.51506942  U=0.509876  W=1.029386
+  [adam]   1000  Pi=-0.51524022  U=0.510013  W=1.029724
+  [lbfgs]    500  Pi=-0.5224427208  U=0.518479  W=1.046056
+  [stage 1] gamma_u=30  interface jump^2 (int) = 2.545e-14
+  [AL update 1] relative interface jump before update = 3.044e-02
+  [lbfgs]    500  Pi=-0.5247372100  U=0.524909  W=1.050385
+  [stage 2] gamma_u=30  interface jump^2 (int) = 9.371e-16
+  [AL update 2] relative interface jump before update = 5.349e-03
+  [lbfgs]    500  Pi=-0.5263921759  U=0.525968  W=1.052480
+  [stage 3] gamma_u=30  interface jump^2 (int) = 6.809e-16
+  [AL update 3] relative interface jump before update = 4.489e-03
+  [lbfgs]    500  Pi=-0.5273495108  U=0.527534  W=1.054752
+  [stage 4] gamma_u=30  interface jump^2 (int) = 4.747e-16
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 6.504564e-03
+  Relative L2 error (v)      : 1.750973e-02
+  Relative L2 error (|disp|) : 7.535608e-03  (0.75%)
+  [Paper target: <5% displacement L2] PASS (0.75% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 3.442375e-02 (3.44%)
+  Relative L2 error (von Mises, EXCL.)    : 3.387222e-02 (3.39%) [excluded 6/61433 pts, r_excl=0.0178548]
+  Relative L2 error (von Mises, ROI)      : 1.718489e-02 (1.72%), 60908/61433 pts kept  [hole-arc band (half-width 0.06)]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (3.39% < 10%)
+  Max pointwise von Mises error       : 3.008470e+06 Pa at (x=0.0000, y=0.3133)
+============================================================
+    -> final loss=4.2469e-04, L2 disp=0.7536%, 5%-target=True
+
+--- Run 2/5 (seed=43) ---
+Using GPU: NVIDIA GeForce RTX 2050
+  [adam]    500  Pi=-0.51139448  U=0.509775  W=1.021169
+  [adam]   1000  Pi=-0.51201668  U=0.510902  W=1.022919
+  [adam]    500  Pi=-0.51645758  U=0.510563  W=1.031495
+  [adam]   1000  Pi=-0.51682899  U=0.511032  W=1.032360
+  [lbfgs]    500  Pi=-0.5289899833  U=0.523764  W=1.057273
+  [stage 1] gamma_u=30  interface jump^2 (int) = 2.622e-14
+  [AL update 1] relative interface jump before update = 2.830e-02
+  [lbfgs]    500  Pi=-0.5277653620  U=0.528306  W=1.055961
+  [stage 2] gamma_u=30  interface jump^2 (int) = 6.286e-16
+  [AL update 2] relative interface jump before update = 4.231e-03
+  [lbfgs]    500  Pi=-0.5281952285  U=0.528025  W=1.056374
+  [stage 3] gamma_u=30  interface jump^2 (int) = 9.106e-17
+  [AL update 3] relative interface jump before update = 1.603e-03
+  [lbfgs]    500  Pi=-0.5282294506  U=0.528194  W=1.056420
+  [stage 4] gamma_u=30  interface jump^2 (int) = 1.902e-17
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 1.850851e-03
+  Relative L2 error (v)      : 4.942328e-03
+  Relative L2 error (|disp|) : 2.067446e-03  (0.21%)
+  [Paper target: <5% displacement L2] PASS (0.21% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 2.728197e-02 (2.73%)
+  Relative L2 error (von Mises, EXCL.)    : 2.618059e-02 (2.62%) [excluded 6/61433 pts, r_excl=0.0178548]
+  Relative L2 error (von Mises, ROI)      : 5.664906e-03 (0.57%), 60908/61433 pts kept  [hole-arc band (half-width 0.06)]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (2.62% < 10%)
+  Max pointwise von Mises error       : 2.860651e+06 Pa at (x=0.0074, y=0.2996)
+============================================================
+    -> final loss=1.7518e-05, L2 disp=0.2067%, 5%-target=True
+
+--- Run 3/5 (seed=44) ---
+Using GPU: NVIDIA GeForce RTX 2050
+  [adam]    500  Pi=-0.50978721  U=0.509181  W=1.018969
+  [adam]   1000  Pi=-0.51011171  U=0.509179  W=1.019291
+  [adam]    500  Pi=-0.51502433  U=0.509680  W=1.029105
+  [adam]   1000  Pi=-0.51539157  U=0.510174  W=1.030044
+  [lbfgs]    500  Pi=-0.5269745219  U=0.521340  W=1.052909
+  [stage 1] gamma_u=30  interface jump^2 (int) = 2.700e-14
+  [AL update 1] relative interface jump before update = 2.953e-02
+  [lbfgs]    500  Pi=-0.5261862323  U=0.525428  W=1.051928
+  [stage 2] gamma_u=30  interface jump^2 (int) = 2.121e-15
+  [AL update 2] relative interface jump before update = 7.977e-03
+  [lbfgs]    500  Pi=-0.5272716708  U=0.527099  W=1.054183
+  [stage 3] gamma_u=30  interface jump^2 (int) = 5.060e-16
+  [AL update 3] relative interface jump before update = 3.841e-03
+  [lbfgs]    500  Pi=-0.5277146911  U=0.527745  W=1.055477
+  [stage 4] gamma_u=30  interface jump^2 (int) = 1.611e-16
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 4.226759e-03
+  Relative L2 error (v)      : 1.547777e-02
+  Relative L2 error (|disp|) : 5.591131e-03  (0.56%)
+  [Paper target: <5% displacement L2] PASS (0.56% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 3.123138e-02 (3.12%)
+  Relative L2 error (von Mises, EXCL.)    : 3.059467e-02 (3.06%) [excluded 6/61433 pts, r_excl=0.0178548]
+  Relative L2 error (von Mises, ROI)      : 1.379639e-02 (1.38%), 60908/61433 pts kept  [hole-arc band (half-width 0.06)]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (3.06% < 10%)
+  Max pointwise von Mises error       : 2.772367e+06 Pa at (x=0.0000, y=0.3133)
+============================================================
+    -> final loss=2.2292e-04, L2 disp=0.5591%, 5%-target=True
+
+--- Run 4/5 (seed=45) ---
+Using GPU: NVIDIA GeForce RTX 2050
+  [adam]    500  Pi=-0.51162799  U=0.510184  W=1.021812
+  [adam]   1000  Pi=-0.51222690  U=0.511161  W=1.023388
+  [adam]    500  Pi=-0.51636539  U=0.510729  W=1.031611
+  [adam]   1000  Pi=-0.51660644  U=0.510955  W=1.032099
+  [lbfgs]    500  Pi=-0.5288707395  U=0.524201  W=1.057733
+  [stage 1] gamma_u=30  interface jump^2 (int) = 2.679e-14
+  [AL update 1] relative interface jump before update = 2.877e-02
+  [lbfgs]    500  Pi=-0.5276950574  U=0.527583  W=1.055268
+  [stage 2] gamma_u=30  interface jump^2 (int) = 1.174e-15
+  [AL update 2] relative interface jump before update = 5.809e-03
+  [lbfgs]    500  Pi=-0.5280386272  U=0.528015  W=1.056044
+  [stage 3] gamma_u=30  interface jump^2 (int) = 2.117e-16
+  [AL update 3] relative interface jump before update = 2.451e-03
+  [lbfgs]    500  Pi=-0.5282167606  U=0.528282  W=1.056488
+  [stage 4] gamma_u=30  interface jump^2 (int) = 5.970e-17
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 2.053609e-03
+  Relative L2 error (v)      : 5.126780e-03
+  Relative L2 error (|disp|) : 2.246743e-03  (0.22%)
+  [Paper target: <5% displacement L2] PASS (0.22% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 2.793007e-02 (2.79%)
+  Relative L2 error (von Mises, EXCL.)    : 2.696592e-02 (2.70%) [excluded 6/61433 pts, r_excl=0.0178548]
+  Relative L2 error (von Mises, ROI)      : 5.566369e-03 (0.56%), 60908/61433 pts kept  [hole-arc band (half-width 0.06)]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (2.70% < 10%)
+  Max pointwise von Mises error       : 3.033953e+06 Pa at (x=0.0074, y=0.2996)
+============================================================
+    -> final loss=4.5594e-05, L2 disp=0.2247%, 5%-target=True
+
+--- Run 5/5 (seed=46) ---
+Using GPU: NVIDIA GeForce RTX 2050
+  [adam]    500  Pi=-0.51050363  U=0.509818  W=1.020321
+  [adam]   1000  Pi=-0.51112700  U=0.510183  W=1.021310
+  [adam]    500  Pi=-0.51635795  U=0.511228  W=1.032170
+  [adam]   1000  Pi=-0.51661011  U=0.511475  W=1.032682
+  [lbfgs]    500  Pi=-0.5273894940  U=0.522209  W=1.054241
+  [stage 1] gamma_u=30  interface jump^2 (int) = 2.634e-14
+  [AL update 1] relative interface jump before update = 2.885e-02
+  [lbfgs]    500  Pi=-0.5271408759  U=0.526916  W=1.054203
+  [stage 2] gamma_u=30  interface jump^2 (int) = 1.153e-15
+  [AL update 2] relative interface jump before update = 5.806e-03
+  [lbfgs]    500  Pi=-0.5280741618  U=0.528025  W=1.056076
+  [stage 3] gamma_u=30  interface jump^2 (int) = 3.533e-16
+  [AL update 3] relative interface jump before update = 3.169e-03
+  [lbfgs]    500  Pi=-0.5281919604  U=0.528050  W=1.056234
+  [stage 4] gamma_u=30  interface jump^2 (int) = 3.995e-17
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 2.467179e-03
+  Relative L2 error (v)      : 6.316300e-03
+  Relative L2 error (|disp|) : 2.797918e-03  (0.28%)
+  [Paper target: <5% displacement L2] PASS (0.28% < 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 2.758148e-02 (2.76%)
+  Relative L2 error (von Mises, EXCL.)    : 2.665679e-02 (2.67%) [excluded 6/61433 pts, r_excl=0.0178548]
+  Relative L2 error (von Mises, ROI)      : 7.506504e-03 (0.75%), 60908/61433 pts kept  [hole-arc band (half-width 0.06)]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] PASS (2.67% < 10%)
+  Max pointwise von Mises error       : 2.857978e+06 Pa at (x=0.0074, y=0.2996)
+============================================================
+    -> final loss=4.0207e-05, L2 disp=0.2798%, 5%-target=True
+
+======================================================================
+SUMMARY ACROSS ALL RUNS
+======================================================================
+  final_loss_mean: 0.00015018568581490592
+  final_loss_std: 0.00017412461424463674
+  loss_ratio_mean: 5.8837425281699714e-05
+  loss_ratio_std: 5.935971332663845e-05
+  relative_L2_displacement_mean: 0.004047769183678564
+  relative_L2_displacement_std: 0.002412181906342566
+  relative_L2_von_mises_mean: 0.029689730151394686
+  relative_L2_von_mises_std: 0.0030873158056357606
+  von_mises_l2_excl_mean: 0.028854039376293546
+  von_mises_l2_excl_std: 0.003307269524440261
+  von_mises_exclusion_radius_mean: 0.017854768400187654
+  von_mises_exclusion_radius_std: 0.0
+  n_runs: 5
+  n_runs_with_meaningful_fem_comparison: 5
+  n_runs_passed_5pct_target: 5
+  n_runs_passed_10pct_excl_stress: 5
+
+Saved /home/sultra/atlas_main/results/atlas_xpinn_energy/repeatability/plate_hole/summary.json and /home/sultra/atlas_main/results/atlas_xpinn_energy/repeatability/plate_hole/summary.png

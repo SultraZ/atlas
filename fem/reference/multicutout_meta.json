@@ -1,0 +1,25 @@
+{
+  "E": 210000000000.0,
+  "nu": 0.3,
+  "sigma": 1000000.0,
+  "cells": 83835,
+  "compliance": 34.93502945094778,
+  "compliance_coarse": 34.93475317565155,
+  "peaks": {
+    "hole A": 3878718.2927522305,
+    "hole B": 1772012.8361710038,
+    "hole C": 9148643.824573891,
+    "slot": 12415510.339439273,
+    "bulk (away from singular points)": 13327562.922055637,
+    "mean over the part": 2784341.5748643884
+  },
+  "peaks_coarse": {
+    "hole A": 3786227.5899787047,
+    "hole B": 1771178.9426413334,
+    "hole C": 9130476.63890246,
+    "slot": 12387985.843980053,
+    "bulk (away from singular points)": 13327547.697426366,
+    "mean over the part": 2784140.2463610596
+  },
+  "n_points": 23512
+}

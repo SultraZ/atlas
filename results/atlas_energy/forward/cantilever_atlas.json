@@ -1,0 +1,20 @@
+{
+  "relative_L2_u": 0.002305472446391791,
+  "relative_L2_v": 0.0019350659251430237,
+  "relative_L2_displacement": 0.0019229393366424039,
+  "von_mises_l2_excl": 0.022856068131485628,
+  "von_mises_l2_global": 0.029443155802374502,
+  "von_mises_l2_roi": 0.02138165649250819,
+  "max_pointwise_von_mises_error": 15153613.651328884,
+  "benchmark": "cantilever",
+  "variant": "atlas",
+  "seed": 42,
+  "params": 12802,
+  "train_seconds": null,
+  "pred_max_abs_disp": 0.0012910079676657915,
+  "fem_max_abs_disp": 0.0012948817981938312,
+  "config": {
+    "formulation": "energy",
+    "note": "loaded from results/energy_runs"
+  }
+}

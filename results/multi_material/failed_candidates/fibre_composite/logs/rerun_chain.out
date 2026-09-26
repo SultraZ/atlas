@@ -1,0 +1,3 @@
+DONE fibre_composite/xpinn seed 42: train 1516.9s  disp 91.880%  vM 69.896%  band vM fib/mat 20.773%/95.312%  C err -91.872%
+ATLAS_BEATS_XPINN -> composite stops here
+COMPOSITE_RERUN_FINISHED

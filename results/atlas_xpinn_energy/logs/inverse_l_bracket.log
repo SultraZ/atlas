@@ -1,0 +1,25 @@
+  [adam]    500  Pi=-2.39456526  U=2.331742  W=4.726307
+  [adam]   1000  Pi=-2.41262458  U=2.380062  W=4.792686
+  [adam]    500  Pi=-2.43533978  U=2.227352  W=4.687678
+  [adam]   1000  Pi=-2.44068331  U=2.276928  W=4.743393
+  [lbfgs]    500  Pi=-2.4664590963  U=2.435127  W=4.931518
+  [stage 1] gamma_u=30  interface jump^2 (int) = 8.930e-14
+  [AL update 1] relative interface jump before update = 3.289e-03
+  [lbfgs]    500  Pi=-2.4420511386  U=2.439285  W=4.881548
+  [stage 2] gamma_u=30  interface jump^2 (int) = 1.172e-15
+  [AL update 2] relative interface jump before update = 3.787e-04
+  [lbfgs]    500  Pi=-2.4441171191  U=2.448135  W=4.892688
+  [stage 3] gamma_u=30  interface jump^2 (int) = 3.996e-16
+  [AL update 3] relative interface jump before update = 2.206e-04
+  [lbfgs]    500  Pi=-2.4452387160  U=2.444747  W=4.890095
+  [stage 4] gamma_u=30  interface jump^2 (int) = 3.819e-16
+baseline fillet radius=0.1: {'param': 0.1, 'compliance': 93.14465858213926, 'volume': 3.0021460183660253, 'peak_vm': 15809115.004151724}
+target peak_vm = 1.185684e+07
+  [  start] fillet radius=0.10000  peak_vm=1.585440e+07  g=+3.3715e-01
+  [  probe] fillet radius=0.11050  peak_vm=1.542978e+07  g=+3.0134e-01
+  [ return] fillet radius=0.10000  peak_vm=1.591112e+07  g=+3.4194e-01
+  [     fd] fillet radius=0.20025  peak_vm=1.257134e+07  g=+6.0261e-02
+  [ secant] fillet radius=0.22170  peak_vm=1.217727e+07  g=+2.7025e-02
+  [ secant] fillet radius=0.23914  peak_vm=1.186111e+07  g=+3.6035e-04
+  [ polish] fillet radius=0.23914  peak_vm=1.182753e+07  g=-2.4719e-03
+Inverse design (l_bracket): fillet radius = 0.2391 [converged]; artifacts in /home/sultra/atlas_main/results/atlas_xpinn_energy/inverse_design

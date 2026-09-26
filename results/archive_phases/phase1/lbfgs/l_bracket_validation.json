@@ -1,0 +1,30 @@
+{
+  "relative_L2_u": 0.9911772197486826,
+  "relative_L2_v": 0.9970694836001317,
+  "relative_L2_displacement": 0.9928401783556887,
+  "displacement_within_5pct_target": false,
+  "used_mock_data": false,
+  "geometry_warning": null,
+  "relative_L2_von_mises": 0.9618821891176265,
+  "von_mises_l2_global": 0.9618821891176265,
+  "von_mises_l2_excl": 0.9612997215682588,
+  "von_mises_exclusion_radius": 0.02192767483456329,
+  "von_mises_exclusion_factor": 2.5,
+  "von_mises_excluded_points": 13,
+  "von_mises_total_points": 29808,
+  "von_mises_l2_excl_within_10pct": false,
+  "max_pointwise_von_mises_error": 26493402.193402607,
+  "max_pointwise_von_mises_error_location": [
+    1.0,
+    1.0
+  ],
+  "benchmark": "l_bracket",
+  "device": "cuda",
+  "seed": 42,
+  "train_config": {
+    "epochs": 2000,
+    "use_lbfgs": true,
+    "lbfgs_steps": 15,
+    "lbfgs_max_iter_per_step": 50
+  }
+}

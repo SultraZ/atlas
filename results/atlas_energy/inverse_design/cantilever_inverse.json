@@ -1,0 +1,75 @@
+{
+  "benchmark": "cantilever",
+  "param_name": "beam height",
+  "metric": "compliance",
+  "target": 762.6664809172551,
+  "p_star": 1.192953660088367,
+  "g": 0.000556352559412332,
+  "status": "converged",
+  "converged": true,
+  "bounds": [
+    0.5,
+    1.6
+  ],
+  "baseline": {
+    "param": 1.0,
+    "compliance": 1271.1108015287584,
+    "volume": 4.0
+  },
+  "metrics": {
+    "param": 1.192953660088367,
+    "compliance": 763.0907923658914,
+    "volume": 4.771814640353468
+  },
+  "history": [
+    {
+      "param": 1.0,
+      "compliance": 1271.2680165025938,
+      "volume": 4.0,
+      "iter": 0.0,
+      "g": 0.6668728052315165,
+      "target": 762.6664809172551,
+      "tag": "start"
+    },
+    {
+      "param": 1.1373400596487813,
+      "compliance": 875.4749628370926,
+      "volume": 4.549360238595125,
+      "iter": 1.0,
+      "g": 0.14791325532513677,
+      "target": 762.6664809172551,
+      "tag": "autodiff",
+      "grad_source": "autodiff"
+    },
+    {
+      "param": 1.188088480543751,
+      "compliance": 771.7685876559151,
+      "volume": 4.752353922175004,
+      "iter": 2.0,
+      "g": 0.01193458342067566,
+      "target": 762.6664809172551,
+      "tag": "autodiff",
+      "grad_source": "autodiff"
+    },
+    {
+      "param": 1.192953660088367,
+      "compliance": 762.8366447502575,
+      "volume": 4.771814640353468,
+      "iter": 3.0,
+      "g": 0.00022311696824250937,
+      "target": 762.6664809172551,
+      "tag": "autodiff",
+      "grad_source": "autodiff"
+    },
+    {
+      "param": 1.192953660088367,
+      "compliance": 763.0907923658914,
+      "volume": 4.771814640353468,
+      "iter": 4.0,
+      "g": 0.000556352559412332,
+      "target": 762.6664809172551,
+      "tag": "polish"
+    }
+  ],
+  "param_baseline": 1.0
+}

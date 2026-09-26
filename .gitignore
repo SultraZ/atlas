@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# editors / OS
+*.swp
+.DS_Store
+
+# per-job plots written by the live web console (regenerated on every run)
+webapp/static/plots/

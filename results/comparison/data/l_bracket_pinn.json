@@ -1,0 +1,26 @@
+{
+  "relative_L2_u": 0.7074807296213423,
+  "relative_L2_v": 0.3838748055844569,
+  "relative_L2_displacement": 0.517262664895603,
+  "von_mises_l2_excl": 0.7081878187750701,
+  "von_mises_l2_global": 0.7137226554650327,
+  "von_mises_l2_roi": 0.6838765155701618,
+  "max_pointwise_von_mises_error": 26469394.689496357,
+  "benchmark": "l_bracket",
+  "variant": "pinn",
+  "seed": 42,
+  "params": 37853,
+  "train_seconds": 1547.6,
+  "pred_max_abs_disp": 7.651005580555648e-05,
+  "fem_max_abs_disp": 0.0001878729172172293,
+  "config": {
+    "epochs": 8000,
+    "print_every": 1000,
+    "use_lbfgs": true,
+    "lbfgs_steps": 60,
+    "lbfgs_max_iter_per_step": 20,
+    "formulation": "residual",
+    "seed": 42,
+    "standard_pinn": true
+  }
+}

@@ -1,0 +1,72 @@
+
+========================================================================
+BENCHMARK: PLATE_HOLE  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': True, 'lbfgs_steps': 15, 'lbfgs_max_iter_per_step': 50, 'adaptive_weights': True, 'adapt_every': 100}
+======================================================================
+FORWARD SOLVE — PLATE_HOLE
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+  [adaptive] epoch   100: pde=0.5, dirichlet=200, neumann=9.403, interface_u=20, interface_t=20
+  [adaptive] epoch   200: pde=0.5, dirichlet=200, neumann=5.558, interface_u=20, interface_t=20
+  [adaptive] epoch   300: pde=0.5, dirichlet=200, neumann=6.611, interface_u=20, interface_t=20
+  [adaptive] epoch   400: pde=0.5, dirichlet=200, neumann=10, interface_u=20, interface_t=18.34
+  [adaptive] epoch   500: pde=0.5, dirichlet=200, neumann=5, interface_u=20, interface_t=20
+Epoch   500 | Total Loss: 6.231588e-01
+  PDE: 5.5556e-01 | Dirichlet: 1.6200e-04 | Neumann: 2.0933e-02
+  Interface u: 2.4134e-04 | Interface t: 5.3894e-03
+  [adaptive] epoch   600: pde=0.5, dirichlet=200, neumann=9.583, interface_u=20, interface_t=20
+  [adaptive] epoch   700: pde=0.5, dirichlet=200, neumann=5.378, interface_u=20, interface_t=20
+  [adaptive] epoch   800: pde=0.5, dirichlet=200, neumann=8.306, interface_u=20, interface_t=20
+  [adaptive] epoch   900: pde=0.5, dirichlet=200, neumann=5, interface_u=20, interface_t=20
+  [adaptive] epoch  1000: pde=0.5, dirichlet=200, neumann=5, interface_u=20, interface_t=20
+Epoch  1000 | Total Loss: 2.719786e-01
+  PDE: 2.1847e-01 | Dirichlet: 2.1235e-04 | Neumann: 1.4014e-02
+  Interface u: 6.2157e-04 | Interface t: 1.8887e-03
+  [adaptive] epoch  1100: pde=0.5, dirichlet=200, neumann=10, interface_u=20, interface_t=17.45
+  [adaptive] epoch  1200: pde=0.5, dirichlet=200, neumann=5, interface_u=20, interface_t=20
+  [adaptive] epoch  1300: pde=0.5, dirichlet=192.2, neumann=5, interface_u=10, interface_t=21.79
+  [adaptive] epoch  1400: pde=0.5, dirichlet=200, neumann=8.781, interface_u=20, interface_t=20
+  [adaptive] epoch  1500: pde=0.5, dirichlet=200, neumann=5, interface_u=20, interface_t=20
+Epoch  1500 | Total Loss: 3.322186e-01
+  PDE: 1.7829e-01 | Dirichlet: 1.1155e-04 | Neumann: 1.3269e-02
+  Interface u: 1.0068e-03 | Interface t: 4.2057e-03
+  [adaptive] epoch  1600: pde=0.5, dirichlet=200, neumann=6.114, interface_u=20, interface_t=20
+  [adaptive] epoch  1700: pde=0.5, dirichlet=200, neumann=6.356, interface_u=20, interface_t=20
+  [adaptive] epoch  1800: pde=0.5, dirichlet=200, neumann=5.331, interface_u=20, interface_t=20
+  [adaptive] epoch  1900: pde=0.5, dirichlet=200, neumann=5, interface_u=11.31, interface_t=20
+  [adaptive] epoch  2000: pde=0.5, dirichlet=200, neumann=6.924, interface_u=20, interface_t=20
+Epoch  2000 | Total Loss: 6.820592e-01
+  PDE: 1.2424e-01 | Dirichlet: 3.3171e-04 | Neumann: 2.7364e-02
+  Interface u: 7.4612e-03 | Interface t: 1.6619e-02
+============================================================
+Adam stage complete! (2000 epochs, final loss 6.820592e-01)
+============================================================
+Starting XPINN Training (Stage 2: L-BFGS fine-tuning)...
+============================================================
+L-BFGS step   5/15 | Total Loss: 7.072021e-02
+  PDE: 3.6497e-02 | Dirichlet: 3.5737e-05 | Neumann: 3.6843e-03
+  Interface u: 3.5383e-04 | Interface t: 1.6467e-04
+L-BFGS step  10/15 | Total Loss: 3.848651e-02
+  PDE: 2.2533e-02 | Dirichlet: 2.7773e-05 | Neumann: 1.7202e-03
+  Interface u: 1.6397e-04 | Interface t: 1.7568e-04
+L-BFGS step  15/15 | Total Loss: 2.624945e-02
+  PDE: 1.8166e-02 | Dirichlet: 2.2559e-05 | Neumann: 8.9823e-04
+  Interface u: 7.0731e-05 | Interface t: 1.7154e-04
+============================================================
+L-BFGS stage complete! (final loss 2.624945e-02)
+Training Complete!
+============================================================
+FEM VALIDATION — PLATE_HOLE
+============================================================
+  Relative L2 error (u)      : 3.509668e-01
+  Relative L2 error (v)      : 8.070934e-01
+  Relative L2 error (|disp|) : 3.573182e-01  (35.73%)
+  [Paper target: <5% displacement L2] FAIL (35.73% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 3.039378e-01 (30.39%)
+  Relative L2 error (von Mises, EXCL.)    : 3.038739e-01 (30.39%) [excluded 6/61433 pts, r_excl=0.0178548]
+  r_excl = 0.0178548  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (30.39% >= 10%)
+  Max pointwise von Mises error       : 5.411962e+06 Pa at (x=0.0000, y=0.3133)
+============================================================

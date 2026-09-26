@@ -1,0 +1,33 @@
+cantilever / xpinn: device cuda
+  it  1000  t=   52.3s  disp(vec)=10.209%  disp(|u|)=10.147%  vm=18.226%
+  it  1100  t=   58.5s  disp(vec)=32.925%  disp(|u|)=32.893%  vm=35.310%
+  it  1200  t=   65.3s  disp(vec)=26.029%  disp(|u|)=25.977%  vm=30.368%
+  it  1300  t=   71.3s  disp(vec)=22.024%  disp(|u|)=21.968%  vm=26.770%
+  it  1400  t=   77.4s  disp(vec)=18.590%  disp(|u|)=18.531%  vm=23.947%
+  it  1500  t=   83.5s  disp(vec)=16.027%  disp(|u|)=15.965%  vm=22.013%
+  it  1600  t=   89.7s  disp(vec)=14.301%  disp(|u|)=14.237%  vm=20.783%
+  it  1700  t=   95.9s  disp(vec)=13.230%  disp(|u|)=13.164%  vm=20.041%
+  it  1800  t=  102.3s  disp(vec)=12.633%  disp(|u|)=12.566%  vm=19.632%
+  it  1900  t=  108.5s  disp(vec)=12.355%  disp(|u|)=12.289%  vm=19.442%
+  it  2000  t=  115.1s  disp(vec)=12.247%  disp(|u|)=12.180%  vm=19.367%
+  it  2100  t=  124.5s  disp(vec)=2.108%  disp(|u|)=2.076%  vm=7.251%
+  it  2200  t=  134.0s  disp(vec)=1.099%  disp(|u|)=1.059%  vm=5.264%
+  it  2300  t=  143.4s  disp(vec)=0.838%  disp(|u|)=0.797%  vm=4.517%
+  it  2400  t=  153.1s  disp(vec)=0.633%  disp(|u|)=0.592%  vm=4.009%
+  it  2500  t=  164.6s  disp(vec)=0.699%  disp(|u|)=0.651%  vm=4.474%
+  it  2600  t=  173.4s  disp(vec)=0.856%  disp(|u|)=0.850%  vm=3.740%
+  it  2700  t=  183.8s  disp(vec)=0.827%  disp(|u|)=0.824%  vm=3.567%
+  it  2800  t=  195.1s  disp(vec)=0.739%  disp(|u|)=0.734%  vm=3.700%
+  it  2900  t=  206.1s  disp(vec)=0.603%  disp(|u|)=0.599%  vm=3.152%
+  it  3000  t=  216.7s  disp(vec)=0.428%  disp(|u|)=0.424%  vm=2.829%
+  it  3100  t=  225.5s  disp(vec)=0.429%  disp(|u|)=0.426%  vm=2.790%
+  it  3200  t=  235.2s  disp(vec)=0.457%  disp(|u|)=0.454%  vm=2.768%
+  it  3300  t=  245.1s  disp(vec)=0.361%  disp(|u|)=0.359%  vm=2.452%
+  it  3400  t=  254.5s  disp(vec)=0.339%  disp(|u|)=0.337%  vm=2.348%
+  it  3500  t=  263.7s  disp(vec)=0.323%  disp(|u|)=0.320%  vm=2.268%
+  it  3600  t=  271.4s  disp(vec)=0.282%  disp(|u|)=0.280%  vm=2.207%
+  it  3700  t=  281.2s  disp(vec)=0.315%  disp(|u|)=0.313%  vm=2.197%
+  it  3800  t=  291.1s  disp(vec)=0.295%  disp(|u|)=0.293%  vm=2.151%
+  it  3900  t=  301.3s  disp(vec)=0.329%  disp(|u|)=0.327%  vm=2.171%
+  it  4000  t=  311.5s  disp(vec)=0.269%  disp(|u|)=0.268%  vm=2.096%
+DONE cantilever/xpinn: train 311.5s (probing 2.2s excluded), final disp(vec) 0.269%, vm 2.096%

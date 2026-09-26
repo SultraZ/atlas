@@ -1,0 +1,16 @@
+{
+  "W": 2.0,
+  "H": 1.0,
+  "E_steel": 210000000000.0,
+  "nu_steel": 0.3,
+  "E_al": 70000000000.0,
+  "nu_al": 0.33,
+  "sigma": 1000000.0,
+  "cells": 86114,
+  "compliance": 18.839243944974413,
+  "compliance_change_last_level": 4.454491958248237e-05,
+  "disp_change_last_level": 7.532189538646483e-05,
+  "vm_change_last_level_away_from_singularity": 0.0010409027326282727,
+  "n_main": 20264,
+  "n_roi": 6024
+}

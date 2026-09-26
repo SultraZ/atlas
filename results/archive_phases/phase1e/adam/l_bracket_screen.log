@@ -1,0 +1,46 @@
+
+========================================================================
+BENCHMARK: L_BRACKET  (device=cuda, seed=42)
+========================================================================
+  training config: {'epochs': 2000, 'use_lbfgs': False}
+======================================================================
+FORWARD SOLVE — L_BRACKET
+======================================================================
+Starting XPINN Training (Stage 1: Adam)...
+============================================================
+Epoch   500 | Total Loss: 4.147196e+01
+  PDE: 2.6575e+00 | Dirichlet: 7.3922e-03 | Neumann: 3.7813e+00
+  Interface u: 1.4297e-02 | Interface t: 5.9567e-03
+Epoch  1000 | Total Loss: 6.602738e+00
+  PDE: 2.3436e+00 | Dirichlet: 4.8147e-03 | Neumann: 3.5578e-01
+  Interface u: 1.5378e-02 | Interface t: 3.3022e-03
+Epoch  1500 | Total Loss: 5.827692e+00
+  PDE: 2.1266e+00 | Dirichlet: 3.5806e-03 | Neumann: 2.8556e-01
+  Interface u: 2.4691e-02 | Interface t: 1.2026e-02
+Epoch  2000 | Total Loss: 3.617270e+00
+  PDE: 1.8804e+00 | Dirichlet: 3.1531e-03 | Neumann: 1.2150e-01
+  Interface u: 1.6376e-02 | Interface t: 2.1423e-03
+============================================================
+Adam stage complete! (2000 epochs, final loss 3.617270e+00)
+(use_lbfgs=False - skipping stage 2)
+Training Complete!
+============================================================
+FEM VALIDATION — L_BRACKET
+============================================================
+  Relative L2 error (u)      : 9.735692e-01
+  Relative L2 error (v)      : 8.449578e-01
+  Relative L2 error (|disp|) : 8.891305e-01  (88.91%)
+  [Paper target: <5% displacement L2] FAIL (88.91% >= 5%)
+  Relative L2 error (von Mises, GLOBAL)   : 7.842401e-01 (78.42%)
+  Relative L2 error (von Mises, EXCL.)    : 7.806639e-01 (78.07%) [excluded 13/29808 pts, r_excl=0.0219277]
+  r_excl = 0.0219277  (= 2.5x local point spacing near 1 singular location(s); override with r_excl=<value>)
+  [Stress target: <10% von Mises L2 (excluded region)] FAIL (78.07% >= 10%)
+  Max pointwise von Mises error       : 2.607835e+07 Pa at (x=1.0000, y=1.0000)
+============================================================
+
+========================================================================
+ALL-BENCHMARK SUMMARY
+========================================================================
+  l_bracket    |disp| L2 88.91%  [5% target FAIL]  | von Mises excl 78.07%  [10% FAIL]
+
+Artifacts written under /home/sultra/atlas_main/results

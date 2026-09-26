@@ -1,0 +1,30 @@
+{
+  "relative_L2_u": 1.7016314898584877,
+  "relative_L2_v": 0.09003083313476676,
+  "relative_L2_displacement": 0.08792500988370654,
+  "displacement_within_5pct_target": false,
+  "used_mock_data": false,
+  "geometry_warning": null,
+  "relative_L2_von_mises": 1.3124604617640672,
+  "von_mises_l2_global": 1.3124604617640672,
+  "von_mises_l2_excl": 1.316937272654547,
+  "von_mises_exclusion_radius": 0.031249999999999993,
+  "von_mises_exclusion_factor": 2.5,
+  "von_mises_excluded_points": 16,
+  "von_mises_total_points": 26001,
+  "von_mises_l2_excl_within_10pct": false,
+  "max_pointwise_von_mises_error": 29179965.651328884,
+  "max_pointwise_von_mises_error_location": [
+    0.0,
+    1.0
+  ],
+  "benchmark": "cantilever",
+  "device": "cuda",
+  "seed": 42,
+  "train_config": {
+    "epochs": 2000,
+    "warm_start_eb": true,
+    "prefit_epochs": 6000,
+    "use_lbfgs": false
+  }
+}

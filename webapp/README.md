@@ -1,57 +1,44 @@
 # ATLAS Web Console
 
-Browser UI for the ATLAS XPINN framework: forward solves, FEM validation and
-inverse design with live plot output. The backend is a thin FastAPI wrapper
-around the existing CLI pipeline (`atlas_main.py`, `validation.py`,
-`visualization.py`) - no business logic is reimplemented here.
+Two views in one page, with a light, dark or Atlas theme (the choice is kept in the browser):
+
+- **Results**: the stored study in `results/`, read through `/api/results`. The three paper
+  benchmarks (ATLAS-XPINN, the single-network ATLAS solver and two DeepXDE PINN baselines against
+  FEniCS, five-seed repeatability, inverse design) and the three multi-material benchmarks
+  (ATLAS-XPINN against a single network and a parameter-matched one, interface-band errors, five
+  seeds). Nothing is retrained in the browser.
+- **Live solver**: runs ATLAS-XPINN on the server for any of the six benchmarks and validates it
+  against the FEniCS reference, or runs an inverse design on a paper benchmark. The solver log and
+  the pipeline steps update while the job runs; jobs run one at a time and queue.
 
 ## Run
 
 ```bash
-# from the atlas_main root
 cd webapp/backend
 /home/sultra/miniconda3/envs/Atlas/bin/python app.py
-# or: uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Open http://localhost:8000/
+Open http://localhost:8000/. No build step: `frontend/` is plain HTML, CSS and JavaScript.
 
-Dependencies (already present in the Atlas conda env):
-`fastapi`, `uvicorn`, `jinja2`, `pydantic`, plus the project stack
-(torch, numpy, matplotlib).
+## API
 
-## What it does
+| method | path | |
+|---|---|---|
+| GET | `/api/results` | stored study: per benchmark, solver errors, params and train times, seed statistics, inverse design, figure URLs under `/results/` |
+| GET | `/api/benchmarks` | benchmark metadata for the live solver: materials, subdomains, network, inverse-design parameter; the L-BFGS budget and seed |
+| GET | `/api/health` | device, torch version, active jobs |
+| POST | `/api/forward` | `{benchmark, formulation: "energy_xpinn" \| "energy", epochs}`; the UI always sends `energy_xpinn` |
+| POST | `/api/inverse` | `{benchmark}` for cantilever, l_bracket or plate_hole (ATLAS-XPINN design loop) |
+| GET | `/api/jobs` | recent jobs (without logs) |
+| GET | `/api/jobs/{id}` | status, `stage` (setup, train, predict, validate, plots), streaming log, metrics, plot URLs |
 
-- **Forward + Validate** (`POST /api/forward`): trains the XPINN for the
-  selected benchmark, runs FEM validation against `fem/reference/`,
-  and renders five plots (training convergence, displacement field,
-  von Mises stress, deformed shape, ATLAS-vs-FEM side-by-side) plus the
-  relative L2 metrics with PASS/FAIL against the paper's <5% target.
-- **Inverse Design** (`POST /api/inverse`): plate-with-hole -> hole radius,
-  L-bracket -> re-entrant corner fillet. Reports the radius history and the
-  inverse-design history plot. Not available for the cantilever.
-
-Jobs are serialized (one GPU consumer at a time); the frontend polls the job
-endpoint while training runs.
+A live forward run uses the study's settings (seed 42, the given Adam epochs, then 2000 L-BFGS
+iterations), so with the default 2000 epochs it uses exactly the configuration of the stored seed-42
+run (GPU arithmetic can still differ in the last digits).
 
 ## Layout
 
     webapp/
-      backend/app.py     FastAPI app + job runner (single-file)
-      frontend/          index.html, app.js, style.css (no build step)
-      static/plots/      generated PNGs, served under /static/plots/
-
-## API
-
-- `GET  /`                     frontend
-- `GET  /api/health`           device + torch info
-- `POST /api/forward`          `{benchmark, epochs, n_interior, use_lbfgs,
-                                warm_start_eb, prefit_epochs, use_mock}`
-- `POST /api/inverse`          `{benchmark, forward_epochs, n_outer, n_inner}`
-- `GET  /api/jobs`             recent jobs
-- `GET  /api/jobs/{id}`        job status / metrics / plots / console log
-
-Known limits match the CLI (documented in BUGFIXES.md section 13): the
-cantilever converges to ~5-6.8% L2 (clamp-corner stress singularity), the
-L-bracket and plate-hole remain above the 5% target with the current soft
-residual loss.
+      backend/app.py     FastAPI app and job runner
+      frontend/          index.html, style.css, app.js
+      static/plots/      figures written by live jobs (not versioned)

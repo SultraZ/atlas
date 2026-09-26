@@ -14,6 +14,7 @@ atlas_main/
 │   │                        (augmented Lagrangian, warm start)
 │   ├── energy_design.py, energy_xpinn_design.py   inverse design on the energy solvers
 │   ├── benchmarks/          the extra benchmarks (multi-material and hard single-material)
+│   ├── live.py              parameterised ATLAS-XPINN problems for the web console's live solver
 │   ├── physics.py, validation.py, visualization.py, paths.py, ...
 │   └── atlas_main.py        interactive CLI (train / validate / inverse design)
 ├── scripts/
@@ -26,6 +27,7 @@ atlas_main/
 │   └── experiments/         shell drivers that record how batches of runs were launched
 ├── fem/
 │   ├── fenics_scripts/      FEniCS reference solvers, one per benchmark
+│   ├── fem_live.py          on-demand FEniCS reference for any live-solver settings
 │   └── reference/           FEM references (.npy / .json) the scripts score against
 ├── tests/                   test scripts (run each with python) + validation drivers
 ├── webapp/                  FastAPI console (results viewer + live solver)

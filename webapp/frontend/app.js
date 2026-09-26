@@ -46,10 +46,49 @@ const THUMB = {
 };
 const thumb = (key, w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 72 48" fill="none" aria-hidden="true">${THUMB[key] || ""}</svg>`;
 
+const readJSON = (k) => { try { return JSON.parse(store.get(k) || "null"); } catch { return null; } };
+const reduced = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const state = {
   results: null, meta: null, bench: store.get("atlas-bench"), fig: {},
   liveBench: store.get("atlas-live-bench"), job: null, jobs: [], poll: null, health: null,
+  params: readJSON("atlas-params") || {}, heroShown: false, tabsShown: false, geo: null,
 };
+
+function countUp(el, delay = 0) {
+  const m = /^([−+-]?)(\d[\d,]*\.?\d*)(.*)$/s.exec(el.textContent.trim());
+  if (!m || reduced()) return;
+  const [, sign, num, rest] = m;
+  const target = parseFloat(num.replace(/,/g, ""));
+  const decimals = (num.split(".")[1] || "").length;
+  const grouped = num.includes(",");
+  const fmt = (v) => sign + (grouped ? v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : v.toFixed(decimals)) + rest;
+  const t0 = performance.now() + delay;
+  el.textContent = fmt(0);
+  const step = (now) => {
+    const k = Math.min(1, Math.max(0, (now - t0) / 1100));
+    el.textContent = fmt(target * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step); else el.textContent = fmt(target);
+  };
+  requestAnimationFrame(step);
+}
+
+function setRevealOrigin(x, y) {
+  const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const s = document.documentElement.style;
+  s.setProperty("--vt-x", `${x}px`);
+  s.setProperty("--vt-y", `${y}px`);
+  s.setProperty("--vt-r", `${r}px`);
+}
+
+function withTransition(fn) {
+  if (document.startViewTransition && !reduced()) document.startViewTransition(fn);
+  else fn();
+}
+
+function switchTheme(t) {
+  if (t === document.documentElement.getAttribute("data-theme")) return;
+  withTransition(() => { applyTheme(t); flow.recolor(); });
+}
 
 function applyTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
@@ -116,7 +155,10 @@ function renderHero() {
       ? ` A standard PINN misses both on all ${word(pinnBenches.length)} it was run on.`
       : ` A standard PINN misses both on ${word(pinnMiss)} of the ${word(pinnBenches.length)} it was run on.`;
   }
-  $("#heroTitle").textContent = title;
+  const h = $("#heroTitle");
+  if (!state.heroShown && !reduced()) {
+    h.innerHTML = title.split(" ").map((w, i) => `<span class="w" style="animation-delay:${60 + i * 36}ms">${esc(w)}</span>`).join(" ");
+  } else h.textContent = title;
 
   const kpis = [];
   const worstD = atlas.reduce((a, r) => (r.disp > a.disp ? r : a), atlas[0]);
@@ -135,6 +177,8 @@ function renderHero() {
       `${g.b.title} · ATLAS-XPINN vs a parameter-matched single network, ${g.x.n} seeds`, ""]);
   }
   $("#heroKpis").innerHTML = kpis.map(([v, l, s, cls]) => `<div class="kpi"><span class="kpi-value ${cls}">${esc(v)}</span><div class="kpi-text"><span class="kpi-label">${esc(l)}</span><span class="kpi-sub">${esc(s)}</span></div></div>`).join("");
+  if (!state.heroShown) $$("#heroKpis .kpi-value").forEach((el, i) => countUp(el, 250 + i * 110));
+  state.heroShown = true;
 }
 
 function benchSubtitle(b) { return `${b.geometry} · ${plural(b.subdomains, "subdomain", "subdomains")}`; }
@@ -142,14 +186,17 @@ function benchSubtitle(b) { return `${b.geometry} · ${plural(b.subdomains, "sub
 function renderBenchTabs() {
   const { results } = state;
   const groups = [["paper", "Paper benchmarks"], ["multi", "Multi-material · where decomposition pays off"]];
+  const enter = !state.tabsShown;
+  let n = 0;
   $("#benches").innerHTML = groups.map(([g, label]) => {
     const keys = results.order.filter((k) => results.benchmarks[k].group === g);
     if (!keys.length) return "";
     return `<div><div class="eyebrow bench-group-label">${esc(label)}</div><div class="bench-tabs">${keys.map((k) => {
       const b = results.benchmarks[k];
-      return `<button type="button" class="bench-tab" data-bench="${k}" aria-pressed="${k === state.bench}"><span class="thumb">${thumb(k, 72, 48)}</span><span class="bench-tab-text"><span class="bench-tab-title">${esc(b.title)}</span><span class="bench-tab-meta">${esc(benchSubtitle(b))}</span></span></button>`;
+      return `<button type="button" class="bench-tab ${enter ? "enter" : ""}" style="animation-delay:${300 + 55 * n++}ms" data-bench="${k}" aria-pressed="${k === state.bench}"><span class="thumb">${thumb(k, 72, 48)}</span><span class="bench-tab-text"><span class="bench-tab-title">${esc(b.title)}</span><span class="bench-tab-meta">${esc(benchSubtitle(b))}</span></span></button>`;
     }).join("")}</div></div>`;
   }).join("");
+  state.tabsShown = true;
 }
 
 function axisScale(values) {
@@ -318,18 +365,218 @@ function renderBenchPick() {
 function renderSpec() {
   const m = liveMeta(state.liveBench);
   if (!m) return;
-  const mats = m.materials.length === 1
-    ? [["Material", m.materials[0].name], ["Young's modulus", gpa(m.materials[0].E)], ["Poisson's ratio", m.materials[0].nu.toFixed(2)]]
-    : m.materials.map((x) => [x.name, `${gpa(x.E)} · ν ${x.nu.toFixed(2)}`]);
-  const rows = [...mats, ["Solver", "ATLAS-XPINN"], ["Subdomains", String(m.subdomains)],
+  const rows = [["Solver", "ATLAS-XPINN"], ["Subdomains", String(m.subdomains)],
     ["Network", `${m.subdomains} × (${m.network.hidden_layers} × ${m.network.neurons}), ${m.network.activation}`]];
   $("#spec").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
   $("#epochsHint").textContent = `Then ${state.lbfgs ?? 2000} L-BFGS iterations, the same budget as the stored study. Seed ${state.seed ?? 42}.`;
   const inv = m.inverse;
-  $("#runInverse").disabled = !inv || isBusy();
-  $("#runNote").textContent = inv
-    ? `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}. One GPU job runs at a time; new runs wait in a queue.`
-    : "Inverse design is set up for the three paper benchmarks. One GPU job runs at a time; new runs wait in a queue.";
+  const custom = isCustom(m.key);
+  $("#runInverse").disabled = !inv || custom || isBusy();
+  $("#runNote").textContent = !inv
+    ? "Inverse design is set up for the three paper benchmarks. One GPU job runs at a time; new runs wait in a queue."
+    : custom
+      ? "Inverse design runs at the study settings; reset the properties to use it. One GPU job runs at a time."
+      : `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}. One GPU job runs at a time; new runs wait in a queue.`;
+}
+
+function paramValues(key) {
+  const m = liveMeta(key);
+  const saved = state.params[key] || {};
+  const out = {};
+  for (const s of m?.params || []) out[s.key] = saved[s.key] ?? s.value;
+  return out;
+}
+
+function isCustom(key) {
+  const m = liveMeta(key);
+  const v = paramValues(key);
+  return (m?.params || []).some((s) => Math.abs(v[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
+}
+
+const fmtParam = (v, step) => { const d = (String(step).split(".")[1] || "").length; return (+v).toFixed(d); };
+const fillPct = (s, v) => `${((v - s.min) / (s.max - s.min)) * 100}%`;
+
+function renderProps() {
+  const m = liveMeta(state.liveBench);
+  if (!m) return;
+  const vals = paramValues(m.key);
+  const groups = [];
+  for (const s of m.params) {
+    let g = groups.find((x) => x.name === s.group);
+    if (!g) groups.push((g = { name: s.group, items: [] }));
+    g.items.push(s);
+  }
+  $("#props").innerHTML = `
+    <div class="props-head"><span class="eyebrow">Properties</span><span style="display:flex;align-items:center;gap:10px"><span class="badge" id="propsBadge"></span><button type="button" class="link-btn" id="resetProps">Reset</button></span></div>
+    <div class="geo" id="geo" role="img" aria-label="Geometry preview"></div>
+    ${groups.map((g) => `<div class="pgroup"><div class="pgroup-label">${esc(g.name)}</div>${g.items.map((s) => `
+      <div class="prow" data-key="${s.key}">
+        <div class="prow-top"><span>${esc(s.label)}</span><span class="pnum"><input type="number" data-num="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${fmtParam(vals[s.key], s.step)}" aria-label="${esc(s.label)}"><span>${esc(s.unit)}</span></span></div>
+        <input type="range" class="slider" data-range="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${vals[s.key]}" style="--fill:${fillPct(s, vals[s.key])}" aria-label="${esc(s.label)}">
+      </div>`).join("")}</div>`).join("")}
+    <p class="props-note" id="propsNote"></p>`;
+  updatePropsChrome();
+  geoTarget(m.key, vals, true);
+}
+
+function updatePropsChrome() {
+  const m = liveMeta(state.liveBench);
+  const vals = paramValues(m.key);
+  const custom = isCustom(m.key);
+  const badge = $("#propsBadge");
+  badge.className = `badge ${custom ? "custom" : ""}`;
+  badge.textContent = custom ? "Custom settings" : "Study settings";
+  $("#resetProps").disabled = !custom;
+  $("#propsNote").textContent = custom
+    ? "The server solves a fresh FEniCS reference for exactly these inputs (a few seconds), then scores ATLAS-XPINN against it."
+    : "These are the study's settings: the run is scored against the stored FEniCS reference.";
+  for (const s of m.params) {
+    const row = $(`.prow[data-key="${s.key}"]`);
+    if (row) row.classList.toggle("changed", Math.abs(vals[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
+  }
+  renderSpec();
+}
+
+let saveTimer = null;
+function setParam(key, raw, source) {
+  const m = liveMeta(state.liveBench);
+  const s = m.params.find((x) => x.key === key);
+  let v = parseFloat(raw);
+  if (!Number.isFinite(v)) return;
+  v = Math.min(s.max, Math.max(s.min, v));
+  state.params[m.key] = { ...(state.params[m.key] || {}), [key]: v };
+  const range = $(`[data-range="${key}"]`), num = $(`[data-num="${key}"]`);
+  if (source !== "range") range.value = v;
+  if (source !== "num") num.value = fmtParam(v, s.step);
+  range.style.setProperty("--fill", fillPct(s, v));
+  updatePropsChrome();
+  geoTarget(m.key, paramValues(m.key));
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => store.set("atlas-params", JSON.stringify(state.params)), 300);
+}
+
+function geoTarget(bench, vals, snap = false) {
+  const m = liveMeta(bench);
+  const target = { ...vals };
+  for (const s of m.params) target[`_d_${s.key}`] = s.value;
+  if (!state.geo || state.geo.bench !== bench || snap || reduced()) state.geo = { bench, cur: { ...target }, target, raf: null };
+  else state.geo.target = target;
+  const g = state.geo;
+  const tick = () => {
+    let moving = false;
+    for (const k of Object.keys(g.target)) {
+      const d = g.target[k] - g.cur[k];
+      if (Math.abs(d) > 1e-4 * Math.max(1, Math.abs(g.target[k]))) { g.cur[k] += d * 0.2; moving = true; } else g.cur[k] = g.target[k];
+    }
+    drawGeo(g.bench, g.cur);
+    g.raf = moving ? requestAnimationFrame(tick) : null;
+  };
+  if (!g.raf) tick();
+}
+
+function stiffShade(ratio) {
+  const k = Math.min(92, (Math.abs(Math.log10(ratio)) / 2.2) * 100);
+  return ratio >= 1 ? `color-mix(in srgb, var(--ink) ${k.toFixed(0)}%, var(--thumb-fill))` : `color-mix(in srgb, var(--surface) ${k.toFixed(0)}%, var(--thumb-fill))`;
+}
+
+function arrow(x1, y1, x2, y2, px, py) {
+  const a = Math.atan2(y2 - y1, x2 - x1), h = 6;
+  const p1 = [x2 - h * Math.cos(a - 0.45), y2 - h * Math.sin(a - 0.45)], p2 = [x2 - h * Math.cos(a + 0.45), y2 - h * Math.sin(a + 0.45)];
+  const st = `style="--push-x:${px}px;--push-y:${py}px"`;
+  return `<line class="g-load" ${st} x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/><path class="g-head" ${st} d="M${x2.toFixed(1)} ${y2.toFixed(1)}L${p1[0].toFixed(1)} ${p1[1].toFixed(1)}L${p2[0].toFixed(1)} ${p2[1].toFixed(1)}Z"/>`;
+}
+
+function drawGeo(bench, p) {
+  const el = $("#geo");
+  if (!el) return;
+  const W = 320, Hh = 176;
+  const loadScale = (key) => Math.max(0.5, Math.min(2.2, Math.sqrt(p[key] / p[`_d_${key}`])));
+  const txt = (x, y, s, anchor = "start") => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" style="font:10px var(--font-mono);fill:var(--muted)">${esc(s)}</text>`;
+  let svg = "";
+  if (bench === "cantilever") {
+    const k = Math.min((W - 84) / 8, (Hh - 50) / 2), x0 = 30, yc = 84;
+    const L = p.L * k, H = p.H * k;
+    svg += `<rect class="g-body" x="${x0}" y="${(yc - H / 2).toFixed(1)}" width="${L.toFixed(1)}" height="${H.toFixed(1)}"/>`;
+    svg += `<line class="g-dash" x1="${(x0 + L / 2).toFixed(1)}" x2="${(x0 + L / 2).toFixed(1)}" y1="${(yc - H / 2).toFixed(1)}" y2="${(yc + H / 2).toFixed(1)}"/>`;
+    svg += `<line class="g-hatch" x1="${x0}" x2="${x0}" y1="${(yc - H / 2 - 8).toFixed(1)}" y2="${(yc + H / 2 + 8).toFixed(1)}" style="stroke-width:2"/>`;
+    for (let y = yc - H / 2 - 6; y < yc + H / 2 + 6; y += 7) svg += `<line class="g-hatch" x1="${x0}" y1="${y.toFixed(1)}" x2="${x0 - 7}" y2="${(y + 7).toFixed(1)}"/>`;
+    const len = 26 * loadScale("load"), xa = x0 + L + 12;
+    svg += arrow(xa, yc - len / 2, xa, yc + len / 2, 0, 3);
+    svg += txt(x0, Hh - 10, `L ${(+p.L).toFixed(1)} m · H ${(+p.H).toFixed(1)} m · ${gpa(p.E * 1e9)}`);
+  } else if (bench === "l_bracket") {
+    const k = (Hh - 44) / 2, x0 = 70, yb = Hh - 24;
+    const X = (x) => x0 + x * k, Y = (y) => yb - y * k;
+    svg += `<path class="g-body" d="M${X(0)} ${Y(0)}L${X(2)} ${Y(0)}L${X(2)} ${Y(2)}L${X(1)} ${Y(2)}L${X(1)} ${Y(1)}L${X(0)} ${Y(1)}Z"/>`;
+    svg += `<path class="g-dash" d="M${X(1)} ${Y(0)}L${X(1)} ${Y(1)}L${X(2)} ${Y(1)}"/>`;
+    svg += `<line class="g-hatch" x1="${X(0)}" x2="${X(0)}" y1="${Y(1) - 6}" y2="${Y(0) + 6}" style="stroke-width:2"/>`;
+    for (let y = Y(1) - 4; y < Y(0) + 4; y += 7) svg += `<line class="g-hatch" x1="${X(0)}" y1="${y.toFixed(1)}" x2="${X(0) - 7}" y2="${(y + 7).toFixed(1)}"/>`;
+    const sc = loadScale("load");
+    for (let i = 1; i <= 5; i++) { const u = i / 6, len = 34 * sc * 4 * u * (1 - u); svg += arrow(X(2) + 4, Y(1 + u), X(2) + 4 + len, Y(1 + u), 3, 0); }
+    svg += txt(12, 20, gpa(p.E * 1e9)) + txt(12, 34, `ν ${(+p.nu).toFixed(2)}`);
+  } else {
+    const k = (Hh - 48) / 2, x0 = 64, yb = Hh - 16;
+    const X = (x) => x0 + x * k, Y = (y) => yb - y * k;
+    const sc = loadScale("sigma");
+    const groupOf = (key) => liveMeta(bench).params.find((s) => s.key === key)?.group || "";
+    if (bench === "plate_hole") {
+      const r = p.r * k;
+      svg += `<path class="g-body" d="M${(x0 + r).toFixed(1)} ${yb}L${X(2)} ${yb}L${X(2)} ${Y(2)}L${x0} ${Y(2)}L${x0} ${(yb - r).toFixed(1)}A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${(x0 + r).toFixed(1)} ${yb}Z"/>`;
+      for (const R of [p.r + 0.3, p.r + 0.6]) svg += `<path class="g-dash" d="M${x0} ${(yb - R * k).toFixed(1)}A${(R * k).toFixed(1)} ${(R * k).toFixed(1)} 0 0 1 ${(x0 + R * k).toFixed(1)} ${yb}"/>`;
+      svg += txt(x0 - 8, 14, `${gpa(p.E * 1e9)} · ν ${(+p.nu).toFixed(2)} · r ${(+p.r).toFixed(2)} m`);
+    } else {
+      const a = (bench === "filled_slot" ? p.a : p.r) * k, b = (bench === "filled_slot" ? p.b : p.r) * k;
+      svg += `<rect class="g-body" x="${x0}" y="${Y(2)}" width="${2 * k}" height="${2 * k}"/>`;
+      svg += `<path class="g-inc" style="fill:${stiffShade(p.E2 / p.E1)}" d="M${x0} ${yb}L${(x0 + a).toFixed(1)} ${yb}A${a.toFixed(1)} ${b.toFixed(1)} 0 0 0 ${x0} ${(yb - b).toFixed(1)}Z"/>`;
+      svg += txt(x0 - 8, 14, `${groupOf("E1")} ${gpa(p.E1 * 1e9)} · ${groupOf("E2")} ${gpa(p.E2 * 1e9)}`);
+    }
+    for (let i = 0; i < 6; i++) svg += `<circle class="g-roll" cx="${(X(0.2 + i * 0.33)).toFixed(1)}" cy="${yb + 4}" r="3"/><circle class="g-roll" cx="${x0 - 4}" cy="${(Y(0.2 + i * 0.33)).toFixed(1)}" r="3"/>`;
+    for (let i = 0; i < 5; i++) { const y = Y(0.2 + i * 0.4); svg += arrow(X(2) + 3, y, X(2) + 3 + 22 * sc, y, 3, 0); }
+  }
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="xMidYMid meet">${svg}</svg>`;
+}
+
+function renderEnergy(j) {
+  const box = $("#energy");
+  const pts = j?.progress?.points || [];
+  if (j?.kind === "inverse" || pts.length < 3) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!$("#eLine")) {
+    box.innerHTML = `<div class="energy-head"><span>Energy gap to the lowest Π reached, log scale</span><span><b id="eVal"></b> · <span id="eN"></span></span></div>
+      <div class="energy-plot"><svg viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="energyFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--step-active)" stop-opacity=".3"/><stop offset="1" stop-color="var(--step-active)" stop-opacity="0"/></linearGradient></defs><line class="energy-grid" x1="0" x2="600" y1="119.5" y2="119.5"/><path class="energy-area" id="eArea"/><path class="energy-line" id="eLine"/></svg><span class="energy-dot" id="eDot"></span></div>
+      <div class="energy-note" id="eNote"></div>`;
+  }
+  const n = pts[pts.length - 1][0];
+  const best = Math.min(...pts.map((q) => q[1]));
+  const positive = pts.map((q) => q[1] - best).filter((g) => g > 0);
+  const floor = positive.length ? Math.min(...positive) : 1e-9;
+  const gap = pts.map(([x, y]) => [x, Math.log10(Math.max(y - best, floor))]);
+  const top = Math.max(...gap.map((q) => q[1]));
+  const bottom = Math.log10(floor) - 0.08 * (top - Math.log10(floor) || 1);
+  const span = top - bottom || 1;
+  const N = 120, sample = [];
+  let j0 = 0;
+  for (let i = 0; i < N; i++) {
+    const x = (i / (N - 1)) * n;
+    while (j0 < gap.length - 2 && gap[j0 + 1][0] < x) j0++;
+    const [xa, ya] = gap[j0], [xb, yb] = gap[Math.min(j0 + 1, gap.length - 1)];
+    const w = xb > xa ? Math.min(1, Math.max(0, (x - xa) / (xb - xa))) : 0;
+    sample.push([(x / n) * 600, 6 + (1 - (ya + w * (yb - ya) - bottom) / span) * 108]);
+  }
+  const d = sample.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("");
+  const area = `${d}L600 120L0 120Z`;
+  const line = $("#eLine"), fill = $("#eArea");
+  line.setAttribute("d", d); fill.setAttribute("d", area);
+  line.style.d = `path("${d}")`; fill.style.d = `path("${area}")`;
+  const last = sample[N - 1];
+  const dot = $("#eDot");
+  dot.style.left = `${(last[0] / 600) * 100}%`;
+  dot.style.top = `${(last[1] / 120) * 100}%`;
+  dot.classList.toggle("live", j.status === "running");
+  $("#eVal").textContent = `Π = ${pts[pts.length - 1][1].toFixed(4)}`;
+  $("#eN").textContent = `${n.toLocaleString("en-US")} energy evaluations`;
+  $("#eNote").textContent = j.status === "running"
+    ? "Updates as the solver runs. Upward jumps are the switch from the shared warm start to separate subnetworks and each augmented-Lagrangian update."
+    : "The complete descent of this run.";
 }
 
 function isBusy() { return state.jobs.some((j) => j.status === "queued" || j.status === "running"); }
@@ -351,7 +598,7 @@ function renderJob() {
   $("#runForward").disabled = busy;
   $("#runForward").textContent = busy ? "Running…" : "Run forward + validate";
   const m = liveMeta(state.liveBench);
-  $("#runInverse").disabled = busy || !m?.inverse;
+  $("#runInverse").disabled = busy || !m?.inverse || isCustom(state.liveBench);
   const steps = STEPS[j?.kind === "inverse" ? "inverse" : "forward"];
   if (!j) {
     $("#jobTitle").textContent = "No run yet";
@@ -365,7 +612,7 @@ function renderJob() {
     const jm = liveMeta(j.benchmark);
     const secs = j.metrics?.train_seconds ?? secondsBetween(j.started, j.finished);
     $("#jobTitle").textContent = j.kind === "inverse" ? "Inverse design" : "Forward solve + FEM validation";
-    $("#jobSub").textContent = `${jm?.title || j.benchmark} · ATLAS-XPINN · seed ${j.metrics?.seed ?? state.seed ?? 42}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
+    $("#jobSub").textContent = `${jm?.title || j.benchmark} · ATLAS-XPINN · ${j.custom ? "custom settings" : "study settings"} · seed ${j.metrics?.seed ?? state.seed ?? 42}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
     const chip = { queued: ["run", "Queued"], running: ["run", "Running"], done: ["done", "Done"], error: ["fail", "Failed"] }[j.status] || ["", j.status];
     $("#jobChip").className = `chip ${chip[0]}`;
     $("#jobChip").textContent = chip[1];
@@ -382,6 +629,7 @@ function renderJob() {
     const cls = i < idx ? "done" : i === idx ? (j?.status === "error" ? "failed" : j?.status === "queued" ? "" : "active") : "";
     return `<li class="${cls}"><span class="step-dot">${i < idx ? ICON.check : ""}</span><span class="step-label">${esc(label)}</span>${i < steps.length - 1 ? '<span class="step-line"></span>' : ""}</li>`;
   }).join("");
+  renderEnergy(j);
   renderTiles(j);
   renderLiveFigure(j);
   renderDetails(j);
@@ -453,7 +701,7 @@ function renderDetails(j) {
     rows = [
       ["Displacement L², u", "horizontal component", pct(mx.relative_L2_u)],
       ["Displacement L², v", "vertical component", pct(mx.relative_L2_v)],
-      ["von Mises L²", "whole part, no exclusion", pct(mx.von_mises_l2)],
+      ["von Mises L²", "whole part, no exclusion", pct(mx.von_mises_l2 ?? mx.von_mises_l2_global)],
       ["Compliance vs FEM", "work of the applied load", spct(mx.compliance_error)],
       [`von Mises L², ${m.inside.toLowerCase()}`, "within 0.05 m of the interface", pct(mx.band_vm_l2_inside)],
       [`von Mises L², ${m.outside.toLowerCase()}`, "within 0.05 m of the interface", pct(mx.band_vm_l2_outside)],
@@ -464,10 +712,18 @@ function renderDetails(j) {
       ["Displacement L², u", "horizontal component", pct(mx.relative_L2_u)],
       ["Displacement L², v", "vertical component", pct(mx.relative_L2_v)],
       ["von Mises L², global", "no exclusion", pct(mx.von_mises_l2_global)],
-      ["von Mises L², ROI", `${mx.von_mises_roi_desc || "region of interest"} left out`, pct(mx.von_mises_l2_roi)],
+      mx.custom
+        ? ["Compliance vs FEM", "work of the applied load", spct(mx.compliance_error)]
+        : ["von Mises L², ROI", `${mx.von_mises_roi_desc || "region of interest"} left out`, pct(mx.von_mises_l2_roi)],
       ["Max pointwise von Mises error", Array.isArray(loc) ? `at (x=${(+loc[0]).toFixed(4)}, y=${(+loc[1]).toFixed(4)})` : "location not reported", mx.max_pointwise_von_mises_error != null ? `${sci(mx.max_pointwise_von_mises_error)} Pa` : "—"],
       ["Points left out near singularities", mx.von_mises_exclusion_radius != null ? `r = ${(+mx.von_mises_exclusion_radius).toPrecision(4)}` : "", mx.von_mises_total_points != null ? `${mx.von_mises_excluded_points} of ${mx.von_mises_total_points.toLocaleString("en-US")}` : "—"],
     ];
+  }
+  if (mx.custom && mx.settings && m) {
+    const units = Object.fromEntries(m.params.map((s) => [s.key, [s.label, s.unit, s.step, s.group]]));
+    const changed = m.params.filter((s) => Math.abs(mx.settings[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
+    rows.push(["FEniCS reference", "solved for these settings", `${(mx.fem_cells || 0).toLocaleString("en-US")} cells`]);
+    for (const s of changed) rows.push([`${s.group}: ${s.label}`, `study value ${fmtParam(s.value, s.step)} ${s.unit}`.trim(), `${fmtParam(mx.settings[s.key], units[s.key][2])} ${s.unit}`.trim()]);
   }
   card.innerHTML = `<h2>${j.kind === "inverse" ? "Design detail" : "Validation detail"}</h2><dl class="detail-grid">${rows.map(([l, s, v]) => `<div><dt><span>${esc(l)}</span><span>${esc(s)}</span></dt><dd>${esc(v ?? "—")}</dd></div>`).join("")}</dl>`;
 }
@@ -487,11 +743,13 @@ async function watchJob(id) {
     const wasOpen = state.job?.id === id;
     const prevStatus = state.job?.status;
     state.job = j;
+    const justDone = wasOpen && prevStatus && prevStatus !== "done" && j.status === "done";
     if (!wasOpen || (prevStatus !== j.status && j.status === "running")) $("#logBox").open = j.status === "running" || j.status === "queued";
     const i = state.jobs.findIndex((x) => x.id === j.id);
     if (i >= 0) state.jobs[i] = { ...state.jobs[i], ...j }; else state.jobs.unshift(j);
     renderJobs();
     renderJob();
+    if (justDone) $$("#tiles .tile-value > span:first-child").forEach((el, i) => countUp(el, i * 90));
     if (j.status === "queued" || j.status === "running") state.poll = setTimeout(() => watchJob(id), 1500);
     else { refreshJobs(); pollHealth(); }
   } catch (e) {
@@ -506,7 +764,8 @@ async function submit(kind) {
   const body = kind === "inverse"
     ? { benchmark: bench }
     : { benchmark: bench, formulation: "energy_xpinn", epochs: Math.max(50, parseInt($("#epochs").value, 10) || 2000),
-        n_interior: +$("#nInterior").value, prefit_epochs: +$("#prefit").value, warm_start_eb: $("#ebPrefit").checked };
+        n_interior: +$("#nInterior").value, prefit_epochs: +$("#prefit").value, warm_start_eb: $("#ebPrefit").checked,
+        params: paramValues(bench) };
   $("#runForward").disabled = true;
   $("#runInverse").disabled = true;
   try {
@@ -535,6 +794,7 @@ async function loadLive() {
   if (!liveMeta(state.liveBench)) state.liveBench = state.meta[0].key;
   renderBenchPick();
   renderSpec();
+  renderProps();
   await refreshJobs();
   const active = state.jobs.find((j) => j.status === "running" || j.status === "queued") || state.jobs[0];
   if (active) await watchJob(active.id); else renderJob();
@@ -542,7 +802,13 @@ async function loadLive() {
 
 document.addEventListener("click", (e) => {
   const themeBtn = e.target.closest("[data-theme-pick]");
-  if (themeBtn) return applyTheme(themeBtn.dataset.themePick);
+  if (themeBtn) return switchTheme(themeBtn.dataset.themePick);
+  if (e.target.closest("#resetProps")) {
+    delete state.params[state.liveBench];
+    store.set("atlas-params", JSON.stringify(state.params));
+    renderProps();
+    return;
+  }
   const bt = e.target.closest("[data-bench]");
   if (bt) {
     state.bench = bt.dataset.bench;
@@ -570,13 +836,167 @@ document.addEventListener("change", (e) => {
     store.set("atlas-live-bench", state.liveBench);
     $$(".opt").forEach((o) => o.classList.toggle("on", $("input", o).checked));
     renderSpec();
+    renderProps();
     renderJob();
+    return;
   }
+  if (e.target.dataset.num) setParam(e.target.dataset.num, e.target.value, "num");
 });
+
+document.addEventListener("input", (e) => {
+  if (e.target.dataset.range) setParam(e.target.dataset.range, e.target.value, "range");
+});
+
+document.addEventListener("pointerdown", (e) => setRevealOrigin(e.clientX, e.clientY), { passive: true });
+
+let spotRaf = null, spotEv = null;
+document.addEventListener("pointermove", (e) => {
+  spotEv = e;
+  if (spotRaf) return;
+  spotRaf = requestAnimationFrame(() => {
+    spotRaf = null;
+    const card = spotEv.target.closest && spotEv.target.closest(".card");
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty("--mx", `${spotEv.clientX - r.left}px`);
+    card.style.setProperty("--my", `${spotEv.clientY - r.top}px`);
+  });
+}, { passive: true });
+
+const flow = (() => {
+  const cv = $("#flow");
+  const ctx = cv && cv.getContext("2d");
+  if (!ctx) return { recolor() {}, update() {} };
+  let w = 0, h = 0, hole = null, parts = [], raf = null, colors = { a: "#2A78D6", b: "#C9561A" }, visible = true;
+  const running = () => visible && !document.hidden && !$("#view-results").hidden && !reduced()
+    && document.documentElement.getAttribute("data-theme") !== "atlas";
+
+  function field(x, y) {
+    const dx = (x - hole.x) / hole.a, dy = (hole.y - y) / hole.a;
+    const r2 = dx * dx + dy * dy;
+    if (r2 < 1.02) return null;
+    const th = Math.atan2(dy, dx), c2 = Math.cos(2 * th), s2 = Math.sin(2 * th);
+    const a2 = 1 / r2, a4 = a2 * a2;
+    const srr = 0.5 * (1 - a2) + 0.5 * (1 - 4 * a2 + 3 * a4) * c2;
+    const stt = 0.5 * (1 + a2) - 0.5 * (1 + 3 * a4) * c2;
+    const srt = -0.5 * (1 + 2 * a2 - 3 * a4) * s2;
+    const c = Math.cos(th), s = Math.sin(th);
+    const sxx = srr * c * c + stt * s * s - 2 * srt * s * c;
+    const syy = srr * s * s + stt * c * c + 2 * srt * s * c;
+    const sxy = (srr - stt) * s * c + srt * (c * c - s * s);
+    const phi = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    const s1 = 0.5 * (sxx + syy) + Math.sqrt(0.25 * (sxx - syy) ** 2 + sxy * sxy);
+    let ux = Math.cos(phi), uy = -Math.sin(phi);
+    if (ux < 0) { ux = -ux; uy = -uy; }
+    return [ux, uy, s1];
+  }
+
+  function spawn(p, edge) {
+    p.x = edge ? Math.random() * w * 0.05 : Math.random() * w;
+    p.y = Math.random() * h;
+    p.age = 0;
+    p.life = 160 + Math.random() * 340;
+  }
+
+  function drawStatic() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = colors.a;
+    ctx.globalAlpha = 0.18;
+    for (let i = 0; i < 44; i++) {
+      let x = 0, y = ((i + 0.5) / 44) * h;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let k = 0; k < 2000 && x < w; k++) {
+        const f = field(x, y);
+        if (!f) break;
+        x += f[0] * 2; y += f[1] * 2;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const r = cv.getBoundingClientRect();
+    w = r.width; h = r.height;
+    if (!w || !h) return;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hole = w > 900 ? { x: w * 0.47, y: h * 0.2, a: Math.max(30, h * 0.1) } : { x: w * 0.78, y: h * 0.1, a: Math.max(22, w * 0.07) };
+    parts = Array.from({ length: Math.min(520, Math.round((w * h) / 1700)) }, () => { const p = {}; spawn(p, false); return p; });
+    if (reduced()) drawStatic();
+  }
+
+  function frame() {
+    raf = null;
+    if (!running()) return;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "rgba(0,0,0,0.032)";
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.lineWidth = 1.15;
+    ctx.lineCap = "round";
+    for (const p of parts) {
+      const f = field(p.x, p.y);
+      if (!f || p.x > w + 2 || p.y < -2 || p.y > h + 2 || p.age++ > p.life) { spawn(p, Math.random() < 0.7); continue; }
+      const sp = 0.45 + 0.5 * Math.min(f[2], 3);
+      const nx = p.x + f[0] * sp, ny = p.y + f[1] * sp;
+      const hot = Math.min(1, Math.max(0, (f[2] - 1.15) / 1.5));
+      ctx.strokeStyle = hot > 0.4 ? colors.b : colors.a;
+      ctx.globalAlpha = 0.24 + 0.46 * hot;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(nx, ny);
+      ctx.stroke();
+      p.x = nx; p.y = ny;
+    }
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = colors.a;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.arc(hole.x, hole.y, hole.a, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function update() {
+    if (!hole) resize();
+    if (running() && !raf) raf = requestAnimationFrame(frame);
+  }
+
+  function recolor() {
+    const cs = getComputedStyle(document.documentElement);
+    colors = { a: cs.getPropertyValue("--dot-a").trim() || colors.a, b: cs.getPropertyValue("--target").trim() || colors.b };
+    if (w && h) ctx.clearRect(0, 0, w, h);
+    if (reduced() && hole) drawStatic();
+    update();
+  }
+
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; update(); }).observe(cv);
+  document.addEventListener("visibilitychange", update);
+  let rt = null, lastSize = "";
+  new ResizeObserver(() => {
+    const r = cv.getBoundingClientRect();
+    const size = `${Math.round(r.width)}x${Math.round(r.height)}`;
+    if (size === lastSize) return;
+    lastSize = size;
+    clearTimeout(rt);
+    rt = setTimeout(() => { resize(); update(); }, 120);
+  }).observe(cv);
+  resize();
+  recolor();
+  return { recolor, update };
+})();
 
 $("#runForward").addEventListener("click", () => submit("forward"));
 $("#runInverse").addEventListener("click", () => submit("inverse"));
-window.addEventListener("hashchange", route);
+window.addEventListener("hashchange", () => withTransition(() => { route(); flow.update(); }));
 
 applyTheme(document.documentElement.getAttribute("data-theme") || "light");
 route();

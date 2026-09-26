@@ -5,16 +5,19 @@ then open http://localhost:8000/
 
 import io
 import json
+import os
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
 import uuid
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -29,6 +32,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from atlas import live
 from atlas.paths import FEM_REFERENCE_DIR
 
 PLOTS_DIR = ROOT / "webapp" / "static" / "plots"
@@ -138,7 +142,8 @@ def saved_param_count(path: str) -> Optional[int]:
 def bench_meta(bench: str) -> dict:
     m = dict(META[bench], key=bench, group="paper" if bench in PAPER else "multi",
              subdomains=subdomain_count(bench), materials=materials(bench),
-             network=dict(hidden_layers=HIDDEN_LAYERS, neurons=NEURONS, activation="tanh"), inverse=None)
+             network=dict(hidden_layers=HIDDEN_LAYERS, neurons=NEURONS, activation="tanh"), inverse=None,
+             params=live.PARAMS[bench])
     if bench in PAPER:
         inv = _load("atlas_xpinn_energy", "inverse_design", f"{bench}_inverse.json") or {}
         m["inverse"] = dict(param=inv.get("param_name"), objective=INVERSE_OBJECTIVE.get(inv.get("metric"), inv.get("metric")))
@@ -173,6 +178,7 @@ class ForwardRequest(BaseModel):
     warm_start_eb: bool = True
     prefit_epochs: int = Field(4000, ge=0, le=40000)
     use_mock: bool = False
+    params: Optional[Dict[str, float]] = None
 
 
 class InverseRequest(BaseModel):
@@ -188,10 +194,14 @@ class InverseRequest(BaseModel):
 
 def submit(kind: str, payload: dict) -> str:
     job_id = uuid.uuid4().hex[:8]
+    bench = payload["benchmark"]
+    payload["custom"] = kind == "forward" and not live.is_default(bench, payload.get("params"))
     with JOBS_LOCK:
-        JOBS[job_id] = dict(id=job_id, kind=kind, benchmark=payload["benchmark"],
+        JOBS[job_id] = dict(id=job_id, kind=kind, benchmark=bench, custom=payload["custom"],
+                            settings=live.values(bench, payload.get("params") if kind == "forward" else None),
                             formulation=payload.get("formulation", "energy_xpinn"), status="queued", stage="queued",
-                            log="", metrics={}, plots={}, created=datetime.now().isoformat(timespec="seconds"),
+                            log="", metrics={}, plots={}, progress=None,
+                            created=datetime.now().isoformat(timespec="seconds"),
                             started=None, finished=None, error=None)
     threading.Thread(target=_run_job, args=(job_id, kind, payload), daemon=True).start()
     return job_id
@@ -203,9 +213,11 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
             JOBS[job_id].update(status="running", stage="setup", started=datetime.now().isoformat(timespec="seconds"))
         log = JobLog(job_id)
         try:
-            with redirect_stdout(log):
+            with redirect_stdout(log), record_energy(job_id):
                 if kind == "inverse":
                     _run_inverse(job_id, payload)
+                elif payload["custom"]:
+                    _run_custom(job_id, payload)
                 elif payload["benchmark"] in MULTI:
                     _run_multi(job_id, payload)
                 else:
@@ -217,6 +229,39 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
         with JOBS_LOCK:
             JOBS[job_id].update(status=status, error=error, stage="finished" if status == "done" else JOBS[job_id]["stage"],
                                 finished=datetime.now().isoformat(timespec="seconds"))
+
+
+@contextmanager
+def record_energy(job_id: str):
+    from atlas.energy_solver import EnergyProblem
+    from atlas.energy_xpinn import DecomposedEnergyProblem
+    originals = {cls: cls.__call__ for cls in (EnergyProblem, DecomposedEnergyProblem)}
+    points, count = [], [0]
+
+    def publish():
+        step = max(1, len(points) // 300)
+        sample = points[::step] + (points[-1:] if points and (len(points) - 1) % step else [])
+        with JOBS_LOCK:
+            JOBS[job_id]["progress"] = dict(evaluations=count[0], points=sample)
+
+    def wrap(orig):
+        def call(self, net):
+            out = orig(self, net)
+            count[0] += 1
+            points.append([count[0], float(out[0].detach())])
+            if count[0] % 25 == 0:
+                publish()
+            return out
+        return call
+
+    for cls, orig in originals.items():
+        cls.__call__ = wrap(orig)
+    try:
+        yield
+    finally:
+        for cls, orig in originals.items():
+            cls.__call__ = orig
+        publish()
 
 
 def _param_count(model) -> int:
@@ -312,7 +357,7 @@ def _run_multi(job_id: str, payload: dict) -> None:
           f"interface band {metrics['band_vm_l2_inside']:.3%} / {metrics['band_vm_l2_outside']:.3%}")
 
     set_stage(job_id, "plots")
-    _plot_multi(bench, coords, vm, vm_f, inside_fn, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    _plot_live(bench, None, coords, vm, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
     plot_training_convergence(history_for_plot(hist), save_path=str(PLOTS_DIR / f"{job_id}_convergence.png"),
                               adam_epoch_count=payload["epochs"])
     with JOBS_LOCK:
@@ -321,19 +366,114 @@ def _run_multi(job_id: str, payload: dict) -> None:
                                  "convergence": f"/static/plots/{job_id}_convergence.png"}
 
 
-def _plot_multi(bench, coords, vm, vm_f, inside_fn, path):
+def _fem_reference(bench: str, params) -> dict:
+    spec = live.fem_spec(bench, params)
+    with tempfile.TemporaryDirectory() as tmp:
+        spec_path, out_path = os.path.join(tmp, "spec.json"), os.path.join(tmp, "ref.npz")
+        json.dump(spec, open(spec_path, "w"))
+        env = dict(os.environ, PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""))
+        run = subprocess.run([sys.executable, str(ROOT / "fem" / "fem_live.py"), spec_path, out_path],
+                             capture_output=True, text=True, env=env, timeout=900, cwd=str(ROOT))
+        for line in run.stdout.splitlines():
+            if "JIT" not in line:
+                print("  " + line)
+        if run.returncode != 0:
+            raise RuntimeError("FEniCS reference failed: " + (run.stderr.strip().splitlines() or ["no output"])[-1])
+        with np.load(out_path) as z:
+            return {k: z[k] for k in z.files}
+
+
+def _run_custom(job_id: str, payload: dict) -> None:
+    import torch
+    from atlas.energy_solver import history_for_plot
+    from atlas.energy_xpinn import train_decomposed
+    from atlas.validation import default_exclusion_radius
+    from atlas.visualization import plot_training_convergence
+
+    bench, device, params = payload["benchmark"], auto_device(), payload.get("params") or {}
+    shown = live.values(bench, params)
+    units = {s["key"]: s["unit"] for s in live.PARAMS[bench]}
+    print(f"{META[bench]['title']}, custom settings: " + ", ".join(f"{k}={v:g}{(' ' + units[k]) if units[k] else ''}"
+                                                              for k, v in shown.items()))
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+    model, prob = live.build(bench, params, device, HIDDEN_LAYERS, NEURONS)
+    print(f"ATLAS-XPINN: {len(model.subnets)} subnetworks, {_param_count(model)} parameters, "
+          f"{prob.n_points} quadrature points, {device}")
+    set_stage(job_id, "train")
+    t0 = time.perf_counter()
+    hist = train_decomposed(model, prob, epochs=payload["epochs"], lbfgs_per_stage=LBFGS_ITERS, gammas=(30.0,), verbose=True)
+    if device.startswith("cuda"):
+        torch.cuda.synchronize()
+    seconds = time.perf_counter() - t0
+
+    set_stage(job_id, "predict")
+    C = live.compliance(model, bench, params, device)
+    set_stage(job_id, "validate")
+    print("Solving the FEniCS reference for these settings ...")
+    ref = _fem_reference(bench, params)
+    coords, u_f, v_f, vm_f = ref["coords"], ref["u"], ref["v"], ref["vm"]
+    up, vp, vm = live.predict(model, coords, bench, params, device)
+    metrics = dict(
+        benchmark=bench, formulation="energy_xpinn", custom=True, settings=shown, params=_param_count(model),
+        train_seconds=seconds, seed=SEED, subdomains=len(model.subnets), fem_cells=int(ref["cells"]),
+        relative_L2_displacement=float(np.sqrt(np.sum((up - u_f) ** 2 + (vp - v_f) ** 2) / np.sum(u_f ** 2 + v_f ** 2))),
+        relative_L2_u=_rel(up, u_f), relative_L2_v=_rel(vp, v_f), von_mises_l2_global=_rel(vm, vm_f),
+        compliance_error=float((C - float(ref["compliance"])) / float(ref["compliance"])),
+        interface_jump_sq=prob.last.get("jump_u"))
+    singular = live.singular_points(bench, params)
+    if singular:
+        r = default_exclusion_radius(coords, singular)
+        keep = np.min([np.hypot(coords[:, 0] - x, coords[:, 1] - y) for x, y in singular], axis=0) > r
+        metrics.update(von_mises_l2_excl=_rel(vm[keep], vm_f[keep]), von_mises_exclusion_radius=float(r),
+                       von_mises_excluded_points=int((~keep).sum()), von_mises_total_points=int(len(keep)))
+    else:
+        keep = np.ones(len(coords), dtype=bool)
+        metrics["von_mises_l2"] = metrics["von_mises_l2_global"]
+    err = np.abs(vm - vm_f)
+    worst = int(np.argmax(np.where(keep, err, -1.0)))
+    metrics.update(max_pointwise_von_mises_error=float(err[worst]),
+                   max_pointwise_von_mises_error_location=[float(coords[worst, 0]), float(coords[worst, 1])])
+    if bench in live.INCLUSION:
+        band = live.interface_distance(bench, params, coords[:, 0], coords[:, 1]) < 0.05
+        ins = live.inside(bench, params, coords[:, 0], coords[:, 1])
+        metrics.update(band_vm_l2_inside=_rel(vm[band & ins], vm_f[band & ins]),
+                       band_vm_l2_outside=_rel(vm[band & ~ins], vm_f[band & ~ins]))
+    vm_key = "von_mises_l2_excl" if singular else "von_mises_l2"
+    print(f"displacement L2 {metrics['relative_L2_displacement']:.3%}   von Mises L2 {metrics[vm_key]:.3%}   "
+          f"compliance {metrics['compliance_error']:+.3%} vs FEM")
+
+    set_stage(job_id, "plots")
+    _plot_live(bench, params, coords, vm, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    plot_training_convergence(history_for_plot(hist), save_path=str(PLOTS_DIR / f"{job_id}_convergence.png"),
+                              adam_epoch_count=payload["epochs"])
+    with JOBS_LOCK:
+        JOBS[job_id]["metrics"] = metrics
+        JOBS[job_id]["plots"] = {"fem_comparison": f"/static/plots/{job_id}_fem_comparison.png",
+                                 "convergence": f"/static/plots/{job_id}_convergence.png"}
+
+
+def _plot_live(bench, params, coords, vm, vm_f, path):
     import matplotlib.pyplot as plt
     from matplotlib.tri import Triangulation
     tri = Triangulation(coords[:, 0], coords[:, 1])
+    cx, cy = coords[tri.triangles].mean(axis=1).T
+    p = live.si(bench, params)
+    if bench == "plate_hole":
+        tri.set_mask(np.hypot(cx, cy) < p["r"])
+    elif bench == "l_bracket":
+        tri.set_mask((cx < live.L_BRACKET_S) & (cy > live.L_BRACKET_S))
     cap = np.percentile(vm_f, 99.8)
-    ind = inside_fn(coords[:, 0], coords[:, 1]).astype(float)
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.4))
+    ind = live.inside(bench, params, coords[:, 0], coords[:, 1]).astype(float) if bench in live.INCLUSION else None
+    wide = np.ptp(coords[:, 0]) > 1.6 * np.ptp(coords[:, 1])
+    fig, axes = plt.subplots(3 if wide else 1, 1 if wide else 3, figsize=(10, 7.5) if wide else (13.5, 4.4))
     panels = [(vm_f / 1e6, "FEM von Mises [MPa]", "inferno", cap / 1e6),
               (vm / 1e6, "ATLAS-XPINN von Mises [MPa]", "inferno", cap / 1e6),
               (np.abs(vm - vm_f) / cap * 100, "|error| / FEM 99.8th pct [%]", "magma", 10.0)]
     for ax, (z, title, cmap, hi) in zip(axes, panels):
         cs = ax.tricontourf(tri, np.clip(z, 0, hi), levels=np.linspace(0, hi, 30), cmap=cmap)
-        ax.tricontour(tri, ind, levels=[0.5], colors="w", linewidths=0.8, linestyles="--")
+        if ind is not None:
+            ax.tricontour(tri, ind, levels=[0.5], colors="w", linewidths=0.8, linestyles="--")
         fig.colorbar(cs, ax=ax, shrink=0.85)
         ax.set_title(title, fontsize=10)
         ax.set_aspect("equal")
@@ -498,7 +638,7 @@ def inverse(req: InverseRequest):
 def list_jobs(limit: int = 25):
     with JOBS_LOCK:
         jobs = sorted(JOBS.values(), key=lambda j: j["created"], reverse=True)[:max(1, limit)]
-        return {"jobs": [{k: v for k, v in j.items() if k != "log"} for j in jobs]}
+        return {"jobs": [{k: v for k, v in j.items() if k not in ("log", "progress")} for j in jobs]}
 
 
 @app.get("/api/jobs/{job_id}")

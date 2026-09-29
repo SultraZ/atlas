@@ -72,7 +72,7 @@ displacement / von Mises error), while DeepXDE PINNs, with default or tuned sett
 ATLAS-XPINN beats the single network (including a parameter-matched one) on a steel insert
 (10x lower von Mises error), a soft inclusion (2x) and an epoxy-filled slot (displacement only),
 and loses on single-material parts and on three other multi-material candidates, all reported:
-`results/multi_material/SUMMARY.md`.
+`results/multi_material/SUMMARY.md`. Every number for the six benchmarks is collected in `results/ALL_RESULTS.md`.
 
 ## Notes
 

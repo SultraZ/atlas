@@ -1,5 +1,7 @@
 # Results index
 
+All numbers for the six benchmarks in one file: [`ALL_RESULTS.md`](ALL_RESULTS.md).
+
 Every number here is scored against a FEniCS reference in `fem/reference/` that no solver sees in
 training. Targets: displacement error below 5 %, von Mises error below 10 %.
 

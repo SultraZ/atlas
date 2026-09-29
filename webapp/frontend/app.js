@@ -31,6 +31,7 @@ const secondsBetween = (a, b) => (a && b ? (new Date(b) - new Date(a)) / 1000 : 
 const ICON = {
   pass: (s = 14) => `<svg class="icon" width="${s}" height="${s}" viewBox="0 0 16 16" role="img" aria-label="Meets target"><circle cx="8" cy="8" r="7.5" fill="var(--pass)"/><path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="var(--on-icon)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   fail: (s = 14) => `<svg class="icon" width="${s}" height="${s}" viewBox="0 0 16 16" role="img" aria-label="Misses target"><circle cx="8" cy="8" r="7.5" fill="var(--fail)"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="var(--on-icon)" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  mixed: (s = 14) => `<svg class="icon" width="${s}" height="${s}" viewBox="0 0 16 16" role="img" aria-label="Mixed result"><circle cx="8" cy="8" r="7.5" fill="var(--mixed)"/><path d="M4.8 8h6.4" stroke="var(--on-icon)" stroke-width="1.8" stroke-linecap="round"/></svg>`,
   check: `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 6.2l2.2 2.2 4.8-5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   open: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3h7v7M13 3L4 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
@@ -265,10 +266,13 @@ function renderSeeds(b) {
   html += `<div class="verdict">${passIcon(ok === total, 16)}<span>${ok === total ? `All ${total} runs meet both targets` : `${ok} of ${total} runs meet both targets`}</span></div>`;
   if (b.paired && b.paired.n) {
     const p = b.paired;
+    const count = (k) => (k === p.n ? `all ${p.n} seeds` : `${k} of ${p.n} seeds`);
     const txt = p.xpinn_lower_both === p.n
       ? `ATLAS-XPINN is lower on both errors in all ${p.n} seeds`
-      : `ATLAS-XPINN is lower on displacement in ${p.xpinn_lower_disp} of ${p.n} seeds and on von Mises in ${p.xpinn_lower_vm} of ${p.n}`;
-    html += `<div class="verdict">${passIcon(p.xpinn_lower_both === p.n, 16)}<span>${esc(txt)}</span></div>`;
+      : `ATLAS-XPINN is lower on displacement in ${count(p.xpinn_lower_disp)} and on von Mises in ${count(p.xpinn_lower_vm)}`;
+    const icon = p.xpinn_lower_both === p.n ? ICON.pass(16)
+      : p.xpinn_lower_disp + p.xpinn_lower_vm === 0 ? ICON.fail(16) : ICON.mixed(16);
+    html += `<div class="verdict">${icon}<span>${esc(txt)}</span></div>`;
   }
   $("#seeds").innerHTML = html;
 }

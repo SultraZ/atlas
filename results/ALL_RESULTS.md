@@ -24,6 +24,7 @@ Status: repository `main` at `6e2faae`, written 2026-09-29.
 6. [Caveats and data-quality notes](#6-caveats-and-data-quality-notes)
 7. [Where every number comes from](#7-where-every-number-comes-from)
 8. [Reproduce](#8-reproduce)
+9. [References](#9-references)
 
 ---
 
@@ -77,12 +78,12 @@ ATLAS-XPINN also trains in about two thirds of the time of the parameter-matched
 
 | name | what it is | parameters |
 |---|---|---|
-| **ATLAS energy** (single network) | Deep-energy (Ritz) method: minimises the total potential energy `½∫σ:ε − ∫t·u`. Essential BCs are exact through `u = mask(x)·net(x)`. Graded Gauss-Legendre quadrature, with polar O-grid blocks around holes. One 4×64 tanh network. The L-bracket adds a Williams re-entrant-corner enrichment (λ = 0.5445, 0.9085). | 12,802 (L-bracket 12,826) |
+| **ATLAS energy** (single network) | Deep-energy (Ritz) method (Samaniego et al., 2020): minimises the total potential energy `½∫σ:ε − ∫t·u`. Essential BCs are exact through `u = mask(x)·net(x)`. Graded Gauss-Legendre quadrature, with polar O-grid blocks around holes. One 4×64 tanh network. The L-bracket adds a re-entrant-corner enrichment with Williams' (1952) exponents (λ = 0.5445, 0.9085). | 12,802 (L-bracket 12,826) |
 | **ATLAS energy, wide** (4×91) | The same single network, widened to match ATLAS-XPINN's parameter count (capacity control, multi-material benchmarks). | 25,573 |
-| **ATLAS-XPINN** | The same energy formulation, domain-decomposed. It uses one 4×64 tanh subnetwork per subdomain, with displacement and traction continuity at the interfaces. | 25,604 (2 subdomains); 38,406 (3); 38,478 (L-bracket, 3 + enrichment) |
-| PINN (DeepXDE, library defaults) | An independent open-source baseline: one tanh network, soft BCs, library-default loss weights. It trains 10,000 Adam + 2,000 L-BFGS steps in float32. | 12,802 |
+| **ATLAS-XPINN** | The same energy formulation, domain-decomposed as an XPINN (Jagtap & Karniadakis, 2020). It uses one 4×64 tanh subnetwork per subdomain, with displacement and traction continuity at the interfaces. | 25,604 (2 subdomains); 38,406 (3); 38,478 (L-bracket, 3 + enrichment) |
+| PINN (DeepXDE, library defaults) | An independent open-source baseline (Lu et al., 2021): one tanh network, soft BCs, library-default loss weights. It trains 10,000 Adam + 2,000 L-BFGS steps in float32. | 12,802 |
 | PINN (DeepXDE, configured) | DeepXDE with settings fixed in advance from standard practice, never chosen by FEM error. Essential BCs are exact through an output transform, it runs in float64, adds collocation points at the stress concentration, and balances loss weights from the initial losses. | 12,802 |
-| Standard PINN (in-house) | A strong-form residual loss on one network, with parameters matched to ATLAS-XPINN. | 25,573 / 37,853 |
+| Standard PINN (in-house) | A strong-form residual loss on one network (Raissi et al., 2019), with parameters matched to ATLAS-XPINN. | 25,573 / 37,853 |
 
 **ATLAS-XPINN default recipe:** the same for all six benchmarks and never tuned per benchmark.
 
@@ -312,6 +313,8 @@ The protocol is in [section 2.4](#24-pre-registered-protocol-multi-material).
 | Soft inclusion | 210 GPa / contrast, ν 0.3 | steel, 210 GPa, ν 0.3 | 15 (primary), 3 (secondary) | circle, r = 0.3 m |
 | Filled slot | epoxy, 3.5 GPa, ν 0.35 | steel, 210 GPa, ν 0.30 | 60 (soft inside) | ellipse, semi-axes 0.2 m along the load × 0.4 m across |
 
+The soft inclusion follows CENN's two-phase example, a circular interface at a 15:1 contrast (Wang et al., 2022). Domain decomposition has also helped strong-form PINNs on multi-material solids (Diao et al., 2023).
+
 The steel insert is modelled on a bonded steel bushing in an aluminium lug. The filled slot is modelled on an
 epoxy-filled cut-out.
 
@@ -320,9 +323,9 @@ epoxy-filled cut-out.
 | benchmark | cells | compliance [N·m] | compliance change, last level | interface-band vM change, last level | other checks |
 |---|---|---|---|---|---|
 | Steel insert | 110,282 | 56.2925 | 1.2e-10 | 4.6e-5 | insert carries a uniform 1.265 σ; band peak 1.26 MPa |
-| Soft inclusion, contrast 15 | 110,282 | 19.9240 | 1.1e-9 | 1.8e-4 | inclusion stress 0.183 σ (Goodier infinite plate 0.175); band peak 2.74 MPa |
+| Soft inclusion, contrast 15 | 110,282 | 19.9240 | 1.1e-9 | 1.8e-4 | inclusion stress 0.183 σ (Goodier, 1933, infinite plate: 0.175); band peak 2.74 MPa |
 | Soft inclusion, contrast 3 | 110,282 | 19.4615 | 2.4e-10 | 8.9e-5 | inclusion stress 0.610 σ (Goodier 0.597); band peak 1.82 MPa |
-| Filled slot | 108,070 | 20.5334 | 6.9e-9 | 4.7e-4 (peak 6.2e-6) | Kt = 4.77 at the slot tip (open slot of this shape: 5.0) |
+| Filled slot | 108,070 | 20.5334 | 6.9e-9 | 4.7e-4 (peak 6.2e-6) | Kt = 4.77 at the slot tip (open slot of this shape: 5.0, Inglis, 1913) |
 
 ### 4.3 Steel insert in an aluminium plate
 
@@ -494,7 +497,7 @@ Start it with `cd webapp/backend && python app.py`, then open http://localhost:8
 
 - **L-bracket, single-network inverse design:** the stored FEM check is for an earlier design radius ([section 3.6](#36-inverse-design-fem-checked)).
 - **L-bracket reference compliance:** the stored FEM value (96.52 N·m) comes from sampling the solution at the nodes. The converged value is 96.97 N·m. ATLAS's +0.4 % "error" is therefore about −0.05 % against the converged value. No conclusion changes.
-- **Plate-with-hole von Mises reference:** the FEM von Mises is an L2 projection onto P2, which oscillates on the hole edge. Consecutive nodes read 2.2, 0.5, 5.6 and 3.2 MPa, while Kirsch gives about 3.0. Part of the ~2.6 % plate stress error is reference noise.
+- **Plate-with-hole von Mises reference:** the FEM von Mises is an L2 projection onto P2, which oscillates on the hole edge. Consecutive nodes read 2.2, 0.5, 5.6 and 3.2 MPa, while Kirsch (1898) gives about 3.0. Part of the ~2.6 % plate stress error is reference noise.
 - **Plate-with-hole exclusion point:** the plate's singular-point exclusion sits at (r, 0), which is the minimum-stress point. It was left unchanged so the metric stays comparable.
 - **ATLAS energy seed-42 forward runs:** they come from a CPU run for the cantilever (0.19 % / 2.29 %; the GPU run gave 0.17 % / 2.17 %). The five-seed tables are GPU runs.
 - **Filled slot:** its von Mises claim is a statistical tie (p ≈ 0.3), not a win. Only its displacement gain is robust.
@@ -590,3 +593,79 @@ python scripts/multi_material/make_report.py --bench steel_insert
 
 `run_repeatability_study.py` defaults to the old residual formulation and 5000 epochs, so always pass
 `--formulation` and `--epochs 2000`.
+
+---
+
+## 9. References
+
+Entries follow APA 7 style, as in the proposal (`docs/Atlas.md`). Hu et al. (2022) is also in the proposal's list.
+
+### 9.1 Literature searched for this study
+
+- **Diao, Y., Yang, J., Zhang, Y., Zhang, D., & Du, Y. (2023).** Solving multi-material problems in solid mechanics
+  using physics-informed neural networks based on domain decomposition technology. *Computer Methods in Applied
+  Mechanics and Engineering, 413*, 116120. https://doi.org/10.1016/j.cma.2023.116120
+  - **Used for:** evidence that domain decomposition helps multi-material problems in solid mechanics, for strong-form
+    PINNs. It motivated testing ATLAS-XPINN on multi-material benchmarks.
+- **Hu, Z., Jagtap, A. D., Karniadakis, G. E., & Kawaguchi, K. (2022).** When do extended physics-informed neural
+  networks (XPINNs) improve generalization? *SIAM Journal on Scientific Computing, 44*(5), A3158–A3182.
+  https://doi.org/10.1137/21M1447039
+  - **Used for:** the trade-off of decomposition. Each subdomain's solution becomes simpler, but each subnetwork sees
+    less of the problem. This matches the results: ATLAS-XPINN wins only when a subdomain's field becomes much
+    simpler, such as the uniform field inside an inclusion.
+- **Jagtap, A. D., & Karniadakis, G. E. (2020).** Extended physics-informed neural networks (XPINNs): A generalized
+  space-time domain decomposition based deep learning framework for nonlinear partial differential equations.
+  *Communications in Computational Physics, 28*(5), 2002–2041. https://doi.org/10.4208/cicp.OA-2020-0164
+  - **Used for:** the XPINN definition that ATLAS-XPINN follows: non-overlapping subdomains, one network per
+    subdomain, and continuity conditions on the interfaces.
+- **Lu, L., Meng, X., Mao, Z., & Karniadakis, G. E. (2021).** DeepXDE: A deep learning library for solving
+  differential equations. *SIAM Review, 63*(1), 208–228. https://doi.org/10.1137/19M1274067
+  - **Used for:** the independent PINN baseline (DeepXDE 1.15.0) on the paper benchmarks.
+- **Raissi, M., Perdikaris, P., & Karniadakis, G. E. (2019).** Physics-informed neural networks: A deep learning
+  framework for solving forward and inverse problems involving nonlinear partial differential equations. *Journal of
+  Computational Physics, 378*, 686–707. https://doi.org/10.1016/j.jcp.2018.10.045
+  - **Used for:** the strong-form PINN, which both the in-house standard PINN and the DeepXDE baselines implement.
+- **Samaniego, E., Anitescu, C., Goswami, S., Nguyen-Thanh, V. M., Guo, H., Hamdia, K., Zhuang, X., & Rabczuk, T.
+  (2020).** An energy approach to the solution of partial differential equations in computational mechanics via
+  machine learning: Concepts, implementation and applications. *Computer Methods in Applied Mechanics and
+  Engineering, 362*, 112790. https://doi.org/10.1016/j.cma.2019.112790
+  - **Used for:** the deep energy method (minimum potential energy as the loss), which is the formulation of both
+    ATLAS solvers.
+- **Wang, Y., Sun, J., Li, W., Lu, Z., & Liu, Y. (2022).** CENN: Conservative energy method based on neural networks
+  with subdomains for solving variational problems involving heterogeneous and complex geometries. *Computer Methods
+  in Applied Mechanics and Engineering, 400*, 115491. https://arxiv.org/abs/2110.01359
+  - **Used for:** the direct precedent for the soft-inclusion benchmark. On a two-phase problem with a circular
+    interface and a 15:1 contrast, the single-network deep energy method reached 6.9 % relative L2 and the subdomain
+    version 0.81 %. The soft inclusion uses the same contrast and the same material-wise decomposition.
+- **DeepXDE documentation and discussion.**
+  - DeepXDE. (n.d.). *Linear elastostatic equation over a 2D square domain* [Documentation].
+    https://deepxde.readthedocs.io/en/latest/demos/pinn_forward/elasticity.plate.html
+  - lululxvi/deepxde. (n.d.). *2D plane stress problem, linear elasticity* (Discussion #1570) [GitHub discussion].
+    https://github.com/lululxvi/deepxde/discussions/1570
+  - **Used for:** standard DeepXDE practice for plane-stress plates with holes: exact essential BCs through an output
+    transform, and traction conditions on every edge. It informed the configured DeepXDE baseline.
+
+### 9.2 Classical solutions used as checks
+
+- **Goodier, J. N. (1933).** Concentration of stress around spherical and cylindrical inclusions and flaws. *Journal
+  of Applied Mechanics, 1*(2), 39–44 (Transactions of the ASME, 55).
+  - **Used for:** the uniform stress inside a circular inclusion in an infinite plate: 0.175 σ (contrast 15) and
+    0.597 σ (contrast 3), against 0.183 σ and 0.610 σ from the finite-plate FEM
+    ([section 4.2](#42-fem-references-fenics-p2-interface-conforming-meshes-element-wise-dg1-stresses)).
+- **Inglis, C. E. (1913).** Stresses in a plate due to the presence of cracks and sharp corners. *Transactions of the
+  Institution of Naval Architects, 55*, 219–241.
+  - **Used for:** the open elliptical slot's stress concentration, Kt = 1 + 2b/a = 5, against Kt = 4.77 for the
+    epoxy-filled slot.
+- **Kirsch, G. (1898).** Die Theorie der Elastizität und die Bedürfnisse der Festigkeitslehre. *Zeitschrift des
+  Vereines deutscher Ingenieure, 42*, 797–807.
+  - **Used for:** the stress concentration at a circular hole (about 3.0 MPa at the hole edge for 1 MPa tension),
+    used to judge the plate-with-hole FEM reference ([section 6](#6-caveats-and-data-quality-notes)).
+- **Timoshenko, S. P., & Goodier, J. N. (1970).** *Theory of elasticity* (3rd ed.). McGraw-Hill.
+  - **Used for:** the cantilever with a parabolic end shear, which sets the cantilever and L-bracket load profiles.
+- **Williams, M. L. (1952).** Stress singularities resulting from various boundary conditions in angular corners of
+  plates in extension. *Journal of Applied Mechanics, 19*, 526–528.
+  - **Used for:** the singularity exponents of the L-bracket's 270° re-entrant corner (λ = 0.5445 and 0.9085),
+    which set the corner enrichment.
+
+The steel insert and the filled slot are engineering cases chosen to test the soft-inclusion result, not benchmarks
+taken from a paper. They are a bonded steel bushing in an aluminium lug and an epoxy-filled cut-out in a steel plate.

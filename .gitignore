@@ -10,3 +10,6 @@ __pycache__/
 
 # per-job plots written by the live web console (regenerated on every run)
 webapp/static/plots/
+
+# local documents (paper drafts), not versioned
+docs/

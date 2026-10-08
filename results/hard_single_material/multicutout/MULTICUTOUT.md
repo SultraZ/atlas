@@ -15,8 +15,8 @@ triangle mesh of each subdomain; geometry only).
 Energy-check guard (no FEM data, same rule for both): the strain energy is re-evaluated on an
 independent 7-point rule; training stops when the two differ by > 0.3 % and the last weights within
 0.15 % are restored. Needed because with too few integration points the network lowers the discrete
-energy by bending between them (first attempt with a 3-point rule diverged; archived in
-results/archive_phases/multicutout_quad3pt/).
+energy by bending between them (a first attempt with a 3-point rule
+diverged).
 
 ## Seed 42, 2000 Adam + 8000 L-BFGS (same budget for every solver)
 

@@ -10,7 +10,7 @@ training. Targets: displacement error below 5 %, von Mises error below 10 %.
 | folder | contents |
 |---|---|
 | `atlas_xpinn_energy/` | **ATLAS-XPINN**: `forward/` (models, validation, plots), `repeatability/` (5 seeds), `inverse_design/` (designs + independent FEM checks), `logs/` |
-| `atlas_energy/` | ATLAS energy, the single-network solver: same structure, plus `prototype/` |
+| `atlas_energy/` | ATLAS energy, the single-network solver: same structure |
 | `comparison/deepxde_vs_atlas_xpinn/` | DeepXDE PINN (defaults and configured) vs ATLAS-XPINN vs FEM: `COMPARISON.md` + figures |
 | `comparison/atlas_vs_atlas_xpinn/` | single network vs ATLAS-XPINN |
 | `comparison/all_solvers/` | in-house PINN, DeepXDE, ATLAS energy, ATLAS-XPINN |
@@ -39,8 +39,3 @@ files, figures and logs.
 |---|---|
 | `hard_single_material/notched_plate/` | U-notched plate: `NOTCHED_PLATE.md` (its headline ATLAS-XPINN rows predate the augmented-Lagrangian fix) |
 | `hard_single_material/multicutout/` | L-bracket with three holes and a slot: `MULTICUTOUT.md` |
-
-## Archive
-
-`archive_phases/`: superseded runs, the old strong-form (residual) phases, the pre-fix ATLAS-XPINN
-results (`atlas_xpinn_energy_penalty_v1/`) and old backups. Nothing in the reports above reads it.

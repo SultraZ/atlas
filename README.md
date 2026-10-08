@@ -1,7 +1,7 @@
 # ATLAS — Adaptive Multi-Scale Framework for Structural Design
 
 Deep-energy (Ritz) forward solver, domain-decomposed as **ATLAS-XPINN**, with inverse shape design
-and FEM (FEniCS) validation. The paper/proposal and the investigation log live under `docs/`.
+and FEM (FEniCS) validation.
 
 ## Layout
 
@@ -31,8 +31,7 @@ atlas_main/
 │   └── reference/           FEM references (.npy / .json) the scripts score against
 ├── tests/                   test scripts (run each with python) + validation drivers
 ├── webapp/                  FastAPI console (results viewer + live solver)
-├── results/                 all study outputs; index in results/README.md
-└── docs/                    Atlas.md (write-up), ATLAS_spec.md, BUGFIXES.md, archive/
+└── results/                 all study outputs; index in results/README.md
 ```
 
 ## Run
@@ -43,7 +42,8 @@ All commands from the project root with the Atlas conda env's python
 ```bash
 # the three paper benchmarks
 python scripts/run_benchmark.py --benchmark cantilever          # or l_bracket / plate_hole
-python scripts/run_repeatability_study.py --benchmark cantilever
+python scripts/run_repeatability_study.py --benchmark cantilever --formulation energy_xpinn --epochs 2000
+python scripts/run_repeatability_study.py --benchmark cantilever --formulation energy --epochs 2000   # single network
 
 # multi-material benchmarks: the full protocol (FEM reference, seed 42, control, 5 seeds)
 bash scripts/multi_material/run_protocol.sh steel_insert vm_l2
@@ -66,9 +66,9 @@ FEniCS references need the legacy FEniCS 2019.1.0 env on `PATH`
 ## Results in one paragraph
 
 On the three paper benchmarks both ATLAS solvers meet the targets by a wide margin (ATLAS-XPINN,
-5 seeds: cantilever 0.25% / 2.14%, plate with hole 0.41% / 2.89%, L-bracket 0.25% / 4.54%
+5 seeds: cantilever 0.25% / 2.14%, plate with hole 0.40% / 2.89%, L-bracket 0.25% / 4.54%
 displacement / von Mises error), while DeepXDE PINNs, with default or tuned settings, stay at
-40-100%. Domain decomposition pays off when a material interface is closed and inside the part:
+30-100%. Domain decomposition pays off when a material interface is closed and inside the part:
 ATLAS-XPINN beats the single network (including a parameter-matched one) on a steel insert
 (10x lower von Mises error), a soft inclusion (2x) and an epoxy-filled slot (displacement only),
 and loses on single-material parts and on three other multi-material candidates, all reported:
@@ -77,7 +77,5 @@ and loses on single-material parts and on three other multi-material candidates,
 ## Notes
 
 - All directory paths route through `atlas/paths.py`.
-- `docs/BUGFIXES.md` records every fix with its evidence (section 16: how ATLAS-XPINN was
-  improved; section 17: multi-material support and interface scaling).
 - The display name is "ATLAS-XPINN"; the folder `results/atlas_xpinn_energy/` and the variant key
   `xpinn_energy` keep their old names so existing paths keep working.

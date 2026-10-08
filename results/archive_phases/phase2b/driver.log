@@ -1,8 +1,0 @@
-== PHASE2B START 2026-09-19 04:52:10 epochs=2000 ==
-==== 2026-09-19 04:52:10 :: C1 phase1e/adam (fixed, adam-only) () ====
-rc=0 C1 phase1e/adam (fixed, adam-only)
-SNAPSHOT C1 phase1e/adam (fixed, adam-only) -> results/phase1e/adam
-==== 2026-09-19 04:58:36 :: C2 phase2b/adam (adaptive, adam-only) (--adaptive-weights --adapt-every 100) ====
-rc=0 C2 phase2b/adam (adaptive, adam-only)
-SNAPSHOT C2 phase2b/adam (adaptive, adam-only) -> results/phase2b/adam
-== PHASE2B_DONE 2026-09-19 05:05:43 ==

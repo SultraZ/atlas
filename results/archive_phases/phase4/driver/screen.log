@@ -1,8 +1,0 @@
-================ 2026-09-19 07:22:49 :: phase4 :: mpe+lbfgs :: plate_hole (epochs=2000) ================
-rc=0 phase4 plate_hole
-SNAPSHOT done phase4 plate_hole
-PHASE4_SCREEN_DONE 2026-09-19 07:41:54
-================ 2026-09-19 07:55:18 :: phase4 :: mpe+lbfgs :: plate_hole (epochs=2000) ================
-rc=143 phase4 plate_hole
-SNAPSHOT done phase4 plate_hole
-PHASE4_SCREEN_DONE 2026-09-19 08:06:09

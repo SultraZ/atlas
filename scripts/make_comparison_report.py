@@ -144,7 +144,7 @@ def table():
         "xpinn_energy": "- **ATLAS-XPINN**: the same energy formulation and hard boundary "
                         "conditions, domain-decomposed: one subnetwork per subdomain with interface "
                         "displacement and traction continuity (augmented-Lagrangian coupling, "
-                        "single-network warm start; docs/BUGFIXES.md section 16)."}
+                        "single-network warm start)."}
     lines += ["", "Solver definitions", ""] + [defs[v] for v, _ in VARIANTS] + [""]
     (OUT / "COMPARISON.md").write_text("\n".join(lines))
     print("\n".join(lines[:11 + 12]))

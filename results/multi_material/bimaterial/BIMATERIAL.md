@@ -58,7 +58,7 @@ primary contrast).
   With the subdomain interface on the material boundary each subnetwork only has to represent a
   smooth field.
 - The decomposed solution is continuous: final integrated squared interface jump 6e-17 (the
-  augmented-Lagrangian recipe, docs/BUGFIXES.md section 16). Its total potential energy
+  augmented-Lagrangian recipe). Its total potential energy
   (-0.52302) is below the single network's (-0.52281); for a conforming (continuous) field, lower
   energy means closer to the exact solution, so the improvement is not a penalty loophole of the
   kind seen on the notched plate before that fix.

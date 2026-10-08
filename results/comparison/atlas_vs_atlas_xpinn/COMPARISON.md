@@ -31,4 +31,4 @@ Compliance difference is C - C_FEM. Maximum pointwise errors are the single wors
 Solver definitions
 
 - **ATLAS (energy, single net)**: a deep-energy (Ritz) formulation with exact hard boundary conditions and ONE network (no domain decomposition).
-- **ATLAS-XPINN**: the same energy formulation and hard boundary conditions, domain-decomposed: one subnetwork per subdomain with interface displacement and traction continuity (augmented-Lagrangian coupling, single-network warm start; docs/BUGFIXES.md section 16).
+- **ATLAS-XPINN**: the same energy formulation and hard boundary conditions, domain-decomposed: one subnetwork per subdomain with interface displacement and traction continuity (augmented-Lagrangian coupling, single-network warm start).

@@ -1,7 +1,0 @@
-================ 2026-09-18 20:31:58 :: phase2 :: lbfgs+adaptive :: l_bracket (epochs=2000 adapt=100) ================
-rc=124 phase2 l_bracket
-SNAPSHOT done phase2 l_bracket
-================ 2026-09-18 21:25:58 :: phase2 :: lbfgs+adaptive :: plate_hole (epochs=2000 adapt=100) ================
-rc=124 phase2 plate_hole
-SNAPSHOT done phase2 plate_hole
-PHASE2_SCREEN_DONE 2026-09-18 22:19:58

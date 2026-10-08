@@ -272,7 +272,7 @@ recomputed from the FEM baseline, and the FEM optimum is found by interpolating 
 | **ATLAS energy (single)** | | | | | | |
 | Cantilever | beam height | compliance = 0.6 × baseline | H 1.000 → 1.19295 m | −0.005 % | −0.033 % | +0.002 % (FEM 1.19294) |
 | Plate with hole | hole radius | compliance = 1.10 × baseline | r 0.300 → 0.48155 m | −0.007 % | +0.002 % | −0.020 % (FEM 0.48165) |
-| L-bracket | fillet radius | peak von Mises = 0.75 × baseline | r 0.100 → 0.20931 m (see note) | see note | see note | see note |
+| L-bracket | fillet radius | peak von Mises = 0.75 × baseline | r 0.100 → 0.20931 m; peak vM 16.62 → 12.56 MPa (−24.4 %) | +0.74 % | −0.56 % | −2.33 % (FEM 0.21430) |
 
 **Design loops:**
 
@@ -285,11 +285,15 @@ recomputed from the FEM baseline, and the FEM optimum is found by interpolating 
 **L-bracket, ATLAS-XPINN:** the fillet radius is 11 % off the FEM optimum because the peak stress is nearly flat in
 the fillet radius near the design. The metric itself lands within 3.7 % of the target.
 
-**L-bracket, ATLAS energy (single network):** the design was re-run after its FEM check.
+**Independent cross-check (2026-09-30):** the console's separate FEM code (`fem/fem_live.py`) was run at the
+ATLAS-XPINN cantilever and plate designs. It uses a different mesh and code path from the stored checks.
 
-- **Stored check:** it is for an earlier design at r = 0.21383. There the result was +0.019 % from the target, −0.99 % ATLAS vs FEM, and −0.05 % from the FEM optimum 0.21395.
-- **Current design:** r = 0.20931 has not been FEM-checked.
-- **Estimate:** interpolating that check's own FEM sweep gives about 12.57 MPa at r = 0.20931, about +0.8 % from the 12.47 MPa target.
+| benchmark | compliance, baseline → design [N·m] | ratio | vs target | stored check |
+|---|---|---|---|---|
+| Cantilever | 1272.37 → 763.67 | 0.6002 | +0.032 % | +0.032 % |
+| Plate with hole | 20.125 → 22.127 | 1.0995 | −0.046 % | −0.047 % |
+
+The L-bracket has no such cross-check, because `fem_live.py` does not model the fillet.
 
 ---
 
@@ -451,7 +455,7 @@ The von Mises gain scales with how much of the stress error sits at the interfac
 
 Start it with `cd webapp/backend && python app.py`, then open http://localhost:8000/.
 
-- **Solver:** ATLAS-XPINN only. It runs at the study settings: seed 42, the chosen Adam epochs (default 2000), then 2000 L-BFGS.
+- **Solver:** ATLAS-XPINN only, seed 42. The default run length is the study's (2000 Adam + 2000 L-BFGS); the Simple view's slider also offers 20, 40, 60 and 80 % of it, and the Expert view takes exact step counts.
 - **Benchmarks:** all six.
 - **At the study settings:** a run is scored against the stored FEM reference.
 - **At any other settings:** the server first solves a FEniCS reference for exactly those inputs (`fem/fem_live.py`). It then reports:
@@ -489,13 +493,20 @@ Start it with `cd webapp/backend && python app.py`, then open http://localhost:8
   - cantilever with L = 6, H = 1.5
   - L-bracket
   - filled slot
-- Those checks used short budgets. A full-budget custom run and a full live inverse run have not yet been done from the browser.
+- Those checks used short budgets.
+- **Full run from the browser (2026-10-02):** steel insert with a titanium insert picked from the material list (E 115 GPa, ν 0.34), full run length, submitted and read entirely through the page. A fresh FEM reference was solved for these settings (21,219 cells).
+
+| bending error | stress error | band, insert / plate side | compliance vs FEM | training time |
+|---|---|---|---|---|
+| 0.040 % | 0.23 % | 1.20 % / 1.10 % | −0.00 % | 8 min 21 s |
+
+- **Shortest run length (20 %, 400 + 400), plate with a hole:** 5.9 % bending and 10.0 % stress error in 96 s, just over both goals. The full run gives 0.75 % and 3.4 %.
+- **Inverse design:** a live run from the browser has not been done.
 
 ---
 
 ## 6. Caveats and data-quality notes
 
-- **L-bracket, single-network inverse design:** the stored FEM check is for an earlier design radius ([section 3.6](#36-inverse-design-fem-checked)).
 - **L-bracket reference compliance:** the stored FEM value (96.52 N·m) comes from sampling the solution at the nodes. The converged value is 96.97 N·m. ATLAS's +0.4 % "error" is therefore about −0.05 % against the converged value. No conclusion changes.
 - **Plate-with-hole von Mises reference:** the FEM von Mises is an L2 projection onto P2, which oscillates on the hole edge. Consecutive nodes read 2.2, 0.5, 5.6 and 3.2 MPa, while Kirsch (1898) gives about 3.0. Part of the ~2.6 % plate stress error is reference noise.
 - **Plate-with-hole exclusion point:** the plate's singular-point exclusion sits at (r, 0), which is the minimum-stress point. It was left unchanged so the metric stays comparable.
@@ -598,7 +609,7 @@ python scripts/multi_material/make_report.py --bench steel_insert
 
 ## 9. References
 
-Entries follow APA 7 style, as in the proposal (`docs/Atlas.md`). Hu et al. (2022) is also in the proposal's list.
+Entries follow APA 7 style, as in the proposal. Hu et al. (2022) is also in the proposal's list.
 
 ### 9.1 Literature searched for this study
 

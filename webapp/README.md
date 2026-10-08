@@ -1,6 +1,8 @@
 # ATLAS Web Console
 
-Two views in one page, with a light, dark or Atlas theme (the choice is kept in the browser):
+Two views in one page, with a light, dark or Atlas theme. A Simple / Expert switch sets the level of detail:
+Simple (the default) explains every result in plain words, with "?" tips for each term and a material picker;
+Expert shows the full metrics and solver settings. Both choices are kept in the browser.
 
 - **Results**: the stored study in `results/`, read through `/api/results`. The three paper
   benchmarks (ATLAS-XPINN, the single-network ATLAS solver and two DeepXDE PINN baselines against
@@ -31,14 +33,19 @@ Open http://localhost:8000/. No build step: `frontend/` is plain HTML, CSS and J
 | GET | `/api/results` | stored study: per benchmark, solver errors, params and train times, seed statistics, inverse design, figure URLs under `/results/` |
 | GET | `/api/benchmarks` | benchmark metadata for the live solver: adjustable parameters (label, unit, study value, range), subdomains, network, inverse-design parameter; the L-BFGS budget and seed |
 | GET | `/api/health` | device, torch version, active jobs |
-| POST | `/api/forward` | `{benchmark, formulation: "energy_xpinn" \| "energy", epochs, params}`; `params` overrides the study settings (see `/api/benchmarks`); the UI always sends `energy_xpinn` |
+| POST | `/api/forward` | `{benchmark, formulation: "energy_xpinn" \| "energy", epochs, lbfgs, params}`; `lbfgs` is at most 8000 (use multiples of 400); `params` overrides the study settings (see `/api/benchmarks`); the UI always sends `energy_xpinn` |
 | POST | `/api/inverse` | `{benchmark}` for cantilever, l_bracket or plate_hole (ATLAS-XPINN design loop) |
 | GET | `/api/jobs` | recent jobs (without logs) |
 | GET | `/api/jobs/{id}` | status, `stage` (setup, train, predict, validate, plots), streaming log, `progress` (energy per evaluation), `custom` flag, metrics, plot URLs |
 
-A live forward run uses the study's settings (seed 42, the given Adam epochs, then 2000 L-BFGS
-iterations), so with the default 2000 epochs it uses exactly the configuration of the stored seed-42
-run (GPU arithmetic can still differ in the last digits).
+A live forward run uses seed 42 and the given Adam epochs and L-BFGS iterations. The default
+(2000 + 2000) is exactly the configuration of the stored seed-42 run (GPU arithmetic can still differ
+in the last digits). The Simple view's run-length slider picks 20, 40, 60, 80 or 100 % of that budget;
+the Expert view also accepts longer L-BFGS budgets, up to 8000.
+L-BFGS runs in four augmented-Lagrangian stages of whole 100-step chunks, so budgets are multiples of
+400; others are rounded up per stage. Shorter runs are faster and less accurate: at 20 % (400 + 400)
+the plate with a hole took 96 s and gave 5.9 % displacement and 10.0 % von Mises error, against
+0.75 % and 3.4 % for the full run.
 
 ## Layout
 

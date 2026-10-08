@@ -50,6 +50,7 @@ JOBS_LOCK = threading.Lock()
 RUN_LOCK = threading.Lock()
 LOG_CAP = 20000
 HIDDEN_LAYERS, NEURONS, SEED, LBFGS_ITERS = 4, 64, 42, 2000
+MAX_LBFGS = 4 * LBFGS_ITERS
 
 PAPER = ["cantilever", "l_bracket", "plate_hole"]
 MULTI = ["steel_insert", "bimaterial", "filled_slot"]
@@ -174,6 +175,7 @@ class ForwardRequest(BaseModel):
     benchmark: str = Field(..., pattern="^(cantilever|l_bracket|plate_hole|steel_insert|bimaterial|filled_slot)$")
     formulation: str = Field("energy_xpinn", pattern="^(energy|energy_xpinn)$")
     epochs: int = Field(2000, ge=50, le=40000)
+    lbfgs: int = Field(LBFGS_ITERS, ge=100, le=MAX_LBFGS)
     n_interior: int = Field(800, ge=200, le=5000)
     warm_start_eb: bool = True
     prefit_epochs: int = Field(4000, ge=0, le=40000)
@@ -199,7 +201,9 @@ def submit(kind: str, payload: dict) -> str:
     with JOBS_LOCK:
         JOBS[job_id] = dict(id=job_id, kind=kind, benchmark=bench, custom=payload["custom"],
                             settings=live.values(bench, payload.get("params") if kind == "forward" else None),
-                            formulation=payload.get("formulation", "energy_xpinn"), status="queued", stage="queued",
+                            formulation=payload.get("formulation", "energy_xpinn"),
+                            budget=dict(epochs=payload["epochs"], lbfgs=payload["lbfgs"]) if kind == "forward" else None,
+                            status="queued", stage="queued",
                             log="", metrics={}, plots={}, progress=None,
                             created=datetime.now().isoformat(timespec="seconds"),
                             started=None, finished=None, error=None)
@@ -280,7 +284,7 @@ def _run_forward(job_id: str, payload: dict) -> None:
         benchmark=bench, device=device, epochs=payload["epochs"], formulation=payload["formulation"],
         n_interior=payload["n_interior"], n_boundary=max(150, payload["n_interior"] // 5),
         n_interface=max(80, payload["n_interior"] // 10), use_lbfgs=True,
-        lbfgs_steps=LBFGS_ITERS // 100, lbfgs_max_iter_per_step=100,
+        lbfgs_steps=payload["lbfgs"] // 100, lbfgs_max_iter_per_step=100,
         warm_start_eb=bench == "cantilever" and payload.get("warm_start_eb", True),
         prefit_epochs=payload.get("prefit_epochs", 4000), seed=SEED)
     seconds = time.perf_counter() - t0
@@ -323,10 +327,10 @@ def _run_multi(job_id: str, payload: dict) -> None:
     set_stage(job_id, "train")
     t0 = time.perf_counter()
     if form == "energy_xpinn":
-        hist = train_decomposed(model, prob, epochs=payload["epochs"], lbfgs_per_stage=LBFGS_ITERS,
+        hist = train_decomposed(model, prob, epochs=payload["epochs"], lbfgs_per_stage=payload["lbfgs"],
                                 gammas=(30.0,), verbose=True)
     else:
-        hist = train_energy(model, prob, epochs=payload["epochs"], lbfgs_iters=LBFGS_ITERS, lbfgs_chunk=100)
+        hist = train_energy(model, prob, epochs=payload["epochs"], lbfgs_iters=payload["lbfgs"], lbfgs_chunk=100)
     if device.startswith("cuda"):
         torch.cuda.synchronize()
     seconds = time.perf_counter() - t0
@@ -402,7 +406,7 @@ def _run_custom(job_id: str, payload: dict) -> None:
           f"{prob.n_points} quadrature points, {device}")
     set_stage(job_id, "train")
     t0 = time.perf_counter()
-    hist = train_decomposed(model, prob, epochs=payload["epochs"], lbfgs_per_stage=LBFGS_ITERS, gammas=(30.0,), verbose=True)
+    hist = train_decomposed(model, prob, epochs=payload["epochs"], lbfgs_per_stage=payload["lbfgs"], gammas=(30.0,), verbose=True)
     if device.startswith("cuda"):
         torch.cuda.synchronize()
     seconds = time.perf_counter() - t0
@@ -513,7 +517,7 @@ def index():
 
 @app.get("/api/benchmarks")
 def benchmarks():
-    return {"benchmarks": [bench_meta(b) for b in PAPER + MULTI], "lbfgs_iters": LBFGS_ITERS, "seed": SEED}
+    return {"benchmarks": [bench_meta(b) for b in PAPER + MULTI], "lbfgs_iters": LBFGS_ITERS, "max_lbfgs": MAX_LBFGS, "seed": SEED}
 
 
 def _paper_results(b: str) -> dict:
@@ -547,7 +551,9 @@ def _paper_results(b: str) -> dict:
                    atlas=seeds(_load("atlas_energy", "repeatability", b, "summary.json"))),
         inverse=None if not inv else dict(metric=inv.get("metric"), value=inv.get("p_atlas"),
                                           error_vs_target=inv.get("metric_error_vs_target"),
-                                          within_10pct=inv.get("within_10pct"), target_ratio=inv.get("target_ratio")),
+                                          within_10pct=inv.get("within_10pct"), target_ratio=inv.get("target_ratio"),
+                                          baseline=(_load("atlas_xpinn_energy", "inverse_design", f"{b}_inverse.json")
+                                                    or {}).get("param_baseline")),
         exclusion=dict(factor=(af or {}).get("von_mises_exclusion_factor"),
                        radius=(af or {}).get("von_mises_exclusion_radius")),
         plots={k: v for k, v in dict(

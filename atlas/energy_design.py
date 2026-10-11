@@ -37,13 +37,14 @@ class DesignCase:
     hint = ''
 
     def __init__(self, device: str = 'cpu', dtype=torch.float64,
-                 hidden_layers: int = 4, neurons: int = 64):
+                 hidden_layers: int = 4, neurons: int = 64, E: float = E_MOD, nu: float = NU):
         self.device = device
         self.dtype = dtype
         self.hidden_layers = hidden_layers
         self.neurons = neurons
-        self.physics_train = PlaneStressElasticity(E=E_MOD / STRESS_SCALE, nu=NU)
-        self.physics_real = PlaneStressElasticity(E=E_MOD, nu=NU)
+        self.E, self.nu = E, nu
+        self.physics_train = PlaneStressElasticity(E=E / STRESS_SCALE, nu=nu)
+        self.physics_real = PlaneStressElasticity(E=E, nu=nu)
 
     def geometry(self, p):
         raise NotImplementedError
@@ -144,10 +145,13 @@ class CantileverDesign(DesignCase):
     hint = 'compliance falls as the beam gets taller (about 1/H^3)'
     L = 4.0
 
-    def __init__(self, *a, nx: int = 60, ny: int = 20, ng: int = 3, **kw):
+    def __init__(self, *a, nx: int = 60, ny: int = 20, ng: int = 3, L: float = 4.0, load: float = 1e6,
+                 p0: float = 1.0, **kw):
         super().__init__(*a, **kw)
-        self.P = -1e6 / STRESS_SCALE
-        self._u_s = 1e6 * self.L ** 3 / (3.0 * E_MOD * (self.p0 ** 3 / 12.0))
+        self.L, self.p0 = float(L), float(p0)
+        self.lo, self.hi = 0.5 * self.p0, 1.6 * self.p0
+        self.P = -load / STRESS_SCALE
+        self._u_s = load * self.L ** 3 / (3.0 * self.E * (self.p0 ** 3 / 12.0))
         xi_p, xi_w = _gauss_on_edges(graded_nodes(0, 1, nx, 2.0, 'a'), ng)
         eta_p, eta_w = _gauss_on_edges(graded_nodes(0, 1, ny, 1.6, 'both'), ng)
         XI, ETA = np.meshgrid(xi_p, eta_p, indexing='ij')
@@ -192,10 +196,13 @@ class PlateHoleDesign(DesignCase):
     hint = 'compliance grows with the hole size (less material)'
     W = H = 2.0
 
-    def __init__(self, *a, n_xi: int = 24, n_th: int = 24, ng: int = 3, **kw):
+    def __init__(self, *a, n_xi: int = 24, n_th: int = 24, ng: int = 3, sigma: float = 1e6,
+                 p0: float = 0.3, **kw):
         super().__init__(*a, **kw)
-        self.sigma = 1e6 / STRESS_SCALE
-        self._u_s = 1e6 * self.W / E_MOD
+        self.p0 = float(p0)
+        self.hi = max(0.8, min(0.95, 1.5 * self.p0))
+        self.sigma = sigma / STRESS_SCALE
+        self._u_s = sigma * self.W / self.E
         th_split = math.atan2(self.H, self.W)
         xi_edges = graded_nodes(0.0, 1.0, n_xi, 1.5, 'a')
         self._blocks = []
@@ -252,11 +259,12 @@ class LBracketFilletDesign(DesignCase):
     hint = 'peak stress falls as the fillet grows (compliance barely changes)'
     s = 1.0
 
-    def __init__(self, *a, n: int = 24, n_th: int = 16, n_xi: int = 16, ng: int = 3, **kw):
+    def __init__(self, *a, n: int = 24, n_th: int = 16, n_xi: int = 16, ng: int = 3, load: float = 1e6,
+                 **kw):
         super().__init__(*a, **kw)
         s = self.s
-        self.P = 1e6 / STRESS_SCALE
-        self._u_s = 1e6 * s ** 3 / (3.0 * E_MOD * (s ** 3 / 12.0))
+        self.P = load / STRESS_SCALE
+        self._u_s = load * s ** 3 / (3.0 * self.E * (s ** 3 / 12.0))
         self._base = [(self._t(p), self._t(w)) for p, w in l_bracket_blocks(s, n, ng, 3.0)]
         lp, lw, t = line_quadrature((2 * s, s), (2 * s, 2 * s), 12, 4)
         self._load = (self._t(lp), self._t(lw),
@@ -459,12 +467,12 @@ def run_inverse_design(benchmark: str, metric: Optional[str] = None,
                        p_init: Optional[float] = None, device: str = 'cpu',
                        net: Optional[EnergyNet] = None, forward_epochs: int = 2000,
                        forward_lbfgs: Optional[int] = None, seed: int = 42, verbose: bool = True,
-                       decomposed: bool = False, **solver_kw) -> Dict:
+                       decomposed: bool = False, case_kw: Optional[Dict] = None, **solver_kw) -> Dict:
     if decomposed:
         from atlas.energy_xpinn_design import make_xpinn_case
-        case = make_xpinn_case(benchmark, device=device)
+        case = make_xpinn_case(benchmark, device=device, **(case_kw or {}))
     else:
-        case = make_case(benchmark, device=device)
+        case = make_case(benchmark, device=device, **(case_kw or {}))
     if forward_lbfgs is None:
         forward_lbfgs = 2000 if decomposed else 1500
     metric = metric or case.default_metric

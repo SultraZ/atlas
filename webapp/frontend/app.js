@@ -444,7 +444,7 @@ function renderSide(b) {
 function goalText(inv) {
   const r = inv.target_ratio;
   const what = inv.param || "a dimension";
-  if (inv.metric === "compliance" && r) return `a ${what} that makes it bend ${Math.round(Math.abs(1 - r) * 100)} % ${r < 1 ? "less" : "more"}`;
+  if (inv.metric === "compliance" && r) return `a ${what} that makes it ${/hole/.test(what) ? "stretch" : "bend"} ${Math.round(Math.abs(1 - r) * 100)} % ${r < 1 ? "less" : "more"}`;
   if (inv.metric === "peak_vm" && r) return `a ${what} that cuts the peak stress by ${Math.round((1 - r) * 100)} %`;
   return inv.objective || inv.metric || "";
 }
@@ -515,11 +515,11 @@ async function loadResults() {
 
 const STEPS = {
   forward: [["setup", "Setup"], ["train", "Training"], ["predict", "Prediction"], ["validate", "FEM validation"], ["plots", "Plots"]],
-  inverse: [["setup", "Setup"], ["train", "Design loop"], ["plots", "Plots"]],
+  inverse: [["setup", "Setup"], ["train", "Design loop"], ["validate", "FEM check"], ["plots", "Plots"]],
 };
 const STEPS_SIMPLE = {
   forward: [["setup", "Getting ready"], ["train", "Training"], ["predict", "Predicting"], ["validate", "Checking with FEM"], ["plots", "Drawing"]],
-  inverse: [["setup", "Getting ready"], ["train", "Trying shapes"], ["plots", "Drawing"]],
+  inverse: [["setup", "Getting ready"], ["train", "Trying shapes"], ["validate", "Checking with FEM"], ["plots", "Drawing"]],
 };
 
 function liveMeta(key) { return (state.meta || []).find((m) => m.key === key); }
@@ -542,20 +542,20 @@ function renderSpec() {
   $("#spec").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
   const inv = m.inverse;
   const custom = isCustom(m.key);
-  $("#runInverse").disabled = !inv || custom || isBusy();
+  $("#runInverse").disabled = !inv || isBusy();
   $("#runForward").textContent = isBusy() ? "Running…" : S("Run simulation", "Run forward + validate");
   $("#runInverse").textContent = S("Find a shape (inverse design)", "Run inverse design");
   $("#runNote").innerHTML = simple()
     ? (!inv
       ? "Runs on the server's graphics card, one run at a time. If someone else is running, yours waits in line. Finding a shape is available for the one-material parts."
       : custom
-        ? "Finding a shape works with the original settings only; press Reset to use it. Runs one at a time on the server."
-        : `Find a shape ${tip("inverse")} searches for ${esc(inverseRatio(m.key) ? goalText({ ...inv, target_ratio: inverseRatio(m.key), metric: inverseMetric(m.key) }) : `the best ${inv.param}`)}. Runs one at a time on the server.`)
+        ? `Find a shape ${tip("inverse")} searches for ${esc(inverseRatio(m.key) ? goalText({ ...inv, target_ratio: inverseRatio(m.key), metric: inverseMetric(m.key) }) : `the best ${inv.param}`)}, starting from your settings, then FEM checks the result. It takes a while; runs go one at a time.`
+        : `Find a shape ${tip("inverse")} searches for ${esc(inverseRatio(m.key) ? goalText({ ...inv, target_ratio: inverseRatio(m.key), metric: inverseMetric(m.key) }) : `the best ${inv.param}`)}, then FEM checks the result. Runs one at a time on the server.`)
     : esc(!inv
       ? "Inverse design is set up for the three paper benchmarks. One GPU job runs at a time; new runs wait in a queue."
       : custom
-        ? "Inverse design runs at the study settings; reset the properties to use it. One GPU job runs at a time."
-        : `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}. One GPU job runs at a time; new runs wait in a queue.`);
+        ? `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}, starting from the custom settings; FEniCS then checks the design. One GPU job runs at a time.`
+        : `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}; FEniCS then checks the design. One GPU job runs at a time; new runs wait in a queue.`);
 }
 
 const inverseOf = (key) => state.results?.benchmarks?.[key]?.inverse;
@@ -861,7 +861,7 @@ function renderJob() {
   $("#runForward").disabled = busy;
   $("#runForward").textContent = busy ? "Running…" : S("Run simulation", "Run forward + validate");
   const m = liveMeta(state.liveBench);
-  $("#runInverse").disabled = busy || !m?.inverse || isCustom(state.liveBench);
+  $("#runInverse").disabled = busy || !m?.inverse;
   const steps = (simple() ? STEPS_SIMPLE : STEPS)[j?.kind === "inverse" ? "inverse" : "forward"];
   if (!j) {
     $("#jobTitle").textContent = S("Nothing run yet", "No run yet");
@@ -914,11 +914,19 @@ function renderTiles(j) {
   const mx = done ? j.metrics : {};
   const waiting = j && !done ? (j.status === "error" ? "failed" : "running") : "no run yet";
   if (j?.kind === "inverse") {
+    const fc = mx.fem_check || {};
+    const ratio = fc.target_ratio;
+    const change = ratio != null ? `${ratio < 1 ? "−" : "+"}${Math.round(Math.abs(1 - ratio) * 100)} %` : null;
+    const what = mx.metric === "peak_vm" ? "peak stress" : mx.metric === "compliance" ? (/hole/.test(mx.param || "") ? "stretching" : "bending") : mx.metric;
+    const near = (x) => mx.bounds && Math.abs(mx.final - x) < 1e-6;
+    const edge = done && !mx.converged ? (near(mx.bounds?.[1]) ? "largest" : near(mx.bounds?.[0]) ? "smallest" : "") : null;
+    const stop = edge == null ? "" : edge ? S(` · stopped at the ${edge} size allowed`, ` · at the ${edge === "largest" ? "upper" : "lower"} bound`) : S(" · did not fully settle", ` · ${mx.status}`);
     $("#tiles").innerHTML = [
-      tile(done ? `${cap(mx.param)} found` : S("Shape found", "Design found"), done ? mx.final?.toFixed(4) : null, done ? `started from ${mx.initial?.toFixed(3)}` : waiting),
-      tile(S("Goal", "Objective"), done ? mx.objective : null, done ? `target ${sci(mx.target)}` : waiting),
-      tile(S("Shapes tried", "Outer iterations"), done ? String(mx.n_outer) : null, done ? (mx.converged ? S("goal reached", "converged") : mx.status) : waiting),
-      tile("Run time", done ? dur(mx.train_seconds) : null, done ? `wall-clock on ${state.health?.device || "the server"}` : waiting),
+      tile(done ? `${cap(mx.param)} found` : S("Shape found", "Design found"), done ? `${mx.final?.toFixed(3)} m` : null, done ? `started from ${mx.initial?.toFixed(3)} m${stop}` : waiting),
+      tile(S("Goal", "Objective"), done ? change : null, done ? S(`change in ${what} from the start`, `${mx.objective}: ${sci(mx.target)}`) : waiting),
+      tile(S("Checked with FEM", "FEM check"), done && fc.error_vs_target != null ? spct(fc.error_vs_target) : null,
+        done ? S("from the goal, by the trusted simulation", `FEM ${what} at the design vs its target`) : waiting, done && fc.within_10pct != null ? fc.within_10pct : null),
+      tile("Run time", done ? dur(mx.train_seconds) : null, done ? S("design loop on the server's graphics card", `design loop on ${state.health?.device || "the server"}`) : waiting),
     ].join("");
     return;
   }
@@ -934,7 +942,8 @@ function renderTiles(j) {
 function renderLiveFigure(j) {
   const card = $("#liveFig");
   const done = j?.status === "done";
-  const figs = j?.kind === "inverse" ? [["design", S("Shape", "Design")], ["inverse_history", S("Steps", "History")]] : [["fem_comparison", S("Comparison", "ATLAS vs FEM")], ["convergence", S("Training", "Convergence")]];
+  const figs = j?.kind === "inverse" ? [["design", S("Shape", "Design")], ["inverse_history", S("Steps", "History")]]
+    : [["fem_comparison", S("Comparison", "ATLAS vs FEM")], ["deformed", S("Deformed shape", "Deformed")], ["convergence", S("Training", "Convergence")]];
   const avail = done ? figs.filter(([k]) => j.plots?.[k]) : [];
   const cur = avail.find(([k]) => k === state.fig.live) || avail[0];
   const m = j ? liveMeta(j.benchmark) : null;
@@ -949,17 +958,32 @@ function renderLiveFigure(j) {
 }
 
 function liveCaption(j, fig) {
-  const stressOnly = j.custom || liveMeta(j.benchmark)?.group === "multi";
+  const studyPlot = !j.custom && liveMeta(j.benchmark)?.group === "paper";
   if (fig === "fem_comparison") {
-    return stressOnly
-      ? S("Stress in the part: the trusted simulation (FEM), ATLAS-XPINN, and the difference between them. The more alike the first two look, and the darker the third, the closer the match.",
-        "von Mises stress: FEM, ATLAS-XPINN and the pointwise error (saturated at 10 % of the FEM 99.8th percentile).")
-      : S("Top row: how far each point moves. Bottom row: stress. Left to right: ATLAS-XPINN, the trusted simulation (FEM), and the difference between them.",
-        "Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the FEniCS reference, and the pointwise error.");
+    return studyPlot
+      ? S("Top row: how far each point moves. Bottom row: stress. Left to right: ATLAS-XPINN, the trusted simulation (FEM), and the difference between them.",
+        "Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the FEniCS reference, and the pointwise error.")
+      : S("How far each point moves (|u|) and the stress, each shown three ways: the trusted simulation (FEM), ATLAS-XPINN, and the difference between them. The more alike the first two look, and the darker the difference, the closer the match.",
+        "|u| and von Mises stress: FEM, ATLAS-XPINN and the pointwise error (saturated at 10 % of the FEM 99.8th percentile of each field).");
+  }
+  if (fig === "deformed") {
+    return studyPlot
+      ? S("The shape ATLAS-XPINN predicts under the load (red) over the unloaded part (blue), with the movement exaggerated so it is visible (the factor is in the title).",
+        "Deformed (red) and undeformed (blue) grids from ATLAS-XPINN, displacement scaled by the factor in the title.")
+      : S("The shape ATLAS-XPINN predicts under the load, with the movement exaggerated so it is visible (the factor is in the title). Colour shows the stress; grey is the unloaded part.",
+        "Deformed configuration predicted by ATLAS-XPINN, displacement scaled by the factor in the title, coloured by von Mises stress.");
   }
   if (fig === "convergence") {
     return S("How training settled: the energy gap falls as the network learns, and the stored energy and the work done by the load settle into balance.",
       "Relative energy gap to the final value, and strain energy U against external work W (U = W / 2 at the solution).");
+  }
+  if (fig === "design") {
+    return S("Left: the starting shape (dashed) and the shape ATLAS found (solid). Middle and right: how far each point of the new shape moves, and its stress.",
+      "Baseline (dashed) and designed (solid) geometry, with |u| and von Mises stress of the design from ATLAS-XPINN.");
+  }
+  if (fig === "inverse_history") {
+    return S("Each step of the search: the size tried, how close it came to the goal (red dashed line), and the gap left, which shrinks as the search settles.",
+      "Design parameter, objective against its target (dashed) and residual |metric / target − 1| per outer iteration.");
   }
   return "";
 }
@@ -976,11 +1000,18 @@ function renderDetails(j) {
   const m = liveMeta(j.benchmark);
   let rows;
   if (j.kind === "inverse") {
+    const fc = mx.fem_check || {};
+    const unit = mx.metric === "peak_vm" ? "Pa" : mx.metric === "compliance" ? "N·m" : "";
+    const val = (x) => (x == null ? "—" : `${sci(x)} ${unit}`.trim());
     rows = [
-      [`${cap(mx.param)}, start`, "baseline geometry", mx.initial?.toFixed(4)],
-      [`${cap(mx.param)}, found`, "ATLAS-XPINN design", mx.final?.toFixed(4)],
-      ["Objective", mx.objective, sci(mx.target)],
-      ["Status", "outer design loop", mx.converged ? "converged" : mx.status],
+      [`${cap(mx.param)}, start`, "baseline geometry", `${mx.initial?.toFixed(4)} m`],
+      [`${cap(mx.param)}, found`, "ATLAS-XPINN design", `${mx.final?.toFixed(4)} m`],
+      ["Objective", mx.objective, val(mx.target)],
+      ["Status", `outer design loop, ${plural(mx.n_outer, "step", "steps")}`, mx.converged ? "converged" : mx.status],
+      ["FEM at the start", `${mx.metric}, starting shape`, val(fc.fem_baseline)],
+      ["FEM target", `${fc.target_ratio != null ? (+fc.target_ratio).toFixed(2) : "—"} × the FEM start`, val(fc.fem_target)],
+      ["FEM at the design", "the shape ATLAS-XPINN found", val(fc.fem_at_design)],
+      ["ATLAS-XPINN vs FEM", `${mx.metric} at the design`, spct(fc.atlas_vs_fem)],
     ];
   } else if (m?.group === "multi") {
     rows = [
@@ -1007,7 +1038,7 @@ function renderDetails(j) {
   if (mx.custom && mx.settings && m) {
     const units = Object.fromEntries(m.params.map((s) => [s.key, [s.label, s.unit, s.step, s.group]]));
     const changed = m.params.filter((s) => Math.abs(mx.settings[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
-    rows.push(["FEniCS reference", "solved for these settings", `${(mx.fem_cells || 0).toLocaleString("en-US")} cells`]);
+    if (mx.fem_cells) rows.push(["FEniCS reference", "solved for these settings", `${mx.fem_cells.toLocaleString("en-US")} cells`]);
     for (const s of changed) rows.push([`${s.group}: ${s.label}`, `study value ${fmtParam(s.value, s.step)} ${s.unit}`.trim(), `${fmtParam(mx.settings[s.key], units[s.key][2])} ${s.unit}`.trim()]);
   }
   card.innerHTML = `<h2>${j.kind === "inverse" ? "Design detail" : "Validation detail"}</h2><dl class="detail-grid">${rows.map(([l, s, v]) => `<div><dt><span>${esc(l)}</span><span>${esc(s)}</span></dt><dd>${esc(v ?? "—")}</dd></div>`).join("")}</dl>`;
@@ -1047,7 +1078,7 @@ async function watchJob(id) {
 async function submit(kind) {
   const bench = state.liveBench;
   const body = kind === "inverse"
-    ? { benchmark: bench }
+    ? { benchmark: bench, params: paramValues(bench) }
     : { benchmark: bench, formulation: "energy_xpinn", epochs: state.budget.epochs, lbfgs: state.budget.lbfgs,
         params: paramValues(bench) };
   $("#runForward").disabled = true;

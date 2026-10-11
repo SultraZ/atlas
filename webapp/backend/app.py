@@ -192,15 +192,16 @@ class InverseRequest(BaseModel):
     n_outer: int = Field(12, ge=1, le=100)
     n_inner: int = Field(40, ge=5, le=2000)
     use_mock: bool = False
+    params: Optional[Dict[str, float]] = None
 
 
 def submit(kind: str, payload: dict) -> str:
     job_id = uuid.uuid4().hex[:8]
     bench = payload["benchmark"]
-    payload["custom"] = kind == "forward" and not live.is_default(bench, payload.get("params"))
+    payload["custom"] = not live.is_default(bench, payload.get("params"))
     with JOBS_LOCK:
         JOBS[job_id] = dict(id=job_id, kind=kind, benchmark=bench, custom=payload["custom"],
-                            settings=live.values(bench, payload.get("params") if kind == "forward" else None),
+                            settings=live.values(bench, payload.get("params")),
                             formulation=payload.get("formulation", "energy_xpinn"),
                             budget=dict(epochs=payload["epochs"], lbfgs=payload["lbfgs"]) if kind == "forward" else None,
                             status="queued", stage="queued",
@@ -275,7 +276,7 @@ def _param_count(model) -> int:
 def _run_forward(job_id: str, payload: dict) -> None:
     from atlas.atlas_main import train_forward_solver
     from atlas.validation import run_validation
-    from atlas.visualization import plot_fem_comparison, plot_training_convergence
+    from atlas.visualization import plot_deformed_shape, plot_fem_comparison, plot_training_convergence
 
     bench, device = payload["benchmark"], auto_device()
     set_stage(job_id, "train")
@@ -302,9 +303,12 @@ def _run_forward(job_id: str, payload: dict) -> None:
                         save_path=str(PLOTS_DIR / f"{job_id}_fem_comparison.png"))
     plot_training_convergence(trainer.history, save_path=str(PLOTS_DIR / f"{job_id}_convergence.png"),
                               adam_epoch_count=trainer.adam_epoch_count)
+    plot_deformed_shape(model, sampler, n_grid=50 if bench == "cantilever" else 70,
+                        save_path=str(PLOTS_DIR / f"{job_id}_deformed.png"))
     with JOBS_LOCK:
         JOBS[job_id]["metrics"] = metrics
         JOBS[job_id]["plots"] = {"fem_comparison": f"/static/plots/{job_id}_fem_comparison.png",
+                                 "deformed": f"/static/plots/{job_id}_deformed.png",
                                  "convergence": f"/static/plots/{job_id}_convergence.png"}
 
 
@@ -361,12 +365,14 @@ def _run_multi(job_id: str, payload: dict) -> None:
           f"interface band {metrics['band_vm_l2_inside']:.3%} / {metrics['band_vm_l2_outside']:.3%}")
 
     set_stage(job_id, "plots")
-    _plot_live(bench, None, coords, vm, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    _plot_live(bench, None, coords, up, vp, vm, u_f, v_f, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    _plot_deformed(bench, None, coords, up, vp, vm, PLOTS_DIR / f"{job_id}_deformed.png")
     plot_training_convergence(history_for_plot(hist), save_path=str(PLOTS_DIR / f"{job_id}_convergence.png"),
                               adam_epoch_count=payload["epochs"])
     with JOBS_LOCK:
         JOBS[job_id]["metrics"] = metrics
         JOBS[job_id]["plots"] = {"fem_comparison": f"/static/plots/{job_id}_fem_comparison.png",
+                                 "deformed": f"/static/plots/{job_id}_deformed.png",
                                  "convergence": f"/static/plots/{job_id}_convergence.png"}
 
 
@@ -448,62 +454,164 @@ def _run_custom(job_id: str, payload: dict) -> None:
           f"compliance {metrics['compliance_error']:+.3%} vs FEM")
 
     set_stage(job_id, "plots")
-    _plot_live(bench, params, coords, vm, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    _plot_live(bench, params, coords, up, vp, vm, u_f, v_f, vm_f, PLOTS_DIR / f"{job_id}_fem_comparison.png")
+    _plot_deformed(bench, params, coords, up, vp, vm, PLOTS_DIR / f"{job_id}_deformed.png")
     plot_training_convergence(history_for_plot(hist), save_path=str(PLOTS_DIR / f"{job_id}_convergence.png"),
                               adam_epoch_count=payload["epochs"])
     with JOBS_LOCK:
         JOBS[job_id]["metrics"] = metrics
         JOBS[job_id]["plots"] = {"fem_comparison": f"/static/plots/{job_id}_fem_comparison.png",
+                                 "deformed": f"/static/plots/{job_id}_deformed.png",
                                  "convergence": f"/static/plots/{job_id}_convergence.png"}
 
 
-def _plot_live(bench, params, coords, vm, vm_f, path):
-    import matplotlib.pyplot as plt
+def _live_triangulation(bench, params, coords, dx=None, dy=None):
     from matplotlib.tri import Triangulation
-    tri = Triangulation(coords[:, 0], coords[:, 1])
-    cx, cy = coords[tri.triangles].mean(axis=1).T
+    base = Triangulation(coords[:, 0], coords[:, 1])
+    cx, cy = coords[base.triangles].mean(axis=1).T
     p = live.si(bench, params)
+    mask = None
     if bench == "plate_hole":
-        tri.set_mask(np.hypot(cx, cy) < p["r"])
+        mask = np.hypot(cx, cy) < p["r"]
     elif bench == "l_bracket":
-        tri.set_mask((cx < live.L_BRACKET_S) & (cy > live.L_BRACKET_S))
-    cap = np.percentile(vm_f, 99.8)
+        mask = (cx < live.L_BRACKET_S) & (cy > live.L_BRACKET_S)
+    tri = base if dx is None else Triangulation(coords[:, 0] + dx, coords[:, 1] + dy, triangles=base.triangles)
+    if mask is not None:
+        tri.set_mask(mask)
+    return tri
+
+
+def _colorbar(fig, ax, cs, label=None):
+    from matplotlib.ticker import MaxNLocator
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    cax = make_axes_locatable(ax).append_axes("right", size="3%", pad=0.08)
+    cb = fig.colorbar(cs, cax=cax, label=label)
+    lo, hi = cs.levels[0], cs.levels[-1]
+    cb.set_ticks([t for t in MaxNLocator(5).tick_values(lo, hi) if lo <= t <= hi * (1 + 1e-9)])
+    cb.ax.tick_params(labelsize=7)
+
+
+def _plot_live(bench, params, coords, up, vp, vm, u_f, v_f, vm_f, path):
+    import matplotlib.pyplot as plt
+    tri = _live_triangulation(bench, params, coords)
     ind = live.inside(bench, params, coords[:, 0], coords[:, 1]).astype(float) if bench in live.INCLUSION else None
-    wide = np.ptp(coords[:, 0]) > 1.6 * np.ptp(coords[:, 1])
-    fig, axes = plt.subplots(3 if wide else 1, 1 if wide else 3, figsize=(10, 7.5) if wide else (13.5, 4.4))
-    panels = [(vm_f / 1e6, "FEM von Mises [MPa]", "inferno", cap / 1e6),
-              (vm / 1e6, "ATLAS-XPINN von Mises [MPa]", "inferno", cap / 1e6),
-              (np.abs(vm - vm_f) / cap * 100, "|error| / FEM 99.8th pct [%]", "magma", 10.0)]
-    for ax, (z, title, cmap, hi) in zip(axes, panels):
-        cs = ax.tricontourf(tri, np.clip(z, 0, hi), levels=np.linspace(0, hi, 30), cmap=cmap)
-        if ind is not None:
-            ax.tricontour(tri, ind, levels=[0.5], colors="w", linewidths=0.8, linestyles="--")
-        fig.colorbar(cs, ax=ax, shrink=0.85)
-        ax.set_title(title, fontsize=10)
-        ax.set_aspect("equal")
-        ax.tick_params(labelsize=7)
+    aspect = np.ptp(coords[:, 1]) / np.ptp(coords[:, 0])
+    wide = aspect < 1 / 1.6
+    fields = [("|u|", "mm", 1e3 * np.hypot(u_f, v_f), 1e3 * np.hypot(up, vp), "viridis"),
+              ("von Mises", "MPa", vm_f / 1e6, vm / 1e6, "inferno")]
+    if wide:
+        fig, axes = plt.subplots(3, 2, figsize=(12, min(9.0, 3 * (5.0 * aspect + 0.75))))
+    else:
+        fig, axes = plt.subplots(2, 3, figsize=(13.5, 8.4))
+    for fi, (name, unit, ref, pred, cmap) in enumerate(fields):
+        cap = np.percentile(ref, 99.8)
+        panels = [(ref, f"FEM {name} [{unit}]", cmap, cap), (pred, f"ATLAS-XPINN {name} [{unit}]", cmap, cap),
+                  (np.abs(pred - ref) / cap * 100, f"{name} error / FEM 99.8th pct [%]", "magma", 10.0)]
+        for pi, (z, title, cm, hi) in enumerate(panels):
+            ax = axes[pi, fi] if wide else axes[fi, pi]
+            cs = ax.tricontourf(tri, z, levels=np.linspace(0, hi, 30), cmap=cm, extend="max")
+            if ind is not None:
+                ax.tricontour(tri, ind, levels=[0.5], colors="w", linewidths=0.8, linestyles="--")
+            ax.set_aspect("equal")
+            ax.set_title(title, fontsize=10)
+            ax.tick_params(labelsize=7)
+            _colorbar(fig, ax, cs)
     fig.suptitle(f"{META[bench]['title']}: ATLAS-XPINN vs FEM", fontsize=11)
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)
 
 
+def _plot_deformed(bench, params, coords, up, vp, vm, path):
+    import matplotlib.pyplot as plt
+    extent = max(np.ptp(coords[:, 0]), np.ptp(coords[:, 1]))
+    peak = float(np.max(np.hypot(up, vp))) or 1.0
+    want = 0.08 * extent / peak
+    scale = float(10 ** np.floor(np.log10(want)))
+    scale *= 5 if want >= 5 * scale else 2 if want >= 2 * scale else 1
+    base = _live_triangulation(bench, params, coords)
+    moved = _live_triangulation(bench, params, coords, scale * up, scale * vp)
+    xs = np.concatenate([coords[:, 0], coords[:, 0] + scale * up])
+    ys = np.concatenate([coords[:, 1], coords[:, 1] + scale * vp])
+    aspect = np.ptp(ys) / np.ptp(xs)
+    fig, ax = plt.subplots(figsize=(11, min(8.5, max(3.2, 9.5 * aspect + 1.2))) if aspect < 0.7 else (7.6, 6.6))
+    ax.tricontourf(base, np.zeros(len(coords)), levels=[-1, 1], colors=["#d9d9d9"], alpha=0.6)
+    cap = np.percentile(vm, 99.8) / 1e6
+    cs = ax.tricontourf(moved, vm / 1e6, levels=np.linspace(0, cap, 30), cmap="inferno", extend="max")
+    if bench in live.INCLUSION:
+        ax.tricontour(moved, live.inside(bench, params, coords[:, 0], coords[:, 1]).astype(float), levels=[0.5],
+                      colors="w", linewidths=0.8, linestyles="--")
+    ax.set_aspect("equal")
+    ax.tick_params(labelsize=7)
+    ax.set_title(f"{META[bench]['title']}: deformed shape (displacement \u00d7 {scale:g}), grey = unloaded shape", fontsize=10)
+    _colorbar(fig, ax, cs, "von Mises [MPa]")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+INVERSE_FEM_KW = {
+    "cantilever": lambda p: dict(L=p["L"], P=-p["load"], E=p["E"], nu=p["nu"]),
+    "plate_hole": lambda p: dict(sigma_inf=p["sigma"], E=p["E"], nu=p["nu"]),
+    "l_bracket": lambda p: dict(P=p["load"], E=p["E"], nu=p["nu"]),
+}
+INVERSE_CASE_KW = {
+    "cantilever": lambda p: dict(E=p["E"], nu=p["nu"], L=p["L"], load=p["load"], p0=p["H"]),
+    "plate_hole": lambda p: dict(E=p["E"], nu=p["nu"], sigma=p["sigma"], p0=p["r"]),
+    "l_bracket": lambda p: dict(E=p["E"], nu=p["nu"], load=p["load"]),
+}
+
+
+def _fem_design_check(bench, params, points):
+    spec = dict(benchmark=bench, points=[float(x) for x in points], kwargs=INVERSE_FEM_KW[bench](live.si(bench, params)))
+    with tempfile.TemporaryDirectory() as tmp:
+        spec_path, out_path = os.path.join(tmp, "spec.json"), os.path.join(tmp, "out.json")
+        json.dump(spec, open(spec_path, "w"))
+        env = dict(os.environ, PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", ""))
+        run = subprocess.run([sys.executable, str(ROOT / "fem" / "fem_parametric.py"), "--check", spec_path, out_path],
+                             capture_output=True, text=True, env=env, timeout=1800, cwd=str(ROOT))
+        if run.returncode != 0:
+            raise RuntimeError("FEniCS design check failed: " + (run.stderr.strip().splitlines() or ["no output"])[-1])
+        return json.load(open(out_path))
+
+
 def _run_inverse(job_id: str, payload: dict) -> None:
     from atlas.atlas_main import design_result_to_json, run_inverse_design_all
 
-    bench, device = payload["benchmark"], auto_device()
+    bench, device, params = payload["benchmark"], auto_device(), payload.get("params") or {}
+    if payload["custom"]:
+        units = {s["key"]: s["unit"] for s in live.PARAMS[bench]}
+        print(f"{META[bench]['title']}, custom settings: " + ", ".join(f"{k}={v:g}{(' ' + units[k]) if units[k] else ''}"
+                                                              for k, v in live.values(bench, params).items()))
     set_stage(job_id, "train")
     t0 = time.perf_counter()
     res = run_inverse_design_all(bench, device, metric=payload.get("metric"), target_ratio=payload.get("target_ratio"),
                                  out_dir=PLOTS_DIR / f"{job_id}_inv", forward_epochs=payload["forward_epochs"],
                                  forward_lbfgs=payload["forward_lbfgs"], max_iter=max(payload["n_outer"], 8),
-                                 verbose=True, decomposed=True)
-    set_stage(job_id, "plots")
+                                 verbose=True, decomposed=True,
+                                 case_kw=INVERSE_CASE_KW[bench](live.si(bench, params)) if payload["custom"] else None)
+    seconds = time.perf_counter() - t0
     data = design_result_to_json(res)
+    metric = data["metric"]
+    ratio = data["target"] / data["baseline"][metric]
+
+    set_stage(job_id, "validate")
+    print("Checking the design with FEniCS ...", flush=True)
+    start, found = _fem_design_check(bench, params, [data["param_baseline"], data["p_star"]])
+    fem_target = ratio * start[metric]
+    check = dict(target_ratio=ratio, fem_baseline=start[metric], fem_at_design=found[metric], fem_target=fem_target,
+                 error_vs_target=found[metric] / fem_target - 1.0,
+                 atlas_vs_fem=data["metrics"][metric] / found[metric] - 1.0)
+    check["within_10pct"] = bool(abs(check["error_vs_target"]) < 0.10)
+    print(f"FEM check: {metric} at the design is {check['error_vs_target']:+.2%} from the target; "
+          f"ATLAS-XPINN vs FEM there {check['atlas_vs_fem']:+.2%}", flush=True)
+
+    set_stage(job_id, "plots")
     hist = [r for r in data["history"] if r["tag"] not in ("probe", "return")]
     metrics = dict(data, param=data["param_name"], initial=data["param_baseline"], final=data["p_star"],
-                   objective=INVERSE_OBJECTIVE.get(data["metric"], data["metric"]), n_outer=len(hist),
-                   train_seconds=time.perf_counter() - t0, formulation="energy_xpinn")
+                   objective=INVERSE_OBJECTIVE.get(metric, metric), n_outer=len(hist), train_seconds=seconds,
+                   formulation="energy_xpinn", custom=payload["custom"], settings=live.values(bench, params),
+                   fem_check=check)
     base = f"/static/plots/{job_id}_inv/{bench}"
     with JOBS_LOCK:
         JOBS[job_id]["metrics"] = metrics

@@ -1,10 +1,12 @@
-"""Run from the project root with the FEniCS env on PATH (all options: --help):
+"""Run from the project root with the FEniCS env on PATH:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fem_parametric.py BENCHMARK PARAMETER
+    PATH=$CONDA_PREFIX/bin:$PATH python fem/fem_parametric.py --check SPEC.json OUT.json
 
 Example:
     PATH=$CONDA_PREFIX/bin:$PATH python fem/fem_parametric.py plate_hole 0.3
 """
 
+import json
 import math
 import os
 import sys
@@ -23,14 +25,18 @@ def _df():
     return df
 
 
-def _sigma(df, u):
+def _lame(E_: float, nu_: float):
+    return E_ / (2.0 * (1.0 + nu_)), E_ * nu_ / (1.0 - nu_ ** 2)
+
+
+def _sigma(df, u, mu=MU, lmbda=LMBDA):
     eps = df.sym(df.grad(u))
-    return LMBDA * df.tr(eps) * df.Identity(2) + 2 * MU * eps
+    return lmbda * df.tr(eps) * df.Identity(2) + 2 * mu * eps
 
 
-def _vm_from_dg(df, uh, mesh):
+def _vm_from_dg(df, uh, mesh, mu=MU, lmbda=LMBDA):
     W = df.FunctionSpace(mesh, "DG", 1)
-    s = _sigma(df, uh)
+    s = _sigma(df, uh, mu, lmbda)
     fxx, fyy, fxy = (df.project(s[0, 0], W), df.project(s[1, 1], W), df.project(s[0, 1], W))
 
     def vm(x, y):
@@ -52,8 +58,9 @@ def _peak(vm, pts) -> float:
 
 
 def solve_cantilever(H: float, L: float = 4.0, P: float = -1e6, nx: int = 160,
-                     ny_per_unit: int = 40) -> Dict[str, float]:
+                     ny_per_unit: int = 40, E: float = E, nu: float = NU) -> Dict[str, float]:
     df = _df()
+    mu, lmbda = _lame(E, nu)
     mesh = df.RectangleMesh(df.Point(0, 0), df.Point(L, H), nx, max(8, int(round(ny_per_unit * H))))
     V = df.VectorFunctionSpace(mesh, "Lagrange", 2)
     bc = df.DirichletBC(V, df.Constant((0.0, 0.0)),
@@ -77,14 +84,15 @@ def solve_cantilever(H: float, L: float = 4.0, P: float = -1e6, nx: int = 160,
     t = Trac(degree=2)
     u, v = df.TrialFunction(V), df.TestFunction(V)
     uh = df.Function(V)
-    df.solve(df.inner(_sigma(df, u), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bc)
+    df.solve(df.inner(_sigma(df, u, mu, lmbda), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bc)
     return dict(compliance=float(df.assemble(df.dot(t, uh) * ds(1))), volume=L * H)
 
 
 def solve_plate_hole(r: float, W: float = 2.0, H: float = 2.0, sigma_inf: float = 1e6,
-                     resolution: int = 100, segments: int = 128) -> Dict[str, float]:
+                     resolution: int = 100, segments: int = 128, E: float = E, nu: float = NU) -> Dict[str, float]:
     import mshr
     df = _df()
+    mu, lmbda = _lame(E, nu)
     dom = mshr.Rectangle(df.Point(0, 0), df.Point(W, H)) - mshr.Circle(df.Point(0, 0), r, segments)
     mesh = mshr.generate_mesh(dom, resolution)
     for _ in range(2):
@@ -111,8 +119,8 @@ def solve_plate_hole(r: float, W: float = 2.0, H: float = 2.0, sigma_inf: float 
     t = df.Constant((sigma_inf, 0.0))
     u, v = df.TrialFunction(V), df.TestFunction(V)
     uh = df.Function(V)
-    df.solve(df.inner(_sigma(df, u), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bcs)
-    vm = _vm_from_dg(df, uh, mesh)
+    df.solve(df.inner(_sigma(df, u, mu, lmbda), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bcs)
+    vm = _vm_from_dg(df, uh, mesh, mu, lmbda)
     th = np.linspace(0.0, 0.5 * math.pi, 181)
     arc = [((r * (1 + 3e-4)) * math.cos(a), (r * (1 + 3e-4)) * math.sin(a)) for a in th]
     return dict(compliance=float(df.assemble(df.dot(t, uh) * ds(1))),
@@ -120,9 +128,11 @@ def solve_plate_hole(r: float, W: float = 2.0, H: float = 2.0, sigma_inf: float 
 
 
 def solve_l_bracket_fillet(f: float, s: float = 1.0, P: float = 1e6, resolution: int = 50,
-                           refinements: int = 2, arc_segments: int = 96) -> Dict[str, float]:
+                           refinements: int = 2, arc_segments: int = 96, E: float = E,
+                           nu: float = NU) -> Dict[str, float]:
     import mshr
     df = _df()
+    mu, lmbda = _lame(E, nu)
     cx, cy = s - f, s + f
     th = np.linspace(0.0, -0.5 * math.pi, arc_segments + 1)
     arc = [df.Point(cx + f * math.cos(a), cy + f * math.sin(a)) for a in th]
@@ -159,8 +169,8 @@ def solve_l_bracket_fillet(f: float, s: float = 1.0, P: float = 1e6, resolution:
     t = Trac(degree=2)
     u, v = df.TrialFunction(V), df.TestFunction(V)
     uh = df.Function(V)
-    df.solve(df.inner(_sigma(df, u), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bc)
-    vm = _vm_from_dg(df, uh, mesh)
+    df.solve(df.inner(_sigma(df, u, mu, lmbda), df.sym(df.grad(v))) * df.dx == df.dot(t, v) * ds(1), uh, bc)
+    vm = _vm_from_dg(df, uh, mesh, mu, lmbda)
     a = np.linspace(-0.5 * math.pi, 0.0, 181)
     k = 1.0 + 3e-4
     pts = [(cx + f * k * math.cos(x), cy + f * k * math.sin(x)) for x in a]
@@ -179,5 +189,11 @@ def fem_metrics(benchmark: str, p: float, **kw) -> Dict[str, float]:
 
 
 if __name__ == "__main__":
-    b, p = sys.argv[1], float(sys.argv[2])
-    print(b, p, fem_metrics(b, p))
+    if sys.argv[1] == "--check":
+        spec = json.load(open(sys.argv[2]))
+        out = [dict(p=p, **fem_metrics(spec["benchmark"], p, **spec.get("kwargs", {}))) for p in spec["points"]]
+        json.dump(out, open(sys.argv[3], "w"))
+        print(json.dumps(out), flush=True)
+    else:
+        b, p = sys.argv[1], float(sys.argv[2])
+        print(b, p, fem_metrics(b, p))

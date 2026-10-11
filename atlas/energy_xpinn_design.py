@@ -46,6 +46,8 @@ class XPINNDesign(DesignCase):
         self.al_stages, self.warm_start = int(al_stages), int(warm_start)
         self.base = self.base_cls(device=device, dtype=dtype, hidden_layers=hidden_layers,
                                   neurons=neurons, **kw)
+        self.E, self.nu = self.base.E, self.base.nu
+        self.physics_train, self.physics_real = self.base.physics_train, self.base.physics_real
         for a in ('benchmark', 'param_name', 'param_unit', 'lo', 'hi', 'p0',
                   'default_metric', 'metrics_available', 'hint'):
             setattr(self, a, getattr(self.base, a))

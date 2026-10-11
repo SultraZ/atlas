@@ -13,7 +13,10 @@ Expert shows the full metrics and solver settings. Both choices are kept in the 
   against FEniCS, or runs an inverse design on a paper benchmark. Each benchmark's materials, load
   and key dimension can be changed with sliders (with a live geometry preview). At the study's
   settings a run is scored against the stored reference; at any other settings the server first
-  solves a FEniCS reference for exactly those inputs (`fem/fem_live.py`, a few seconds). The solver
+  solves a FEniCS reference for exactly those inputs (`fem/fem_live.py`, a few seconds). A forward
+  run shows the displacement and stress against FEM, the deformed shape and the training curve. An
+  inverse design starts from the chosen settings (for the cantilever and the plate, the height or
+  radius on the sliders is the starting shape) and FEniCS checks the design it finds. The solver
   log, the pipeline steps and a live energy-descent chart update while the job runs; jobs run one at
   a time and queue.
 
@@ -34,7 +37,7 @@ Open http://localhost:8000/. No build step: `frontend/` is plain HTML, CSS and J
 | GET | `/api/benchmarks` | benchmark metadata for the live solver: adjustable parameters (label, unit, study value, range), subdomains, network, inverse-design parameter; the L-BFGS budget and seed |
 | GET | `/api/health` | device, torch version, active jobs |
 | POST | `/api/forward` | `{benchmark, formulation: "energy_xpinn" \| "energy", epochs, lbfgs, params}`; `lbfgs` is at most 8000 (use multiples of 400); `params` overrides the study settings (see `/api/benchmarks`); the UI always sends `energy_xpinn` |
-| POST | `/api/inverse` | `{benchmark}` for cantilever, l_bracket or plate_hole (ATLAS-XPINN design loop) |
+| POST | `/api/inverse` | `{benchmark, params}` for cantilever, l_bracket or plate_hole: the ATLAS-XPINN design loop starting from the given settings (study settings when `params` is omitted), then a FEniCS check of the design (`fem/fem_parametric.py --check`) |
 | GET | `/api/jobs` | recent jobs (without logs) |
 | GET | `/api/jobs/{id}` | status, `stage` (setup, train, predict, validate, plots), streaming log, `progress` (energy per evaluation), `custom` flag, metrics, plot URLs |
 

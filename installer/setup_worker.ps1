@@ -1,5 +1,5 @@
 # Keep ErrorActionPreference = 'Continue' so stderr notices from pip/python never trigger PowerShell 5.1 NativeCommandError.
-# Every native executable call runs directly (streaming output live) and checks $LASTEXITCODE explicitly as a plain integer.
+# Every external command runs directly at top level (streaming output live) and checks $LASTEXITCODE as a plain integer.
 $ErrorActionPreference = 'Continue'
 if ($PSVersionTable.PSVersion.Major -ge 7) {
     $PSNativeCommandUseErrorActionPreference = $false
@@ -10,7 +10,7 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.3'
+$APP_VERSION = 'v1.1.4'
 $PUBLISHER   = 'ATLAS'
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
 $ZIP_URL_ALT = "https://github.com/$REPO_SLUG/archive/refs/tags/$APP_VERSION.zip"
@@ -27,35 +27,96 @@ function Emit-Step([int]$Pct, [string]$Msg) {
     Write-Output ("@@PROGRESS|{0}|{1}" -f $Pct, $Msg)
 }
 
-function Find-SystemPython {
+function Find-SystemPython([string]$CheckScript) {
     if (Get-Command py.exe -ErrorAction SilentlyContinue) {
-        foreach ($ver in @('-3.11', '-3.12', '-3.13', '-3.10', '-3.14')) {
-            $p = (& py.exe $ver -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1)
+        foreach ($ver in @('-3.12', '-3.13', '-3.11', '-3.14', '-3.10')) {
+            $p = (& py.exe $ver $CheckScript 2>$null | Select-Object -First 1)
             if ($LASTEXITCODE -eq 0 -and $p -and (Test-Path $p.Trim())) { return $p.Trim() }
         }
     }
     foreach ($cmd in @('python.exe', 'python3.exe')) {
         $found = Get-Command $cmd -ErrorAction SilentlyContinue
         if ($found -and $found.Source -notmatch 'WindowsApps\\python') {
-            $ok = (& $found.Source -c "import sys; print(sys.executable if sys.version_info >= (3,10) else '')" 2>$null | Select-Object -First 1)
+            $ok = (& $found.Source $CheckScript 2>$null | Select-Object -First 1)
             if ($LASTEXITCODE -eq 0 -and $ok -and (Test-Path $ok.Trim())) { return $ok.Trim() }
         }
     }
-    $localPy = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending | Select-Object -First 1
-    if ($localPy) { return $localPy.FullName }
+    $localCandidates = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending
+    foreach ($cand in $localCandidates) {
+        $ok = (& $cand.FullName $CheckScript 2>$null | Select-Object -First 1)
+        if ($LASTEXITCODE -eq 0 -and $ok -and (Test-Path $ok.Trim())) { return $ok.Trim() }
+    }
     return $null
 }
 
-function Test-NvidiaGpu {
-    try {
-        $gpus = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
-        foreach ($g in $gpus) {
-            if ($g.Name -match 'NVIDIA') { return $true }
+function Get-NvidiaGpuInfo {
+    $info = @{
+        Present    = $false
+        Name       = ''
+        Driver     = ''
+        MaxCuda    = 0.0
+    }
+    $smiCandidates = @()
+    $smiCmd = Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue
+    if ($smiCmd -and $smiCmd.Source) { $smiCandidates += $smiCmd.Source }
+    $smiCandidates += "$env:SystemRoot\System32\nvidia-smi.exe"
+    $smiCandidates += "$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
+
+    foreach ($smi in $smiCandidates) {
+        if ($smi -and (Test-Path $smi)) {
+            $info.Present = $true
+            $hdrLines = (& $smi 2>$null)
+            $hdr = ($hdrLines -join "`n")
+            if ($hdr -match 'Driver Version:\s*([0-9]+\.[0-9]+)') {
+                $info.Driver = $Matches[1]
+            }
+            if ($hdr -match 'CUDA Version:\s*([0-9]+\.[0-9]+)') {
+                $val = 0.0
+                if ([double]::TryParse($Matches[1], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$val)) {
+                    $info.MaxCuda = $val
+                }
+            }
+            $gName = (& $smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
+            if ($gName -and $gName.Trim()) {
+                $info.Name = $gName.Trim()
+            }
+            break
         }
-    } catch {}
-    if (Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue) { return $true }
-    return $false
+    }
+
+    if (-not $info.Name) {
+        try {
+            $gpus = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+            foreach ($g in $gpus) {
+                if ($g.Name -match 'NVIDIA|GeForce|RTX|Quadro|Tesla') {
+                    $info.Present = $true
+                    $info.Name = $g.Name.Trim()
+                    break
+                }
+            }
+        } catch {}
+    }
+
+    if (-not $info.Name) {
+        try {
+            $regItems = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0*' -ErrorAction SilentlyContinue
+            foreach ($item in $regItems) {
+                if ($item.DriverDesc -and ($item.DriverDesc -match 'NVIDIA|GeForce|RTX|Quadro|Tesla')) {
+                    $info.Present = $true
+                    $info.Name = [string]$item.DriverDesc
+                    break
+                }
+            }
+        } catch {}
+    }
+
+    if ((-not $info.Present) -and (Test-Path "$env:SystemRoot\System32\nvcuda.dll")) {
+        $info.Present = $true
+        $info.Name = 'NVIDIA CUDA Adapter'
+    }
+
+    return $info
 }
 
 Emit-Step 5 "Preparing destination folder: $InstallDir"
@@ -73,6 +134,17 @@ if ($SrcDir) {
     ))
 }
 
+$NeedsPackageSync = $true
+$InstalledWorker = Join-Path $InstallDir 'installer\setup_worker.ps1'
+if ((Test-Path (Join-Path $InstallDir 'webapp\desktop.py')) -and
+    (Test-Path (Join-Path $InstallDir 'installer\check_cuda.py')) -and
+    (Test-Path $InstalledWorker)) {
+    $existingWorkerText = [System.IO.File]::ReadAllText($InstalledWorker)
+    if ($existingWorkerText.Contains("APP_VERSION = '$APP_VERSION'")) {
+        $NeedsPackageSync = $false
+    }
+}
+
 if ($HasLocalFiles) {
     if (-not $SameFolder) {
         Emit-Step 14 "Copying ATLAS application files into $InstallDir ..."
@@ -83,7 +155,7 @@ if ($HasLocalFiles) {
     } else {
         Emit-Step 14 "Installing directly inside $InstallDir ..."
     }
-} elseif (-not (Test-Path (Join-Path $InstallDir 'webapp\desktop.py'))) {
+} elseif ($NeedsPackageSync) {
     Emit-Step 12 "Downloading ATLAS Desktop Studio ($APP_VERSION) from GitHub..."
     $tmpZip = Join-Path $env:TEMP ("atlas_pkg_" + [Guid]::NewGuid().ToString('N') + ".zip")
     $tmpExt = Join-Path $env:TEMP ("atlas_ext_" + [Guid]::NewGuid().ToString('N'))
@@ -120,24 +192,32 @@ try {
     Get-ChildItem -Path $InstallDir -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 } catch {}
 
-Emit-Step 30 "Checking Python 3.10+ runtime..."
-$pyExe = Find-SystemPython
+Emit-Step 30 "Checking Python 3.10-3.14 runtime..."
+$checkPyScript = Join-Path $InstallDir 'installer\check_python.py'
+$pyExe = Find-SystemPython $checkPyScript
 if (-not $pyExe) {
     if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-        throw "Python 3.10+ was not found and winget is unavailable. Please install Python 3.11 or 3.12 from https://www.python.org/downloads/ and re-run ATLAS-Setup.exe."
+        throw "Compatible Python 3.10-3.14 runtime was not found and winget is unavailable. Please install Python 3.12 from https://www.python.org/downloads/ and re-run ATLAS-Setup.exe."
     }
-    Emit-Step 34 "Installing Python 3.11 automatically via Windows Package Manager (winget)..."
-    Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.11 --scope user --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+    Emit-Step 34 "Installing Python 3.12 automatically via Windows Package Manager (winget)..."
+    Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
     $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
-    $pyExe = Find-SystemPython
+    $pyExe = Find-SystemPython $checkPyScript
     if (-not $pyExe) {
-        throw "Python 3.11 finished installing, please close and re-open ATLAS-Setup.exe once to refresh PATH."
+        throw "Python 3.12 finished installing; please close and re-open ATLAS-Setup.exe once to refresh PATH."
     }
 }
-Write-Output "Detected Python executable: $pyExe"
+Write-Output "Selected Python runtime: $pyExe"
 
 $venvDir = Join-Path $InstallDir '.venv'
 $venvPy  = Join-Path $venvDir 'Scripts\python.exe'
+if (Test-Path $venvPy) {
+    & $venvPy $checkPyScript 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "Existing .venv uses an incompatible Python version; recreating .venv with $pyExe ..."
+        Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 if (-not (Test-Path $venvPy)) {
     Emit-Step 40 "Creating dedicated Python virtual environment (.venv)..."
     & $pyExe -m venv $venvDir
@@ -147,44 +227,85 @@ if (-not (Test-Path $venvPy)) {
 Emit-Step 46 "Upgrading pip, setuptools & wheel..."
 & $venvPy -m pip install --upgrade pip setuptools wheel --quiet
 
-$useCuda = if ($ComputePref -eq 'cuda') { $true } elseif ($ComputePref -eq 'cpu') { $false } else { Test-NvidiaGpu }
-$modeName = if ($useCuda) { 'NVIDIA CUDA GPU Acceleration' } else { 'Multi-Core CPU Engine' }
-
-Emit-Step 58 "Checking / installing PyTorch ($modeName)..."
-& $venvPy -c "import torch" 2>$null
-$torchAlreadyPresent = ($LASTEXITCODE -eq 0)
-if ($torchAlreadyPresent -and (-not $useCuda)) {
-    Write-Output "PyTorch is already installed in .venv; reusing existing installation."
-} elseif ($torchAlreadyPresent -and $useCuda) {
-    & $venvPy -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Output "CUDA-enabled PyTorch is already installed in .venv; reusing existing installation."
-    } else {
-        $torchAlreadyPresent = $false
-    }
+$gpuInfo = Get-NvidiaGpuInfo
+if ($gpuInfo.Present) {
+    Write-Output ("Detected NVIDIA GPU: {0} (Driver {1}, Max CUDA {2})" -f $gpuInfo.Name, $(if ($gpuInfo.Driver) { $gpuInfo.Driver } else { 'detected' }), $(if ($gpuInfo.MaxCuda -gt 0) { $gpuInfo.MaxCuda.ToString('0.0', [Globalization.CultureInfo]::InvariantCulture) } else { 'auto' }))
+} else {
+    Write-Output "No NVIDIA GPU detected on system; configuring Multi-Core CPU runtime."
 }
 
-if (-not $torchAlreadyPresent) {
-    Write-Output "Installing PyTorch ($modeName). First-time download may take 1-3 minutes..."
-    $torchInstalled = $false
-    $torchUrls = if ($useCuda) {
-        @('https://download.pytorch.org/whl/cu128', 'https://download.pytorch.org/whl/cu126', 'https://download.pytorch.org/whl/cu124')
+$useCuda  = if ($ComputePref -eq 'cuda') { $true } elseif ($ComputePref -eq 'cpu') { $false } else { [bool]$gpuInfo.Present }
+$modeName = if ($useCuda) { 'NVIDIA CUDA GPU Acceleration' } else { 'Multi-Core CPU Engine' }
+
+$checkCudaScript = Join-Path $InstallDir 'installer\check_cuda.py'
+Emit-Step 58 "Configuring PyTorch ($modeName)..."
+& $venvPy $checkCudaScript
+$cudaCheckRc = $LASTEXITCODE
+
+if ($useCuda) {
+    if ($cudaCheckRc -eq 0) {
+        Write-Output "Verified working CUDA PyTorch already present in .venv; reusing existing installation."
     } else {
-        @('https://download.pytorch.org/whl/cpu')
-    }
-    foreach ($idxUrl in $torchUrls) {
-        & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url $idxUrl
-        if ($LASTEXITCODE -eq 0) {
-            $torchInstalled = $true
-            break
+        if ($cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
+            Write-Output "Removing existing non-CUDA or mismatched PyTorch build before installing CUDA wheel..."
+            & $venvPy -m pip uninstall -y torch torchvision torchaudio
+        }
+
+        $cudaTags = if ($gpuInfo.MaxCuda -ge 13.0) {
+            @('cu130', 'cu128', 'cu126', 'cu124')
+        } elseif ($gpuInfo.MaxCuda -ge 12.8) {
+            @('cu128', 'cu126', 'cu124', 'cu130')
+        } elseif ($gpuInfo.MaxCuda -ge 12.6) {
+            @('cu126', 'cu124', 'cu128', 'cu130')
+        } elseif ($gpuInfo.MaxCuda -gt 0.0) {
+            @('cu124', 'cu121', 'cu126', 'cu128')
+        } else {
+            @('cu128', 'cu130', 'cu126', 'cu124')
+        }
+
+        $cudaVerified = $false
+        $anyCudaWheelInstalled = $false
+        foreach ($tag in $cudaTags) {
+            $idxUrl = "https://download.pytorch.org/whl/$tag"
+            Write-Output "Installing PyTorch CUDA wheel from $idxUrl ..."
+            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url $idxUrl
+            if ($LASTEXITCODE -eq 0) {
+                $anyCudaWheelInstalled = $true
+                & $venvPy $checkCudaScript
+                $probeRc = $LASTEXITCODE
+                if ($probeRc -eq 4 -and (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+                    Write-Output "Installing Microsoft Visual C++ Redistributable required by CUDA libraries..."
+                    Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+                    & $venvPy $checkCudaScript
+                    $probeRc = $LASTEXITCODE
+                }
+                if ($probeRc -eq 0) {
+                    $cudaVerified = $true
+                    break
+                }
+                Write-Output "Wheel from $tag installed but CUDA runtime is not active (status $probeRc); trying next CUDA compatibility build..."
+                & $venvPy -m pip uninstall -y torch
+            }
+        }
+
+        if (-not $cudaVerified) {
+            Write-Output "Notice: Could not activate CUDA wheel for current driver/Python; installing standard PyTorch wheel as fallback..."
+            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
+            if ($LASTEXITCODE -ne 0) {
+                & $venvPy -m pip install --prefer-binary 'torch>=2.2'
+                if ($LASTEXITCODE -ne 0) { throw "Failed to install PyTorch wheel." }
+            }
         }
     }
-    if (-not $torchInstalled) {
-        Write-Output "Installing pre-compiled PyTorch wheel from default PyPI index..."
-        & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
+} else {
+    if ($cudaCheckRc -eq 0 -or $cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
+        Write-Output "PyTorch is already installed in .venv; reusing existing installation."
+    } else {
+        Write-Output "Installing CPU PyTorch wheel..."
+        & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url 'https://download.pytorch.org/whl/cpu'
         if ($LASTEXITCODE -ne 0) {
-            & $venvPy -m pip install --prefer-binary 'torch>=2.2'
-            if ($LASTEXITCODE -ne 0) { throw "Failed to install PyTorch wheel." }
+            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
+            if ($LASTEXITCODE -ne 0) { throw "Failed to install CPU PyTorch wheel." }
         }
     }
 }
@@ -247,7 +368,7 @@ $settingsJson = ($cfg | ConvertTo-Json -Depth 4)
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText((Join-Path $InstallDir 'webapp\.app_settings.json'), $settingsJson, $utf8NoBom)
 
-Emit-Step 93 "Running Built-in P2 FEM verification self-test..."
+Emit-Step 93 "Running Built-in P2 FEM & compute verification self-test..."
 $verifyScript = Join-Path $InstallDir 'installer\verify_install.py'
 & $venvPy $verifyScript
 if ($LASTEXITCODE -ne 0) {
@@ -258,64 +379,45 @@ Emit-Step 97 "Registering shortcuts & Windows Installed Apps entry (Publisher: A
 $appExe   = Join-Path $InstallDir 'ATLAS.exe'
 $iconPath = Join-Path $InstallDir 'webapp\frontend\icon.ico'
 
-try {
-    $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ATLASDesktopStudio'
-    New-Item -Path $regPath -Force -ErrorAction Stop | Out-Null
-    New-ItemProperty -Path $regPath -Name 'DisplayName' -Value 'ATLAS Desktop Studio' -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'Publisher' -Value $PUBLISHER -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'DisplayVersion' -Value '1.1.3' -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'DisplayIcon' -Value "$appExe,0" -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'InstallLocation' -Value $InstallDir -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'UninstallString' -Value "`"$UninstDst`"" -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'URLInfoAbout' -Value "https://github.com/$REPO_SLUG" -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'NoModify' -Value 1 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name 'NoRepair' -Value 1 -PropertyType DWord -Force | Out-Null
-} catch {
-    Write-Output "Note: Could not register Windows Installed Apps entry: $($_.Exception.Message)"
-}
-
 $wsh = New-Object -ComObject WScript.Shell
 if ($MakeDesktop) {
-    try {
-        $deskDir = [Environment]::GetFolderPath('Desktop')
-        if ($deskDir) {
-            if (-not (Test-Path $deskDir)) { New-Item -ItemType Directory -Path $deskDir -Force | Out-Null }
-            $deskLnk = Join-Path $deskDir 'ATLAS Desktop Studio.lnk'
-            $sc = $wsh.CreateShortcut($deskLnk)
-            $sc.TargetPath = $appExe
-            $sc.WorkingDirectory = $InstallDir
-            $sc.Description = 'ATLAS Desktop Studio - Structural Design & FEM Suite (Published by ATLAS)'
-            if (Test-Path $appExe) { $sc.IconLocation = "$appExe,0" } elseif (Test-Path $iconPath) { $sc.IconLocation = "$iconPath,0" }
-            $sc.Save()
-            Write-Output "Created Desktop shortcut: $deskLnk"
-        }
-    } catch {
-        Write-Output "Note: Could not create Desktop shortcut: $($_.Exception.Message)"
-    }
+    $desktopDir = [Environment]::GetFolderPath('Desktop')
+    $lnk = $wsh.CreateShortcut((Join-Path $desktopDir 'ATLAS Desktop Studio.lnk'))
+    $lnk.TargetPath       = $appExe
+    $lnk.WorkingDirectory = $InstallDir
+    $lnk.IconLocation     = "$appExe,0"
+    $lnk.Description      = 'ATLAS Structural Design Studio (Published by ATLAS)'
+    $lnk.Save()
 }
 if ($MakeStart) {
-    try {
-        $startDir = Join-Path ([Environment]::GetFolderPath('Programs')) 'ATLAS'
-        if (-not (Test-Path $startDir)) { New-Item -ItemType Directory -Path $startDir -Force | Out-Null }
-        $startLnk = Join-Path $startDir 'ATLAS Desktop Studio.lnk'
-        $sc2 = $wsh.CreateShortcut($startLnk)
-        $sc2.TargetPath = $appExe
-        $sc2.WorkingDirectory = $InstallDir
-        $sc2.Description = 'ATLAS Desktop Studio - Structural Design & FEM Suite'
-        if (Test-Path $appExe) { $sc2.IconLocation = "$appExe,0" } elseif (Test-Path $iconPath) { $sc2.IconLocation = "$iconPath,0" }
-        $sc2.Save()
-        if (Test-Path $UninstDst) {
-            $unLnk = Join-Path $startDir 'Uninstall ATLAS Desktop Studio.lnk'
-            $sc3 = $wsh.CreateShortcut($unLnk)
-            $sc3.TargetPath = $UninstDst
-            $sc3.WorkingDirectory = $InstallDir
-            $sc3.Description = 'Uninstall ATLAS Desktop Studio'
-            $sc3.Save()
-        }
-        Write-Output "Created Start Menu shortcuts in: $startDir"
-    } catch {
-        Write-Output "Note: Could not create Start Menu shortcut: $($_.Exception.Message)"
-    }
+    $startDir = Join-Path ([Environment]::GetFolderPath('Programs')) 'ATLAS'
+    if (-not (Test-Path $startDir)) { New-Item -ItemType Directory -Path $startDir -Force | Out-Null }
+    $lnk = $wsh.CreateShortcut((Join-Path $startDir 'ATLAS Desktop Studio.lnk'))
+    $lnk.TargetPath       = $appExe
+    $lnk.WorkingDirectory = $InstallDir
+    $lnk.IconLocation     = "$appExe,0"
+    $lnk.Description      = 'ATLAS Structural Design Studio (Published by ATLAS)'
+    $lnk.Save()
+
+    $ulnk = $wsh.CreateShortcut((Join-Path $startDir 'Uninstall ATLAS.lnk'))
+    $ulnk.TargetPath       = $UninstDst
+    $ulnk.WorkingDirectory = $InstallDir
+    $ulnk.Description      = 'Uninstall ATLAS Desktop Studio'
+    $ulnk.Save()
 }
 
-Emit-Step 100 "Installation complete! ATLAS Desktop Studio is ready to launch."
+$regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ATLASDesktopStudio'
+if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+Set-ItemProperty -Path $regPath -Name 'DisplayName'          -Value 'ATLAS Desktop Studio'
+Set-ItemProperty -Path $regPath -Name 'DisplayVersion'       -Value '1.1.4'
+Set-ItemProperty -Path $regPath -Name 'Publisher'            -Value $PUBLISHER
+Set-ItemProperty -Path $regPath -Name 'InstallLocation'      -Value $InstallDir
+Set-ItemProperty -Path $regPath -Name 'DisplayIcon'          -Value "$appExe,0"
+Set-ItemProperty -Path $regPath -Name 'UninstallString'      -Value "`"$UninstDst`""
+Set-ItemProperty -Path $regPath -Name 'QuietUninstallString' -Value "`"$UninstDst`" /S"
+Set-ItemProperty -Path $regPath -Name 'NoModify'             -Value 1 -Type DWord
+Set-ItemProperty -Path $regPath -Name 'NoRepair'             -Value 1 -Type DWord
+Set-ItemProperty -Path $regPath -Name 'URLInfoAbout'         -Value "https://github.com/$REPO_SLUG"
+
+Emit-Step 100 "Installation complete! ATLAS Desktop Studio ($APP_VERSION) is ready."
+Write-Output "SUCCESS: Installed to $InstallDir (Publisher: $PUBLISHER)."

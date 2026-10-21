@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.3"
+APP_VERSION="v1.1.4"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
@@ -106,8 +106,12 @@ fi
 
 echo "[3/5] Installing PyTorch & ATLAS dependencies..."
 if [ "${OS_NAME}" = "Linux" ] && [ "${HAS_NVIDIA}" -eq 1 ] && [ "${DEVICE_PREF}" != "cpu" ]; then
-    "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu124 || \
-        "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    if ! "${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/check_cuda.py" >/dev/null 2>&1; then
+        "${TARGET_DIR}/.venv/bin/python" -m pip uninstall -y torch >/dev/null 2>&1 || true
+        "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu128 || \
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu130 || \
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    fi
 elif [ "${OS_NAME}" = "Linux" ] && [ "${DEVICE_PREF}" != "cuda" ]; then
     "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu || \
         "${TARGET_DIR}/.venv/bin/python" -m pip install torch

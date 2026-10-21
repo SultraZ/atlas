@@ -61,6 +61,12 @@ typedef struct {
     BOOL launchAfter;
 } InstallParams;
 
+static BOOL is_nvidia_name(const wchar_t *s) {
+    if (!s || !s[0]) return FALSE;
+    return wcsstr(s, L"NVIDIA") || wcsstr(s, L"GeForce") ||
+           wcsstr(s, L"RTX") || wcsstr(s, L"Quadro") || wcsstr(s, L"Tesla");
+}
+
 static void detect_gpu_summary(void) {
     DISPLAY_DEVICEW dd;
     ZeroMemory(&dd, sizeof(dd));
@@ -69,8 +75,7 @@ static void detect_gpu_summary(void) {
     for (DWORD i = 0; EnumDisplayDevicesW(NULL, i, &dd, 0); ++i) {
         if (dd.DeviceString[0]) {
             if (!firstAdapter[0]) wcsncpy(firstAdapter, dd.DeviceString, 127);
-            if (wcsstr(dd.DeviceString, L"NVIDIA") || wcsstr(dd.DeviceString, L"GeForce") ||
-                wcsstr(dd.DeviceString, L"RTX") || wcsstr(dd.DeviceString, L"Quadro")) {
+            if (is_nvidia_name(dd.DeviceString)) {
                 _snwprintf(g_gpuInfo, 255, L"Detected GPU: %ls (CUDA Acceleration Supported)", dd.DeviceString);
                 return;
             }
@@ -78,6 +83,43 @@ static void detect_gpu_summary(void) {
         ZeroMemory(&dd, sizeof(dd));
         dd.cb = sizeof(dd);
     }
+
+    /* Check Windows PCI Display Adapter Class Registry (catches Optimus / MSHybrid laptop GPUs) */
+    HKEY hClass = NULL;
+    if (RegOpenKeyExW(
+            HKEY_LOCAL_MACHINE,
+            L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}",
+            0, KEY_READ, &hClass) == ERROR_SUCCESS) {
+        for (DWORD idx = 0; idx < 32; ++idx) {
+            wchar_t subName[16] = {0};
+            _snwprintf(subName, 15, L"%04lu", idx);
+            HKEY hSub = NULL;
+            if (RegOpenKeyExW(hClass, subName, 0, KEY_READ, &hSub) == ERROR_SUCCESS) {
+                wchar_t desc[192] = {0};
+                DWORD cb = sizeof(desc) - sizeof(wchar_t);
+                DWORD typ = 0;
+                if (RegQueryValueExW(hSub, L"DriverDesc", NULL, &typ, (LPBYTE)desc, &cb) == ERROR_SUCCESS &&
+                    (typ == REG_SZ || typ == REG_EXPAND_SZ) && is_nvidia_name(desc)) {
+                    RegCloseKey(hSub);
+                    RegCloseKey(hClass);
+                    _snwprintf(g_gpuInfo, 255, L"Detected GPU: %ls (CUDA Acceleration Supported)", desc);
+                    return;
+                }
+                RegCloseKey(hSub);
+            }
+        }
+        RegCloseKey(hClass);
+    }
+
+    wchar_t smiPath[MAX_PATH] = {0};
+    if (GetSystemDirectoryW(smiPath, MAX_PATH - 20) > 0) {
+        wcscat(smiPath, L"\\nvidia-smi.exe");
+        if (GetFileAttributesW(smiPath) != INVALID_FILE_ATTRIBUTES) {
+            wcsncpy(g_gpuInfo, L"Detected GPU: NVIDIA CUDA Graphics Adapter (CUDA Acceleration Supported)", 255);
+            return;
+        }
+    }
+
     if (firstAdapter[0]) {
         _snwprintf(g_gpuInfo, 255, L"Graphics: %ls  |  Multi-Core CPU Mode Ready", firstAdapter);
     } else {
@@ -391,7 +433,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SelectObject(hdc, g_fSub);
         SetTextColor(hdc, RGB(148, 163, 184));
         RECT rcS = { SX(75), SX(42), SX(650), SX(66) };
-        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.3   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
+        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.4   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
         SelectObject(hdc, oldF);
 
         EndPaint(hwnd, &ps);
@@ -577,11 +619,39 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
 
     g_hWnd = CreateWindowExW(
         0, L"AtlasSetupWizardWnd",
-        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.3",
+        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.4",
         style,
         (scrW - winW) / 2, (scrH - winH) / 2, winW, winH,
         NULL, NULL, hInst, NULL
     );
+
+    if (lpCmdLine) {
+        if (wcsstr(lpCmdLine, L"--cuda") && g_hCmbDev) {
+            SendMessageW(g_hCmbDev, CB_SETCURSEL, 1, 0);
+        }
+        const wchar_t *destFlag = wcsstr(lpCmdLine, L"--dest ");
+        if (destFlag && g_hTxtDir) {
+            const wchar_t *p = destFlag + 7;
+            while (*p == L' ') ++p;
+            wchar_t customDest[MAX_PATH * 2] = {0};
+            if (*p == L'"') {
+                ++p;
+                const wchar_t *endQ = wcschr(p, L'"');
+                size_t len = endQ ? (size_t)(endQ - p) : wcslen(p);
+                if (len > 0 && len < MAX_PATH * 2 - 1) {
+                    wcsncpy(customDest, p, len);
+                    SetWindowTextW(g_hTxtDir, customDest);
+                }
+            } else if (*p) {
+                const wchar_t *endSp = wcschr(p, L' ');
+                size_t len = endSp ? (size_t)(endSp - p) : wcslen(p);
+                if (len > 0 && len < MAX_PATH * 2 - 1) {
+                    wcsncpy(customDest, p, len);
+                    SetWindowTextW(g_hTxtDir, customDest);
+                }
+            }
+        }
+    }
 
     ShowWindow(g_hWnd, nShowCmd);
     UpdateWindow(g_hWnd);

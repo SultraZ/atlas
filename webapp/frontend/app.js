@@ -678,10 +678,15 @@ function renderSettingsDrawer() {
         <dl class="hw-list">
           <div><dt>Runtime mode</dt><dd>${h?.app_mode === "desktop" ? "Standalone Desktop App" : "Local Application Console"}</dd></div>
           <div><dt>PyTorch</dt><dd>${esc(h?.torch || "—")}</dd></div>
-          <div><dt>CUDA GPU</dt><dd>${cudaOk ? esc(h.gpu_name) : "Not detected (CPU active)"}</dd></div>
+          ${h?.system_gpu_name ? `<div><dt>Physical GPU</dt><dd>${esc(h.system_gpu_name)}${h.nvidia_driver ? ` · Driver ${esc(h.nvidia_driver)}` : ""}${h.driver_cuda_version ? ` (CUDA ${esc(h.driver_cuda_version)})` : ""}</dd></div>` : ""}
+          <div><dt>CUDA Runtime</dt><dd>${cudaOk ? esc(h.gpu_name) : (h?.system_gpu_name ? "CPU PyTorch installed — click below to activate CUDA" : "Not detected (CPU active)")}</dd></div>
           ${vram ? `<div><dt>GPU VRAM</dt><dd>${esc(vram)}</dd></div>` : ""}
         </dl>
-        ${cudaOk ? `<div class="set-actions"><button type="button" class="mini-btn" id="clearCudaBtn">Free GPU memory cache</button></div>` : ""}
+        ${cudaOk
+          ? `<div class="set-actions"><button type="button" class="mini-btn" id="clearCudaBtn">Free GPU memory cache</button></div>`
+          : (h?.system_gpu_name || h?.platform === "Windows")
+            ? `<div class="set-actions"><button type="button" class="mini-btn" id="installCudaBtn" data-install-cuda>Install NVIDIA CUDA Runtime</button></div>`
+            : ""}
       </section>
 
       <section class="card settings-card full">
@@ -728,9 +733,9 @@ function renderSettingsDrawer() {
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.3.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.3.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.3/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.3/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.4.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.4.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.4/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.4/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;
@@ -1170,6 +1175,7 @@ function renderCompute() {
       <button type="button" data-dev-pick="cpu" aria-pressed="${pref === "cpu"}">CPU</button>
     </div>
     <div class="compute-meta"><span>Active: <b>${esc(devDesc)}</b></span><span>FEM: <b>${esc(effectiveFemName())}</b></span></div>
+    ${!cudaOk && h?.system_gpu_name ? `<div class="compute-meta"><span>GPU detected: <b>${esc(shortGpu(h.system_gpu_name))}</b></span><button type="button" class="link-btn" data-install-cuda>Enable CUDA →</button></div>` : ""}
     <div class="seg seg-block two" role="group" aria-label="Solver architecture">
       <button type="button" data-form-pick="energy_xpinn" aria-pressed="${form === "energy_xpinn"}">ATLAS-XPINN</button>
       <button type="button" data-form-pick="energy" aria-pressed="${form === "energy"}">${S("ATLAS (1 network)", "ATLAS single")}</button>
@@ -2153,6 +2159,15 @@ document.addEventListener("click", async (e) => {
     state.health = h;
     state.settingsMsg = "Freed unused CUDA memory cache.";
     if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+  if (e.target.closest("[data-install-cuda]")) {
+    state.settingsMsg = "Starting NVIDIA CUDA runtime setup…";
+    if (currentView() === "settings") renderSettingsDrawer();
+    const res = await api("/api/cuda/setup", { method: "POST" });
+    state.settingsMsg = res.message || `CUDA setup status: ${res.status}`;
+    if (currentView() === "settings") renderSettingsDrawer();
+    else openSettingsDrawer();
     return;
   }
   if (e.target.closest("#openPlotsBtn")) {

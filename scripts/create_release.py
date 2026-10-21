@@ -147,13 +147,18 @@ Standalone **Desktop Structural Design & Finite-Element Studio** wrapping **ATLA
 
 ---
 
-## One-Click Downloads
+## One-Click Download & Setup
 
-| Platform | Direct Download | What It Does |
+> **Fastest way (works on both Private & Public GitHub repos):**
+> 1. Click **[Download `ATLAS-{version}.zip`]({zip_archive})** *(or click **Assets → Source code (zip)** below)*.
+> 2. Extract the `.zip` folder anywhere on your computer.
+> 3. Double-click **`Setup-ATLAS.bat`** *(Windows 10/11)* or run **`./setup_atlas.sh`** *(macOS / Linux)* — the Guided Setup Wizard handles everything else automatically!
+
+| Option | Link | Description |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (Smart GUI Installer)** | **[Download `Setup-ATLAS.bat`]({raw_base}/Setup-ATLAS.bat)** | Opens a native Windows Setup Wizard — automatically downloads ATLAS, installs Python 3.11 + GPU/CPU PyTorch, lets you choose **Standard (No WSL)** or **Full WSL2 FEniCS**, compiles icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**. |
-| **Full Complete Package (`.zip`)** | **[Download `ATLAS-{version}.zip`]({zip_archive})** *({zip_mb:.1f} MB, {files_added} files)* | Complete archive with the Desktop Studio UI, all 6 stored benchmark studies (`results/`), all 6 FEniCS references (`fem/reference/`), `Setup-ATLAS.bat`, `ATLAS.bat`, `build_exe.bat`, `setup_atlas.sh`, and `launch_atlas.sh`. |
-| **macOS & Linux (Smart Installer)** | **[Download `setup_atlas.sh`]({raw_base}/setup_atlas.sh)** | One-step guided installer (`bash setup_atlas.sh`) that downloads ATLAS, creates `.venv`, installs GPU/CPU PyTorch + SciPy `P2` FEM (or optional `Atlas` FEniCS conda env on Linux), adds an app launcher, and opens ATLAS. |
+| **Full Complete Package (`.zip`)** | **[Download `ATLAS-{version}.zip`]({zip_archive})** *({zip_mb:.1f} MB, {files_added} files)* | Complete ready-to-install archive containing the **Desktop Studio UI**, **Guided Setup Wizard (`Setup-ATLAS.bat` & `setup_atlas.sh`)**, **all 6 precomputed benchmark studies (`results/`)**, **all 6 FEniCS references (`fem/reference/`)**, `ATLAS.bat`, and `build_exe.bat`. |
+| **Windows Smart GUI Installer** | **[`Setup-ATLAS.bat`]({raw_base}/Setup-ATLAS.bat)** | Opens a native Windows Setup Wizard — installs Python 3.11 + NVIDIA CUDA GPU or CPU PyTorch, lets you pick **Standard (No WSL)** or **Full WSL2 FEniCS**, builds icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**. |
+| **macOS & Linux Installer** | **[`setup_atlas.sh`]({raw_base}/setup_atlas.sh)** | Guided terminal setup script (`./setup_atlas.sh`) that creates `.venv`, installs GPU/CPU PyTorch + SciPy `P2` FEM (or optional `Atlas` FEniCS conda env on Linux), creates a launcher icon, and opens ATLAS. |
 
 ---
 

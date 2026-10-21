@@ -1600,6 +1600,35 @@ def setup_cuda_runtime():
     }
 
 
+@app.post("/api/app/update")
+def launch_app_updater():
+    """Launch native ATLAS-Setup.exe in fast Update mode on Windows."""
+    setup_exe = ROOT / "ATLAS-Setup.exe"
+    if sys.platform == "win32" and setup_exe.is_file():
+        def _handoff_to_updater() -> None:
+            time.sleep(0.8)
+            try:
+                subprocess.Popen(
+                    [str(setup_exe), "--unattended", "--update", "--dest", str(ROOT)],
+                    cwd=str(ROOT),
+                    close_fds=True,
+                )
+            finally:
+                os._exit(0)
+
+        threading.Thread(target=_handoff_to_updater, daemon=True).start()
+        return {
+            "status": "launching_updater",
+            "message": "Opening ATLAS-Setup.exe in fast Update mode to fetch the latest release and relaunch automatically.",
+        }
+
+    return {
+        "status": "manual",
+        "url": "https://github.com/SultraZ/atlas/releases/latest",
+        "message": "Open ATLAS-Setup.exe and click 'Update', or download the latest release from GitHub Releases.",
+    }
+
+
 @app.post("/api/forward")
 def forward(req: ForwardRequest):
     return {"job_id": submit("forward", _model_dump(req)), "status": "queued"}

@@ -700,9 +700,10 @@ function renderSettingsDrawer() {
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.5.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.5.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <button type="button" class="mini-btn" id="updateAppBtn">Update App</button>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.5B.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.5B.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5B/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5B/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;
@@ -2126,6 +2127,14 @@ document.addEventListener("click", async (e) => {
     state.settingsMsg = res.message || `CUDA setup status: ${res.status}`;
     if (currentView() === "settings") renderSettingsDrawer();
     else openSettingsDrawer();
+    return;
+  }
+  if (e.target.closest("#updateAppBtn")) {
+    state.settingsMsg = "Starting ATLAS Update Wizard…";
+    if (currentView() === "settings") renderSettingsDrawer();
+    const res = await api("/api/app/update", { method: "POST" });
+    state.settingsMsg = res.message || `Updater status: ${res.status}`;
+    if (currentView() === "settings") renderSettingsDrawer();
     return;
   }
   if (e.target.closest("#openPlotsBtn")) {

@@ -10,13 +10,17 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.5'
+$APP_VERSION = 'v1.1.5B'
 $PUBLISHER   = 'ATLAS'
+$API_LATEST  = "https://api.github.com/repos/$REPO_SLUG/releases/latest"
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
 $ZIP_URL_ALT = "https://github.com/$REPO_SLUG/archive/refs/tags/$APP_VERSION.zip"
+$ZIP_URL_MAIN = "https://github.com/$REPO_SLUG/archive/refs/heads/main.zip"
 
 $SrcDir      = ($env:ATLAS_SRC_DIR).TrimEnd('\', '/')
 $InstallDir  = ($env:ATLAS_DEST_DIR).TrimEnd('\', '/')
+$Action      = if ($env:ATLAS_ACTION -eq 'update') { 'update' } else { 'install' }
+$IsUpdate    = ($Action -eq 'update')
 $Edition     = if ($env:ATLAS_EDITION) { $env:ATLAS_EDITION } else { 'standard' }
 $ComputePref = if ($env:ATLAS_COMPUTE) { $env:ATLAS_COMPUTE } else { 'auto' }
 $MakeDesktop = ($env:ATLAS_SHORTCUT_DESKTOP -ne '0')
@@ -119,10 +123,24 @@ function Get-NvidiaGpuInfo {
     return $info
 }
 
-Emit-Step 5 "Preparing destination folder: $InstallDir"
+$verbLabel = if ($IsUpdate) { 'Updating' } else { 'Preparing' }
+Emit-Step 5 "$verbLabel ATLAS folder: $InstallDir"
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force -ErrorAction Stop | Out-Null
 }
+
+# Remove leftover old self-update backup if unlocked and cleanly stop any running ATLAS Python worker inside $InstallDir
+Remove-Item -Path (Join-Path $InstallDir 'ATLAS-Setup.old.exe') -Force -ErrorAction SilentlyContinue
+try {
+    $venvPrefix = [System.IO.Path]::GetFullPath((Join-Path $InstallDir '.venv')) + '\'
+    $runningProcs = Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" -ErrorAction SilentlyContinue
+    foreach ($rp in $runningProcs) {
+        if ($rp.ExecutablePath -and $rp.ExecutablePath.StartsWith($venvPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Output "Stopping running ATLAS background process (PID $($rp.ProcessId))..."
+            Stop-Process -Id $rp.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    }
+} catch {}
 
 $HasLocalFiles = $SrcDir -and (Test-Path (Join-Path $SrcDir 'webapp\desktop.py'))
 $SameFolder = $false
@@ -136,7 +154,8 @@ if ($SrcDir) {
 
 $NeedsPackageSync = $true
 $InstalledWorker = Join-Path $InstallDir 'installer\setup_worker.ps1'
-if ((Test-Path (Join-Path $InstallDir 'webapp\desktop.py')) -and
+if ((-not $IsUpdate) -and
+    (Test-Path (Join-Path $InstallDir 'webapp\desktop.py')) -and
     (Test-Path (Join-Path $InstallDir 'installer\check_cuda.py')) -and
     (Test-Path $InstalledWorker)) {
     $existingWorkerText = [System.IO.File]::ReadAllText($InstalledWorker)
@@ -145,25 +164,44 @@ if ((Test-Path (Join-Path $InstallDir 'webapp\desktop.py')) -and
     }
 }
 
-if ($HasLocalFiles) {
-    if (-not $SameFolder) {
-        Emit-Step 14 "Copying ATLAS application files into $InstallDir ..."
-        & robocopy.exe $SrcDir $InstallDir /E /XD '.git' '.venv' '__pycache__' '.pytest_cache' 'dist' /XF '*.pyc' /NFL /NDL /NJH /NJS /NP | Out-Null
-        if ($LASTEXITCODE -ge 8) {
-            throw "Failed while copying application files to $InstallDir (robocopy exit code $LASTEXITCODE)."
-        }
-    } else {
-        Emit-Step 14 "Installing directly inside $InstallDir ..."
+$ResolvedVersion = $APP_VERSION
+
+if ($HasLocalFiles -and (-not $SameFolder)) {
+    Emit-Step 16 "Syncing updated ATLAS files from package folder into $InstallDir ..."
+    $destSetupExe = Join-Path $InstallDir 'ATLAS-Setup.exe'
+    if (Test-Path $destSetupExe) {
+        Move-Item -Path $destSetupExe -Destination (Join-Path $InstallDir 'ATLAS-Setup.old.exe') -Force -ErrorAction SilentlyContinue
     }
-} elseif ($NeedsPackageSync) {
-    Emit-Step 12 "Downloading ATLAS Desktop Studio ($APP_VERSION) from GitHub..."
+    & robocopy.exe $SrcDir $InstallDir /E /XD '.git' '.venv' '__pycache__' '.pytest_cache' 'dist' /XF '*.pyc' '.app_settings.json' /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "Failed while copying application files to $InstallDir (robocopy exit code $LASTEXITCODE)."
+    }
+} elseif ($IsUpdate -or (-not $HasLocalFiles -and $NeedsPackageSync)) {
+    Emit-Step 14 "Checking GitHub for the latest ATLAS Desktop Studio release..."
+    $downloadUrls = @()
+    try {
+        $rel = Invoke-RestMethod -Uri $API_LATEST -Headers @{ 'User-Agent' = 'ATLAS-Setup-Updater' } -UseBasicParsing -ErrorAction Stop
+        if ($rel -and $rel.tag_name) {
+            $ResolvedVersion = [string]$rel.tag_name
+            Write-Output "Latest release on GitHub: $ResolvedVersion"
+            $downloadUrls += "https://github.com/$REPO_SLUG/archive/refs/tags/$ResolvedVersion.zip"
+        }
+        if ($rel -and $rel.zipball_url) {
+            $downloadUrls += [string]$rel.zipball_url
+        }
+    } catch {
+        Write-Output "Release metadata lookup note: $($_.Exception.Message)"
+    }
+    $downloadUrls += @($ZIP_URL_PRI, $ZIP_URL_ALT, $ZIP_URL_MAIN)
+
     $tmpZip = Join-Path $env:TEMP ("atlas_pkg_" + [Guid]::NewGuid().ToString('N') + ".zip")
     $tmpExt = Join-Path $env:TEMP ("atlas_ext_" + [Guid]::NewGuid().ToString('N'))
     $okDl = $false
-    foreach ($u in @($ZIP_URL_PRI, $ZIP_URL_ALT)) {
+    foreach ($u in $downloadUrls) {
+        if (-not $u) { continue }
         try {
-            Write-Output "Downloading package from $u ..."
-            Invoke-WebRequest -Uri $u -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
+            Write-Output "Downloading ATLAS package from $u ..."
+            Invoke-WebRequest -Uri $u -Headers @{ 'User-Agent' = 'ATLAS-Setup-Updater' } -OutFile $tmpZip -UseBasicParsing -ErrorAction Stop
             $okDl = $true
             break
         } catch {
@@ -171,15 +209,29 @@ if ($HasLocalFiles) {
         }
     }
     if (-not $okDl) {
-        throw "Could not download the ATLAS release package automatically. If this repository is private, download the full ZIP from GitHub Releases while signed in and run ATLAS-Setup.exe from that extracted folder."
+        if ($SameFolder -and (Test-Path (Join-Path $InstallDir 'webapp\desktop.py'))) {
+            Write-Output "Offline notice: keeping local application files in $InstallDir."
+        } else {
+            throw "Could not download the ATLAS release package from GitHub. Check your internet connection or extract the release ZIP locally."
+        }
+    } else {
+        Emit-Step 26 "Applying updated ATLAS application files..."
+        Expand-Archive -Path $tmpZip -DestinationPath $tmpExt -Force -ErrorAction Stop
+        $inner = Get-ChildItem -Path $tmpExt -Directory | Select-Object -First 1
+        $copyFrom = if ($inner -and (Test-Path (Join-Path $inner.FullName 'webapp\desktop.py'))) { $inner.FullName } else { $tmpExt }
+        $destSetupExe = Join-Path $InstallDir 'ATLAS-Setup.exe'
+        if (Test-Path $destSetupExe) {
+            Move-Item -Path $destSetupExe -Destination (Join-Path $InstallDir 'ATLAS-Setup.old.exe') -Force -ErrorAction SilentlyContinue
+        }
+        & robocopy.exe $copyFrom $InstallDir /E /XD '.git' '.venv' '__pycache__' '.pytest_cache' 'dist' /XF '*.pyc' '.app_settings.json' /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) {
+            Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
+        }
+        Remove-Item -Path $tmpZip -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $tmpExt -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Emit-Step 22 "Extracting ATLAS application files..."
-    Expand-Archive -Path $tmpZip -DestinationPath $tmpExt -Force -ErrorAction Stop
-    $inner = Get-ChildItem -Path $tmpExt -Directory | Select-Object -First 1
-    $copyFrom = if ($inner -and (Test-Path (Join-Path $inner.FullName 'webapp\desktop.py'))) { $inner.FullName } else { $tmpExt }
-    Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
-    Remove-Item -Path $tmpZip -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path $tmpExt -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    Emit-Step 16 "Installing directly inside $InstallDir ..."
 }
 
 $UninstSrc = Join-Path $InstallDir 'installer\Uninstall-ATLAS.exe'
@@ -199,41 +251,6 @@ try {
     Get-ChildItem -Path $InstallDir -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 } catch {}
 
-Emit-Step 30 "Checking Python 3.10-3.14 runtime..."
-$checkPyScript = Join-Path $InstallDir 'installer\check_python.py'
-$pyExe = Find-SystemPython $checkPyScript
-if (-not $pyExe) {
-    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-        throw "Compatible Python 3.10-3.14 runtime was not found and winget is unavailable. Please install Python 3.12 from https://www.python.org/downloads/ and re-run ATLAS-Setup.exe."
-    }
-    Emit-Step 34 "Installing Python 3.12 automatically via Windows Package Manager (winget)..."
-    Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
-    $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
-    $pyExe = Find-SystemPython $checkPyScript
-    if (-not $pyExe) {
-        throw "Python 3.12 finished installing; please close and re-open ATLAS-Setup.exe once to refresh PATH."
-    }
-}
-Write-Output "Selected Python runtime: $pyExe"
-
-$venvDir = Join-Path $InstallDir '.venv'
-$venvPy  = Join-Path $venvDir 'Scripts\python.exe'
-if (Test-Path $venvPy) {
-    & $venvPy $checkPyScript 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Output "Existing .venv uses an incompatible Python version; recreating .venv with $pyExe ..."
-        Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
-if (-not (Test-Path $venvPy)) {
-    Emit-Step 40 "Creating dedicated Python virtual environment (.venv)..."
-    & $pyExe -m venv $venvDir
-    if ($LASTEXITCODE -ne 0) { throw "Failed to create Python virtual environment in $venvDir." }
-}
-
-Emit-Step 46 "Upgrading pip, setuptools & wheel..."
-& $venvPy -m pip install --upgrade pip setuptools wheel --quiet
-
 $gpuInfo = Get-NvidiaGpuInfo
 if ($gpuInfo.Present) {
     Write-Output ("Detected NVIDIA GPU: {0} (Driver {1}, Max CUDA {2})" -f $gpuInfo.Name, $(if ($gpuInfo.Driver) { $gpuInfo.Driver } else { 'detected' }), $(if ($gpuInfo.MaxCuda -gt 0) { $gpuInfo.MaxCuda.ToString('0.0', [Globalization.CultureInfo]::InvariantCulture) } else { 'auto' }))
@@ -244,107 +261,163 @@ if ($gpuInfo.Present) {
 $useCuda  = if ($ComputePref -eq 'cuda') { $true } elseif ($ComputePref -eq 'cpu') { $false } else { [bool]$gpuInfo.Present }
 $modeName = if ($useCuda) { 'NVIDIA CUDA GPU Acceleration' } else { 'Multi-Core CPU Engine' }
 
+$checkPyScript   = Join-Path $InstallDir 'installer\check_python.py'
 $checkCudaScript = Join-Path $InstallDir 'installer\check_cuda.py'
-Emit-Step 58 "Configuring PyTorch ($modeName)..."
-& $venvPy $checkCudaScript
-$cudaCheckRc = $LASTEXITCODE
+$verifyScript    = Join-Path $InstallDir 'installer\verify_install.py'
+$venvDir         = Join-Path $InstallDir '.venv'
+$venvPy          = Join-Path $venvDir 'Scripts\python.exe'
 
-if ($useCuda) {
-    if ($cudaCheckRc -eq 0) {
-        Write-Output "Verified working CUDA PyTorch already present in .venv; reusing existing installation."
-    } else {
-        if ($cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
-            Write-Output "Removing existing non-CUDA or mismatched PyTorch build before installing CUDA wheel..."
-            & $venvPy -m pip uninstall -y torch torchvision torchaudio
+# Fast-path Update: if existing .venv already passes Python + CUDA/CPU + FEM self-test, skip all pip downloads!
+$FastUpdatedEnv = $false
+if ($IsUpdate -and (Test-Path $venvPy) -and (-not $WithFenics)) {
+    Emit-Step 52 "Checking existing Python & compute runtime for fast update..."
+    & $venvPy $checkPyScript 2>$null | Out-Null
+    $pyOk = ($LASTEXITCODE -eq 0)
+    $cudaNeedOk = $true
+    if ($pyOk -and $useCuda) {
+        & $venvPy $checkCudaScript
+        $cudaNeedOk = ($LASTEXITCODE -eq 0)
+    }
+    if ($pyOk -and $cudaNeedOk) {
+        & $venvPy $verifyScript
+        if ($LASTEXITCODE -eq 0) {
+            Write-Output "Existing .venv runtime & packages verified — skipping package downloads for instant update!"
+            $FastUpdatedEnv = $true
         }
+    }
+}
 
-        $cudaTags = if ($gpuInfo.MaxCuda -ge 13.0) {
-            @('cu130', 'cu128', 'cu126', 'cu124')
-        } elseif ($gpuInfo.MaxCuda -ge 12.8) {
-            @('cu128', 'cu126', 'cu124', 'cu130')
-        } elseif ($gpuInfo.MaxCuda -ge 12.6) {
-            @('cu126', 'cu124', 'cu128', 'cu130')
-        } elseif ($gpuInfo.MaxCuda -gt 0.0) {
-            @('cu124', 'cu121', 'cu126', 'cu128')
+if (-not $FastUpdatedEnv) {
+    Emit-Step 34 "Checking Python 3.10-3.14 runtime..."
+    $pyExe = Find-SystemPython $checkPyScript
+    if (-not $pyExe) {
+        if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+            throw "Compatible Python 3.10-3.14 runtime was not found and winget is unavailable. Please install Python 3.12 from https://www.python.org/downloads/ and re-run ATLAS-Setup.exe."
+        }
+        Emit-Step 38 "Installing Python 3.12 automatically via Windows Package Manager (winget)..."
+        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+        $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
+        $pyExe = Find-SystemPython $checkPyScript
+        if (-not $pyExe) {
+            throw "Python 3.12 finished installing; please close and re-open ATLAS-Setup.exe once to refresh PATH."
+        }
+    }
+    Write-Output "Selected Python runtime: $pyExe"
+
+    if (Test-Path $venvPy) {
+        & $venvPy $checkPyScript 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Output "Existing .venv uses an incompatible Python version; recreating .venv with $pyExe ..."
+            Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not (Test-Path $venvPy)) {
+        Emit-Step 42 "Creating dedicated Python virtual environment (.venv)..."
+        & $pyExe -m venv $venvDir
+        if ($LASTEXITCODE -ne 0) { throw "Failed to create Python virtual environment in $venvDir." }
+    }
+
+    Emit-Step 48 "Upgrading pip, setuptools & wheel..."
+    & $venvPy -m pip install --upgrade pip setuptools wheel --quiet
+
+    Emit-Step 58 "Configuring PyTorch ($modeName)..."
+    & $venvPy $checkCudaScript
+    $cudaCheckRc = $LASTEXITCODE
+
+    if ($useCuda) {
+        if ($cudaCheckRc -eq 0) {
+            Write-Output "Verified working CUDA PyTorch already present in .venv; reusing existing installation."
         } else {
-            @('cu128', 'cu130', 'cu126', 'cu124')
-        }
+            if ($cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
+                Write-Output "Removing existing non-CUDA or mismatched PyTorch build before installing CUDA wheel..."
+                & $venvPy -m pip uninstall -y torch torchvision torchaudio
+            }
 
-        $cudaVerified = $false
-        $anyCudaWheelInstalled = $false
-        foreach ($tag in $cudaTags) {
-            $idxUrl = "https://download.pytorch.org/whl/$tag"
-            Write-Output "Installing PyTorch CUDA wheel from $idxUrl ..."
-            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url $idxUrl
-            if ($LASTEXITCODE -eq 0) {
-                $anyCudaWheelInstalled = $true
-                & $venvPy $checkCudaScript
-                $probeRc = $LASTEXITCODE
-                if ($probeRc -eq 4 -and (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-                    Write-Output "Installing Microsoft Visual C++ Redistributable required by CUDA libraries..."
-                    Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+            $cudaTags = if ($gpuInfo.MaxCuda -ge 13.0) {
+                @('cu130', 'cu128', 'cu126', 'cu124')
+            } elseif ($gpuInfo.MaxCuda -ge 12.8) {
+                @('cu128', 'cu126', 'cu124', 'cu130')
+            } elseif ($gpuInfo.MaxCuda -ge 12.6) {
+                @('cu126', 'cu124', 'cu128', 'cu130')
+            } elseif ($gpuInfo.MaxCuda -gt 0.0) {
+                @('cu124', 'cu121', 'cu126', 'cu128')
+            } else {
+                @('cu128', 'cu130', 'cu126', 'cu124')
+            }
+
+            $cudaVerified = $false
+            foreach ($tag in $cudaTags) {
+                $idxUrl = "https://download.pytorch.org/whl/$tag"
+                Write-Output "Installing PyTorch CUDA wheel from $idxUrl ..."
+                & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url $idxUrl
+                if ($LASTEXITCODE -eq 0) {
                     & $venvPy $checkCudaScript
                     $probeRc = $LASTEXITCODE
+                    if ($probeRc -eq 4 -and (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+                        Write-Output "Installing Microsoft Visual C++ Redistributable required by CUDA libraries..."
+                        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+                        & $venvPy $checkCudaScript
+                        $probeRc = $LASTEXITCODE
+                    }
+                    if ($probeRc -eq 0) {
+                        $cudaVerified = $true
+                        break
+                    }
+                    Write-Output "Wheel from $tag installed but CUDA runtime is not active (status $probeRc); trying next CUDA compatibility build..."
+                    & $venvPy -m pip uninstall -y torch
                 }
-                if ($probeRc -eq 0) {
-                    $cudaVerified = $true
-                    break
+            }
+
+            if (-not $cudaVerified) {
+                Write-Output "Notice: Could not activate CUDA wheel for current driver/Python; installing standard PyTorch wheel as fallback..."
+                & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
+                if ($LASTEXITCODE -ne 0) {
+                    & $venvPy -m pip install --prefer-binary 'torch>=2.2'
+                    if ($LASTEXITCODE -ne 0) { throw "Failed to install PyTorch wheel." }
                 }
-                Write-Output "Wheel from $tag installed but CUDA runtime is not active (status $probeRc); trying next CUDA compatibility build..."
-                & $venvPy -m pip uninstall -y torch
             }
         }
-
-        if (-not $cudaVerified) {
-            Write-Output "Notice: Could not activate CUDA wheel for current driver/Python; installing standard PyTorch wheel as fallback..."
-            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
-            if ($LASTEXITCODE -ne 0) {
-                & $venvPy -m pip install --prefer-binary 'torch>=2.2'
-                if ($LASTEXITCODE -ne 0) { throw "Failed to install PyTorch wheel." }
-            }
-        }
-    }
-} else {
-    if ($cudaCheckRc -eq 0 -or $cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
-        Write-Output "PyTorch is already installed in .venv; reusing existing installation."
     } else {
-        Write-Output "Installing CPU PyTorch wheel..."
-        & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url 'https://download.pytorch.org/whl/cpu'
-        if ($LASTEXITCODE -ne 0) {
-            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
-            if ($LASTEXITCODE -ne 0) { throw "Failed to install CPU PyTorch wheel." }
-        }
-    }
-}
-
-Emit-Step 72 "Installing scientific & server wheels (NumPy, SciPy P2 FEM, Matplotlib, FastAPI)..."
-$reqPath = Join-Path $InstallDir 'requirements.txt'
-& $venvPy -m pip install --only-binary=:all: -r $reqPath
-if ($LASTEXITCODE -ne 0) {
-    & $venvPy -m pip install --prefer-binary -r $reqPath
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install dependencies from requirements.txt." }
-}
-
-Emit-Step 78 "Installing native Windows WebView2 shell support..."
-& $venvPy -m pip install --prefer-binary 'pywebview>=5.0'
-if ($LASTEXITCODE -ne 0) {
-    Write-Output "Note: pywebview optional wheel skipped; native Microsoft Edge app-mode window remains ready."
-}
-
-if ($WithFenics) {
-    Emit-Step 83 "Configuring WSL2 + Legacy FEniCS 2019.1.0 ('Atlas' conda environment)..."
-    if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-        Write-Output "WSL2 is not enabled on this Windows installation; Built-in Cross-Platform P2 FEM remains active."
-    } else {
-        $raw = (& wsl.exe -l -q 2>$null) -join "`n"
-        $distros = @($raw -split "`r?`n" | ForEach-Object { $_.Trim() -replace "`0",'' } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
-        if ($distros.Count -eq 0) {
-            Write-Output "Installing Ubuntu WSL2 distribution (reboot Windows after setup completes, then run ATLAS-Setup.exe once more to finish creating the conda env)..."
-            Start-Process -FilePath 'wsl.exe' -ArgumentList '--install -d Ubuntu --no-launch' -Wait -NoNewWindow
+        if ($cudaCheckRc -eq 0 -or $cudaCheckRc -eq 2 -or $cudaCheckRc -eq 3) {
+            Write-Output "PyTorch is already installed in .venv; reusing existing installation."
         } else {
-            $distro = $distros[0]
-            Write-Output "Provisioning Miniconda + FEniCS 2019.1.0 inside WSL2 ($distro)..."
-            $wslCmd = @'
+            Write-Output "Installing CPU PyTorch wheel..."
+            & $venvPy -m pip install --only-binary=:all: 'torch>=2.2' --index-url 'https://download.pytorch.org/whl/cpu'
+            if ($LASTEXITCODE -ne 0) {
+                & $venvPy -m pip install --only-binary=:all: 'torch>=2.2'
+                if ($LASTEXITCODE -ne 0) { throw "Failed to install CPU PyTorch wheel." }
+            }
+        }
+    }
+
+    Emit-Step 72 "Installing scientific & server wheels (NumPy, SciPy P2 FEM, Matplotlib, FastAPI)..."
+    $reqPath = Join-Path $InstallDir 'requirements.txt'
+    & $venvPy -m pip install --only-binary=:all: -r $reqPath
+    if ($LASTEXITCODE -ne 0) {
+        & $venvPy -m pip install --prefer-binary -r $reqPath
+        if ($LASTEXITCODE -ne 0) { throw "Failed to install dependencies from requirements.txt." }
+    }
+
+    Emit-Step 78 "Installing native Windows WebView2 shell support..."
+    & $venvPy -m pip install --prefer-binary 'pywebview>=5.0'
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "Note: pywebview optional wheel skipped; native Microsoft Edge app-mode window remains ready."
+    }
+
+    if ($WithFenics) {
+        Emit-Step 83 "Configuring WSL2 + Legacy FEniCS 2019.1.0 ('Atlas' conda environment)..."
+        if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+            Write-Output "WSL2 is not enabled on this Windows installation; Built-in Cross-Platform P2 FEM remains active."
+        } else {
+            $raw = (& wsl.exe -l -q 2>$null) -join "`n"
+            $distros = @($raw -split "`r?`n" | ForEach-Object { $_.Trim() -replace "`0",'' } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
+            if ($distros.Count -eq 0) {
+                Write-Output "Installing Ubuntu WSL2 distribution (reboot Windows after setup completes, then run ATLAS-Setup.exe once more to finish creating the conda env)..."
+                Start-Process -FilePath 'wsl.exe' -ArgumentList '--install -d Ubuntu --no-launch' -Wait -NoNewWindow
+            } else {
+                $distro = $distros[0]
+                Write-Output "Provisioning Miniconda + FEniCS 2019.1.0 inside WSL2 ($distro)..."
+                $wslCmd = @'
 set -e
 if [ ! -x "$HOME/miniconda3/bin/conda" ]; then
   curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh
@@ -357,34 +430,37 @@ if [ ! -x "$HOME/miniconda3/envs/Atlas/bin/python" ]; then
 fi
 "$HOME/miniconda3/envs/Atlas/bin/python" -c "import dolfin; print('WSL2 FEniCS ready:', dolfin.__version__)"
 '@
-            & wsl.exe -d $distro bash -lc $wslCmd
+                & wsl.exe -d $distro bash -lc $wslCmd
+            }
         }
+    }
+
+    Emit-Step 93 "Running Built-in P2 FEM & compute verification self-test..."
+    & $venvPy $verifyScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "ATLAS runtime verification check failed (exit code $LASTEXITCODE)."
     }
 }
 
-Emit-Step 89 "Writing default hardware & FEM settings..."
-$cfg = @{
-    device        = if ($ComputePref -in @('auto', 'cuda', 'cpu')) { $ComputePref } else { 'auto' }
-    fem_backend   = 'auto'
-    cpu_threads   = 4
-    plot_dpi      = 140
-    poll_ms       = 1500
-    auto_open_log = $true
-}
-$settingsJson = ($cfg | ConvertTo-Json -Depth 4)
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText((Join-Path $InstallDir 'webapp\.app_settings.json'), $settingsJson, $utf8NoBom)
-
-Emit-Step 93 "Running Built-in P2 FEM & compute verification self-test..."
-$verifyScript = Join-Path $InstallDir 'installer\verify_install.py'
-& $venvPy $verifyScript
-if ($LASTEXITCODE -ne 0) {
-    throw "ATLAS runtime verification check failed (exit code $LASTEXITCODE)."
+$settingsPath = Join-Path $InstallDir 'webapp\.app_settings.json'
+if ((-not $IsUpdate) -or (-not (Test-Path $settingsPath)) -or ($ComputePref -in @('cuda', 'cpu'))) {
+    Emit-Step 89 "Writing hardware & FEM settings..."
+    $cfg = @{
+        device        = if ($ComputePref -in @('auto', 'cuda', 'cpu')) { $ComputePref } else { 'auto' }
+        fem_backend   = 'auto'
+        cpu_threads   = 4
+        plot_dpi      = 140
+        poll_ms       = 1500
+        auto_open_log = $true
+    }
+    $settingsJson = ($cfg | ConvertTo-Json -Depth 4)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($settingsPath, $settingsJson, $utf8NoBom)
 }
 
-Emit-Step 97 "Registering shortcuts & Windows Installed Apps entry (Publisher: ATLAS)..."
+Emit-Step 97 "Updating shortcuts & Windows Installed Apps entry (Publisher: ATLAS)..."
 $appExe   = Join-Path $InstallDir 'ATLAS.exe'
-$iconPath = Join-Path $InstallDir 'webapp\frontend\icon.ico'
+$dispVer  = ($ResolvedVersion -replace '^v', '')
 
 $wsh = New-Object -ComObject WScript.Shell
 if ($MakeDesktop) {
@@ -416,7 +492,7 @@ if ($MakeStart) {
 $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ATLASDesktopStudio'
 if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 Set-ItemProperty -Path $regPath -Name 'DisplayName'          -Value 'ATLAS Desktop Studio'
-Set-ItemProperty -Path $regPath -Name 'DisplayVersion'       -Value '1.1.5'
+Set-ItemProperty -Path $regPath -Name 'DisplayVersion'       -Value $dispVer
 Set-ItemProperty -Path $regPath -Name 'Publisher'            -Value $PUBLISHER
 Set-ItemProperty -Path $regPath -Name 'InstallLocation'      -Value $InstallDir
 Set-ItemProperty -Path $regPath -Name 'DisplayIcon'          -Value "$appExe,0"
@@ -426,5 +502,6 @@ Set-ItemProperty -Path $regPath -Name 'NoModify'             -Value 1 -Type DWor
 Set-ItemProperty -Path $regPath -Name 'NoRepair'             -Value 1 -Type DWord
 Set-ItemProperty -Path $regPath -Name 'URLInfoAbout'         -Value "https://github.com/$REPO_SLUG"
 
-Emit-Step 100 "Installation complete! ATLAS Desktop Studio ($APP_VERSION) is ready."
-Write-Output "SUCCESS: Installed to $InstallDir (Publisher: $PUBLISHER)."
+$doneWord = if ($IsUpdate) { 'Update' } else { 'Installation' }
+Emit-Step 100 "$doneWord complete! ATLAS Desktop Studio ($ResolvedVersion) is ready."
+Write-Output "SUCCESS: $doneWord finished at $InstallDir (Publisher: $PUBLISHER)."

@@ -37,6 +37,7 @@
 #define ID_BTN_CANCEL   110
 #define ID_PROG_BAR     111
 #define ID_TXT_LOG      112
+#define ID_BTN_UPDATE   113
 
 static int g_dpi = 96;
 static int SX(int v) { return MulDiv(v, g_dpi, 96); }
@@ -44,7 +45,7 @@ static int SX(int v) { return MulDiv(v, g_dpi, 96); }
 static HWND g_hWnd = NULL;
 static HWND g_hRbStd, g_hRbFen, g_hCmbDev, g_hTxtDir, g_hBtnBrowse;
 static HWND g_hChkDesk, g_hChkStart, g_hChkLaunch;
-static HWND g_hProg, g_hLog, g_hBtnInstall, g_hBtnCancel, g_hGrp1, g_hGrp2;
+static HWND g_hProg, g_hLog, g_hBtnInstall, g_hBtnUpdate, g_hBtnCancel, g_hStatusHint, g_hGrp1, g_hGrp2;
 static HFONT g_fTitle, g_fSub, g_fBold, g_fNorm, g_fSmall, g_fMono;
 static HBRUSH g_brBg, g_brLog;
 static HICON g_hAppIcon = NULL;
@@ -54,12 +55,49 @@ static wchar_t g_gpuInfo[256] = L"Detecting graphics hardware...";
 
 typedef struct {
     wchar_t destDir[MAX_PATH * 2];
+    BOOL isUpdate;
     BOOL withFenics;
     int computeIdx; /* 0 = auto, 1 = cuda, 2 = cpu */
     BOOL makeDesktop;
     BOOL makeStart;
     BOOL launchAfter;
 } InstallParams;
+
+static BOOL is_existing_install(const wchar_t *dir) {
+    if (!dir || !dir[0]) return FALSE;
+    wchar_t probe[MAX_PATH * 2] = {0};
+    _snwprintf(probe, MAX_PATH * 2 - 1, L"%ls\\webapp\\desktop.py", dir);
+    if (GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES) return TRUE;
+    _snwprintf(probe, MAX_PATH * 2 - 1, L"%ls\\ATLAS.exe", dir);
+    return GetFileAttributesW(probe) != INVALID_FILE_ATTRIBUTES;
+}
+
+static void refresh_dest_status(BOOL updateLog) {
+    if (!g_hTxtDir || g_installing) return;
+    wchar_t dir[MAX_PATH * 2] = {0};
+    GetWindowTextW(g_hTxtDir, dir, MAX_PATH * 2 - 1);
+    BOOL exists = is_existing_install(dir);
+    if (g_hStatusHint) {
+        SetWindowTextW(g_hStatusHint,
+            exists ? L"Existing install found — click Update"
+                   : L"Version 1.1.5B  \x2022  Published by ATLAS");
+    }
+    if (g_hBtnUpdate && g_hBtnInstall) {
+        SendMessageW(g_hBtnUpdate,  BM_SETSTYLE, exists ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON, TRUE);
+        SendMessageW(g_hBtnInstall, BM_SETSTYLE, exists ? BS_PUSHBUTTON : BS_DEFPUSHBUTTON, TRUE);
+    }
+    if (updateLog && g_hLog) {
+        if (exists) {
+            SetWindowTextW(g_hLog,
+                L"Existing ATLAS installation detected in destination folder.\r\n"
+                L"Click 'Update' for a fast in-place update (keeps your CUDA/Python environment), or 'Install ATLAS' for full setup.");
+        } else {
+            SetWindowTextW(g_hLog,
+                L"Ready to install ATLAS Desktop Studio v1.1.5B (Published by ATLAS).\r\n"
+                L"Click 'Install ATLAS' for first-time setup, or 'Update' to update an existing installation.");
+        }
+    }
+}
 
 static BOOL is_nvidia_name(const wchar_t *s) {
     if (!s || !s[0]) return FALSE;
@@ -179,6 +217,7 @@ static DWORD WINAPI install_worker_thread(LPVOID lpParam) {
 
     SetEnvironmentVariableW(L"ATLAS_SRC_DIR", g_srcDir);
     SetEnvironmentVariableW(L"ATLAS_DEST_DIR", p->destDir);
+    SetEnvironmentVariableW(L"ATLAS_ACTION", p->isUpdate ? L"update" : L"install");
     SetEnvironmentVariableW(L"ATLAS_EDITION", p->withFenics ? L"fenics" : L"standard");
     SetEnvironmentVariableW(L"ATLAS_COMPUTE",
         p->computeIdx == 1 ? L"cuda" : (p->computeIdx == 2 ? L"cpu" : L"auto"));
@@ -249,11 +288,12 @@ static DWORD WINAPI install_worker_thread(LPVOID lpParam) {
     return exitCode;
 }
 
-static void start_installation(void) {
+static void start_installation(BOOL isUpdate) {
     if (g_installing) return;
 
     InstallParams *p = (InstallParams *)calloc(1, sizeof(InstallParams));
     GetWindowTextW(g_hTxtDir, p->destDir, MAX_PATH * 2 - 1);
+    p->isUpdate    = isUpdate;
     p->withFenics  = (SendMessageW(g_hRbFen, BM_GETCHECK, 0, 0) == BST_CHECKED);
     p->computeIdx  = (int)SendMessageW(g_hCmbDev, CB_GETCURSEL, 0, 0);
     p->makeDesktop = (SendMessageW(g_hChkDesk, BM_GETCHECK, 0, 0) == BST_CHECKED);
@@ -267,8 +307,13 @@ static void start_installation(void) {
     }
 
     g_installing = TRUE;
+    EnableWindow(g_hBtnUpdate, FALSE);
     EnableWindow(g_hBtnInstall, FALSE);
-    SetWindowTextW(g_hBtnInstall, L"Installing...");
+    if (isUpdate) {
+        SetWindowTextW(g_hBtnUpdate, L"Updating...");
+    } else {
+        SetWindowTextW(g_hBtnInstall, L"Installing...");
+    }
     EnableWindow(g_hRbStd, FALSE);
     EnableWindow(g_hRbFen, FALSE);
     EnableWindow(g_hCmbDev, FALSE);
@@ -279,7 +324,9 @@ static void start_installation(void) {
     SetWindowTextW(g_hLog, L"");
     SendMessageW(g_hProg, PBM_SETPOS, 2, 0);
 
-    append_log_line(L"Starting ATLAS Desktop Studio Setup Wizard (Publisher: ATLAS)...");
+    append_log_line(isUpdate
+        ? L"Starting ATLAS Desktop Studio Update (v1.1.5B — Publisher: ATLAS)..."
+        : L"Starting ATLAS Desktop Studio Setup Wizard (v1.1.5B — Publisher: ATLAS)...");
     HANDLE hThread = CreateThread(NULL, 0, install_worker_thread, p, 0, NULL);
     if (hThread) CloseHandle(hThread);
 }
@@ -345,7 +392,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             SX(160), SX(271), SX(468), SX(200), hwnd, (HMENU)ID_CMB_COMPUTE, NULL, NULL);
         SendMessageW(g_hCmbDev, WM_SETFONT, (WPARAM)g_fNorm, TRUE);
         SendMessageW(g_hCmbDev, CB_ADDSTRING, 0, (LPARAM)L"Auto-Detect Hardware (Recommended — CUDA GPU if present, else CPU)");
-        SendMessageW(g_hCmbDev, CB_ADDSTRING, 0, (LPARAM)L"NVIDIA GPU Acceleration (CUDA 12.4)");
+        SendMessageW(g_hCmbDev, CB_ADDSTRING, 0, (LPARAM)L"NVIDIA GPU Acceleration (CUDA 12.4–13.0)");
         SendMessageW(g_hCmbDev, CB_ADDSTRING, 0, (LPARAM)L"CPU Only (Smaller download, works on every PC/laptop)");
         SendMessageW(g_hCmbDev, CB_SETCURSEL, 0, 0);
 
@@ -394,15 +441,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             SX(22), SX(422), SX(624), SX(98), hwnd, (HMENU)ID_TXT_LOG, NULL, NULL);
         SendMessageW(g_hLog, WM_SETFONT, (WPARAM)g_fMono, TRUE);
 
+        g_hStatusHint = CreateWindowExW(0, L"STATIC",
+            L"Version 1.1.5B  \x2022  Published by ATLAS",
+            WS_CHILD | WS_VISIBLE,
+            SX(24), SX(540), SX(242), SX(20), hwnd, NULL, NULL, NULL);
+        SendMessageW(g_hStatusHint, WM_SETFONT, (WPARAM)g_fSmall, TRUE);
+
         g_hBtnCancel = CreateWindowExW(0, L"BUTTON", L"Close",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP,
-            SX(396), SX(532), SX(92), SX(34), hwnd, (HMENU)ID_BTN_CANCEL, NULL, NULL);
+            SX(274), SX(532), SX(94), SX(34), hwnd, (HMENU)ID_BTN_CANCEL, NULL, NULL);
         SendMessageW(g_hBtnCancel, WM_SETFONT, (WPARAM)g_fNorm, TRUE);
+
+        g_hBtnUpdate = CreateWindowExW(0, L"BUTTON", L"Update",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP,
+            SX(378), SX(532), SX(128), SX(34), hwnd, (HMENU)ID_BTN_UPDATE, NULL, NULL);
+        SendMessageW(g_hBtnUpdate, WM_SETFONT, (WPARAM)g_fBold, TRUE);
 
         g_hBtnInstall = CreateWindowExW(0, L"BUTTON", L"Install ATLAS",
             WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | WS_TABSTOP,
-            SX(498), SX(532), SX(148), SX(34), hwnd, (HMENU)ID_BTN_INSTALL, NULL, NULL);
+            SX(516), SX(532), SX(130), SX(34), hwnd, (HMENU)ID_BTN_INSTALL, NULL, NULL);
         SendMessageW(g_hBtnInstall, WM_SETFONT, (WPARAM)g_fBold, TRUE);
+
+        refresh_dest_status(TRUE);
         return 0;
     }
 
@@ -433,7 +493,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SelectObject(hdc, g_fSub);
         SetTextColor(hdc, RGB(148, 163, 184));
         RECT rcS = { SX(75), SX(42), SX(650), SX(66) };
-        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.5   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
+        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.5B   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
         SelectObject(hdc, oldF);
 
         EndPaint(hwnd, &ps);
@@ -455,6 +515,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_COMMAND: {
         int id = LOWORD(wParam);
+        if (id == ID_TXT_DIR && HIWORD(wParam) == EN_CHANGE) {
+            refresh_dest_status(FALSE);
+            return 0;
+        }
         if (id == ID_BTN_BROWSE) {
             BROWSEINFOW bi;
             ZeroMemory(&bi, sizeof(bi));
@@ -466,19 +530,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 wchar_t chosen[MAX_PATH] = {0};
                 if (SHGetPathFromIDListW(pidl, chosen) && chosen[0]) {
                     SetWindowTextW(g_hTxtDir, chosen);
+                    refresh_dest_status(TRUE);
                 }
                 CoTaskMemFree(pidl);
             }
             return 0;
         }
+        if (id == ID_BTN_UPDATE) {
+            start_installation(TRUE);
+            return 0;
+        }
         if (id == ID_BTN_INSTALL) {
-            start_installation();
+            start_installation(FALSE);
             return 0;
         }
         if (id == ID_BTN_CANCEL) {
             if (g_installing) {
                 int q = MessageBoxW(hwnd,
-                    L"Installation is currently in progress. Are you sure you want to exit?",
+                    L"Setup is currently in progress. Are you sure you want to exit?",
                     L"ATLAS Setup Wizard", MB_YESNO | MB_ICONWARNING);
                 if (q != IDYES) return 0;
             }
@@ -517,7 +586,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (code == 0) {
             SendMessageW(g_hProg, PBM_SETPOS, 100, 0);
-            SetWindowTextW(g_hBtnInstall, L"Installed!");
+            if (p->isUpdate) {
+                SetWindowTextW(g_hBtnUpdate, L"Updated!");
+                SetWindowTextW(g_hBtnInstall, L"Install ATLAS");
+            } else {
+                SetWindowTextW(g_hBtnInstall, L"Installed!");
+                SetWindowTextW(g_hBtnUpdate, L"Update");
+            }
             SetWindowTextW(g_hBtnCancel, L"Finish");
 
             wchar_t appExe[MAX_PATH * 2] = {0};
@@ -529,13 +604,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 return 0;
             }
             MessageBoxW(hwnd,
-                L"ATLAS Desktop Studio has been installed successfully!\n\n"
-                L"You can launch it anytime from your Desktop or Start Menu.",
-                L"ATLAS Setup Complete",
+                p->isUpdate
+                    ? L"ATLAS Desktop Studio has been updated successfully!\n\nYou can launch it anytime from your Desktop or Start Menu."
+                    : L"ATLAS Desktop Studio has been installed successfully!\n\nYou can launch it anytime from your Desktop or Start Menu.",
+                p->isUpdate ? L"ATLAS Update Complete" : L"ATLAS Setup Complete",
                 MB_OK | MB_ICONINFORMATION);
         } else {
+            EnableWindow(g_hBtnUpdate, TRUE);
             EnableWindow(g_hBtnInstall, TRUE);
-            SetWindowTextW(g_hBtnInstall, L"Retry Install");
+            SetWindowTextW(g_hBtnUpdate, p->isUpdate ? L"Retry Update" : L"Update");
+            SetWindowTextW(g_hBtnInstall, p->isUpdate ? L"Install ATLAS" : L"Retry Install");
             EnableWindow(g_hRbStd, TRUE);
             EnableWindow(g_hRbFen, TRUE);
             EnableWindow(g_hCmbDev, TRUE);
@@ -619,7 +697,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
 
     g_hWnd = CreateWindowExW(
         0, L"AtlasSetupWizardWnd",
-        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.5",
+        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.5B",
         style,
         (scrW - winW) / 2, (scrH - winH) / 2, winW, winH,
         NULL, NULL, hInst, NULL
@@ -641,6 +719,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
                 if (len > 0 && len < MAX_PATH * 2 - 1) {
                     wcsncpy(customDest, p, len);
                     SetWindowTextW(g_hTxtDir, customDest);
+                    refresh_dest_status(TRUE);
                 }
             } else if (*p) {
                 const wchar_t *endSp = wcschr(p, L' ');
@@ -648,6 +727,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
                 if (len > 0 && len < MAX_PATH * 2 - 1) {
                     wcsncpy(customDest, p, len);
                     SetWindowTextW(g_hTxtDir, customDest);
+                    refresh_dest_status(TRUE);
                 }
             }
         }
@@ -657,7 +737,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
     UpdateWindow(g_hWnd);
 
     if (lpCmdLine && wcsstr(lpCmdLine, L"--unattended")) {
-        start_installation();
+        start_installation(wcsstr(lpCmdLine, L"--update") != NULL);
     }
 
     MSG msg;

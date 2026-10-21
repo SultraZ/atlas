@@ -654,12 +654,15 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
                 JOBS[job_id].update(status="cancelled", stage="cancelled",
                                     finished=datetime.now().isoformat(timespec="seconds"))
                 return
-            JOBS[job_id].update(status="running", stage="setup",
-                                started=datetime.now().isoformat(timespec="seconds"))
+            t_start = time.perf_counter()
+JOBS[job_id].update(status="running", stage="setup",
+                    started=datetime.now().isoformat(timespec="seconds"),
+                    started_perf=t_start, finished_perf=None)
         log = JobLog(job_id)
         try:
             _apply_cpu_threads(SETTINGS.get("cpu_threads", CPU_COUNT))
             dpi = int(payload.get("_plot_dpi") or SETTINGS.get("plot_dpi", 140))
+             log.write(f"[{datetime.now().strftime('%H:%M:%S')}] Benchmark testing started for {payload['benchmark']}...\n")
             with redirect_stdout(log), record_energy(job_id), _with_plot_dpi(dpi):
                 if kind == "inverse":
                     _run_inverse(job_id, payload)
@@ -669,9 +672,16 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
                     _run_multi(job_id, payload)
                 else:
                     _run_forward(job_id, payload)
+                    total_runtime = _format_runtime(time.perf_counter() - t_start)
+            log.write(f"[{datetime.now().strftime('%H:%M:%S')} · total runtime {total_runtime}] Benchmark test completed!\n")
+             total_runtime = _format_runtime(time.perf_counter() - t_start)
+            log.write(f"[{datetime.now().strftime('%H:%M:%S')} · total runtime {total_runtime}] Benchmark test completed!\n")
+
             status, error = "done", None
+
         except JobCancelledError:
-            log.write("\n[Stopped by user]\n")
+            cur_runtime = _format_runtime(time.perf_counter() - t_start)
+            log.write(f"\n[{datetime.now().strftime('%H:%M:%S')} · stopped after {cur_runtime}] Run cancelled by user.\n")
             status, error = "cancelled", None
         except Exception as exc:
             log.write("\n" + traceback.format_exc())
@@ -684,9 +694,10 @@ def _run_job(job_id: str, kind: str, payload: dict) -> None:
                 except Exception:
                     pass
         with JOBS_LOCK:
-            next_stage = "finished" if status == "done" else ("cancelled" if status == "cancelled" else JOBS[job_id]["stage"])
-            JOBS[job_id].update(status=status, error=error, stage=next_stage,
-                                finished=datetime.now().isoformat(timespec="seconds"))
+    next_stage = "finished" if status == "done" else ("cancelled" if status == "cancelled" else JOBS[job_id]["stage"])
+    JOBS[job_id].update(status=status, error=error, stage=next_stage,
+                        finished=datetime.now().isoformat(timespec="seconds"),
+                        finished_perf=time.perf_counter())
 
 
 @contextmanager
@@ -1586,12 +1597,38 @@ def forward(req: ForwardRequest):
 def inverse(req: InverseRequest):
     return {"job_id": submit("inverse", _model_dump(req)), "status": "queued"}
 
+def _format_runtime(sec: float) -> str:
+    if sec < 1.0:
+        return f"{sec * 1000:.0f} ms"
+    if sec < 60.0:
+        return f"{sec:.1f}s"
+    m = int(sec // 60)
+    s = int(sec % 60)
+    return f"{m}m {s}s"
+
+def _job_with_runtime(j: dict, include_heavy: bool = True) -> dict:
+    d = dict(j)
+    t_start = d.get("started_perf")
+    t_fin = d.get("finished_perf")
+    if t_start:
+        now_perf = t_fin if t_fin else time.perf_counter()
+        elapsed = max(0.0, now_perf - t_start)
+        d["elapsed_seconds"] = round(elapsed, 1)
+        d["formatted_runtime"] = _format_runtime(elapsed)
+    else:
+        d["elapsed_seconds"] = 0.0
+        d["formatted_runtime"] = "0s"
+    if not include_heavy:
+        d.pop("log", None)
+        d.pop("progress", None)
+    return d
+
 
 @app.get("/api/jobs")
 def list_jobs(limit: int = 25):
     with JOBS_LOCK:
         jobs = sorted(JOBS.values(), key=lambda j: j["created"], reverse=True)[:max(1, limit)]
-        return {"jobs": [{k: v for k, v in j.items() if k not in ("log", "progress")} for j in jobs]}
+        return {"jobs": [_job_with_runtime(j, include_heavy=False) for j in jobs]}
 
 
 @app.get("/api/jobs/{job_id}")
@@ -1600,7 +1637,7 @@ def job_status(job_id: str):
         job = JOBS.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="Unknown job id")
-        return dict(job)
+        return _job_with_runtime(job, include_heavy=True)
 
 
 @app.post("/api/jobs/{job_id}/cancel")

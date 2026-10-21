@@ -5,14 +5,14 @@ and dual selectable finite-element validation (**genuine FEniCS 2019.1.0** + **B
 
 ## Download & Install (GitHub Releases)
 
-Grab the latest standalone **ATLAS Desktop Studio** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
+Grab the latest standalone **ATLAS Desktop Studio (`v1.0.0`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
 
-- **Windows 10 / 11 (2-Click Guided GUI Installer)**: **[Download `Setup-ATLAS.bat`](https://github.com/SultraZ/atlas/releases/latest/download/Setup-ATLAS.bat)**
+- **Windows 10 / 11 (2-Click Guided GUI Installer)**: **[Download `Setup-ATLAS.bat`](https://github.com/SultraZ/atlas/raw/v1.0.0/Setup-ATLAS.bat)**
   - Opens a native Windows Setup Wizard — lets you choose **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** or **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***, builds icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**.
-- **Full Offline-Ready Archive (Windows / macOS / Linux)**: **[Download `ATLAS-Desktop-Studio.zip`](https://github.com/SultraZ/atlas/releases/latest/download/ATLAS-Desktop-Studio.zip)**
+- **Full Offline-Ready Archive (Windows / macOS / Linux)**: **[Download `ATLAS-v1.0.0.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.0.0.zip)**
 - **macOS & Linux (1-Line Guided Installer)**:
   ```bash
-  curl -fsSL https://github.com/SultraZ/atlas/releases/latest/download/setup_atlas.sh | bash
+  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.0.0/setup_atlas.sh | bash
   ```
 - **Publish a New Release Anytime**:
   ```bash

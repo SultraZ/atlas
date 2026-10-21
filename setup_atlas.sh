@@ -8,7 +8,7 @@ set -euo pipefail
 REPO_SLUG="SultraZ/atlas"
 APP_VERSION="v1.0.0"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
-ZIP_URL_ALT="https://github.com/${REPO_SLUG}/releases/download/${APP_VERSION}/ATLAS-Desktop-Studio-${APP_VERSION}.zip"
+ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/webapp/desktop.py" ]; then

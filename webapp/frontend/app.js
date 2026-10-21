@@ -728,9 +728,9 @@ function renderSettingsDrawer() {
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
-          <a href="https://github.com/SultraZ/atlas/releases/latest/download/Setup-ATLAS.bat" class="mini-btn">Windows Smart Installer (Setup-ATLAS.bat)</a>
-          <a href="https://github.com/SultraZ/atlas/releases/latest/download/ATLAS-Desktop-Studio.zip" class="mini-btn">Full Desktop Bundle (.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/releases/latest/download/setup_atlas.sh" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.0.0/Setup-ATLAS.bat" target="_blank" rel="noopener" class="mini-btn">Windows Smart Installer (Setup-ATLAS.bat)</a>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.0.0.zip" target="_blank" rel="noopener" class="mini-btn">Full Desktop Bundle (.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.0.0/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;

@@ -136,7 +136,8 @@ def build_release_bundle(version: str, out_root: Path | None = None) -> tuple[Pa
     assets.append(sums_file)
 
     zip_mb = versioned_zip.stat().st_size / (1024 * 1024)
-    dl_base = f"https://github.com/{REPO_SLUG}/releases/download/{version}"
+    raw_base = f"https://github.com/{REPO_SLUG}/raw/{version}"
+    zip_archive = f"https://github.com/{REPO_SLUG}/archive/refs/tags/{version}.zip"
 
     notes = f"""# ATLAS Desktop Studio — `{version}`
 
@@ -148,18 +149,18 @@ Standalone **Desktop Structural Design & Finite-Element Studio** wrapping **ATLA
 
 ## One-Click Downloads
 
-| Platform | Download | What It Does |
+| Platform | Direct Download | What It Does |
 | :--- | :--- | :--- |
-| **Windows 10 / 11 (Smart Installer)** | **[`Setup-ATLAS.bat`]({dl_base}/Setup-ATLAS.bat)** | Opens a native Windows GUI Setup Wizard — downloads ATLAS automatically, installs Python 3.11 + GPU/CPU PyTorch, lets you choose **Standard (No WSL)** or **Full WSL2 FEniCS**, builds icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**. |
-| **Full Package (Windows / macOS / Linux)** | **[`ATLAS-Desktop-Studio-{version}.zip`]({dl_base}/ATLAS-Desktop-Studio-{version}.zip)** *({zip_mb:.1f} MB, {files_added} files)* | Complete offline-ready archive with the Desktop Studio app, all 6 stored benchmark studies (`results/`), all 6 FEniCS references (`fem/reference/`), `Setup-ATLAS.bat`, `ATLAS.bat`, `build_exe.bat`, `setup_atlas.sh`, and `launch_atlas.sh`. |
-| **macOS & Linux (Smart Installer)** | **[`setup_atlas.sh`]({dl_base}/setup_atlas.sh)** | One-step terminal installer (`bash setup_atlas.sh`) that downloads ATLAS, creates `.venv`, installs GPU/CPU PyTorch + SciPy `P2` FEM (or optional `Atlas` FEniCS conda env on Linux), creates a launcher icon, and opens ATLAS. |
+| **Windows 10 / 11 (Smart GUI Installer)** | **[Download `Setup-ATLAS.bat`]({raw_base}/Setup-ATLAS.bat)** | Opens a native Windows Setup Wizard — automatically downloads ATLAS, installs Python 3.11 + GPU/CPU PyTorch, lets you choose **Standard (No WSL)** or **Full WSL2 FEniCS**, compiles icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**. |
+| **Full Complete Package (`.zip`)** | **[Download `ATLAS-{version}.zip`]({zip_archive})** *({zip_mb:.1f} MB, {files_added} files)* | Complete archive with the Desktop Studio UI, all 6 stored benchmark studies (`results/`), all 6 FEniCS references (`fem/reference/`), `Setup-ATLAS.bat`, `ATLAS.bat`, `build_exe.bat`, `setup_atlas.sh`, and `launch_atlas.sh`. |
+| **macOS & Linux (Smart Installer)** | **[Download `setup_atlas.sh`]({raw_base}/setup_atlas.sh)** | One-step guided installer (`bash setup_atlas.sh`) that downloads ATLAS, creates `.venv`, installs GPU/CPU PyTorch + SciPy `P2` FEM (or optional `Atlas` FEniCS conda env on Linux), adds an app launcher, and opens ATLAS. |
 
 ---
 
 ## Quick Start
 
-### Windows (Easiest — 2 Clicks)
-1. Download **[`Setup-ATLAS.bat`]({dl_base}/Setup-ATLAS.bat)** *(or extract [`ATLAS-Desktop-Studio-{version}.zip`]({dl_base}/ATLAS-Desktop-Studio-{version}.zip) and double-click `Setup-ATLAS.bat` inside it)*.
+### Windows 10 / 11 (Easiest — 2 Clicks)
+1. Download **[`Setup-ATLAS.bat`]({raw_base}/Setup-ATLAS.bat)** *(or extract [`ATLAS-{version}.zip`]({zip_archive}) and double-click `Setup-ATLAS.bat` inside it)*.
 2. Pick your preferred edition in the Setup Wizard window:
    - **Standard Cross-Platform Edition *(Recommended — No WSL Required)*** — uses native GPU/CPU PyTorch + Built-in `P2` FEM.
    - **Full FEniCS Edition *(WSL2 + Legacy FEniCS 2019.1.0)*** — also configures WSL2 Ubuntu + Miniconda `Atlas` FEniCS environment.
@@ -167,7 +168,7 @@ Standalone **Desktop Structural Design & Finite-Element Studio** wrapping **ATLA
 
 ### macOS & Linux (1 Command)
 ```bash
-curl -fsSL {dl_base}/setup_atlas.sh | bash
+curl -fsSL {raw_base}/setup_atlas.sh | bash
 ```
 
 ---
@@ -195,12 +196,7 @@ def publish_github_release(version: str, target: str, assets: list[Path], notes_
 
     if exists:
         subprocess.run(
-            ["gh", "release", "edit", version, "--title", rel_title, "--notes-file", str(notes_file)],
-            cwd=ROOT,
-            check=True,
-        )
-        subprocess.run(
-            ["gh", "release", "upload", version, "--clobber", *[str(a) for a in assets]],
+            ["gh", "release", "edit", version, "--title", rel_title, "--notes-file", str(notes_file), "--draft=false", "--latest"],
             cwd=ROOT,
             check=True,
         )
@@ -211,16 +207,29 @@ def publish_github_release(version: str, target: str, assets: list[Path], notes_
                 "release",
                 "create",
                 version,
-                *[str(a) for a in assets],
                 "--target",
                 target,
                 "--title",
                 rel_title,
                 "--notes-file",
                 str(notes_file),
+                "--latest",
             ],
             cwd=ROOT,
             check=True,
+        )
+
+    up = subprocess.run(
+        ["gh", "release", "upload", version, "--clobber", *[str(a) for a in assets]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if up.returncode != 0:
+        print(
+            "[ATLAS Release] Note: binary asset upload endpoint (uploads.github.com) skipped; "
+            "GitHub's native release archive and raw installer download URLs are active.",
+            file=sys.stderr,
         )
 
     out = subprocess.check_output(

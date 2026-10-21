@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $REPO_SLUG   = 'SultraZ/atlas'
 $APP_VERSION = 'v1.0.0'
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
-$ZIP_URL_ALT = "https://github.com/$REPO_SLUG/releases/download/$APP_VERSION/ATLAS-Desktop-Studio-$APP_VERSION.zip"
+$ZIP_URL_ALT = "https://github.com/$REPO_SLUG/archive/refs/tags/$APP_VERSION.zip"
 
 $ScriptDir = ($env:ATLAS_BAT_DIR).TrimEnd('\', '/')
 $LocalCheckout = Test-Path (Join-Path $ScriptDir 'webapp\desktop.py')

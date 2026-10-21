@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.2"
+APP_VERSION="v1.1.3"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 

@@ -58,31 +58,32 @@ def test_desktop_launcher_helpers(tmp_path):
         assert meta["Publisher"] == "ATLAS"
         assert meta["Author"] == "ATLAS"
 
-    # Execute the actual 93% post-install verification script directly AND guard against PS quote bugs
+    # Execute the actual 93% post-install verification script directly AND guard against PS bugs
     import subprocess
     ps1_text = (ROOT / "installer" / "setup_worker.ps1").read_text(encoding="utf-8")
-    assert '\\"' not in ps1_text, "Backslash-quote detected in PowerShell script (breaks PowerShell 5.1 quoting)!"
+    assert '\\"' not in ps1_text, "Backslash-quote detected in PowerShell script!"
+    assert "Invoke-Native" not in ps1_text, "Pipeline-capturing function detected in PowerShell script!"
     subprocess.run([sys.executable, str(ROOT / "installer" / "verify_install.py")], check=True)
 
-    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.2", out_root=tmp_path)
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.3", out_root=tmp_path)
     assert out_dir.is_dir()
     assert notes_file.is_file()
     names = {a.name for a in assets}
     assert {
         "ATLAS-Setup.exe",
         "setup_atlas.sh",
-        "ATLAS-Desktop-Studio-v1.1.2.zip",
+        "ATLAS-Desktop-Studio-v1.1.3.zip",
         "ATLAS-Desktop-Studio.zip",
         "SHA256SUMS.txt",
     } == names
     with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
         znames = set(zf.namelist())
-        assert "ATLAS-Desktop-Studio-v1.1.2/ATLAS-Setup.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.2/ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.2/installer/Uninstall-ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.2/installer/verify_install.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.2/atlas/native_fem.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.2/webapp/desktop.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/ATLAS-Setup.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/installer/Uninstall-ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/installer/verify_install.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.3/webapp/desktop.py" in znames
         assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 

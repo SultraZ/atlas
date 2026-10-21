@@ -243,7 +243,7 @@ def publish_github_release(version: str, target: str, assets: list[Path], notes_
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Package and publish an ATLAS Desktop Studio GitHub Release.")
-    parser.add_argument("--version", default="v1.1.2", help="Release tag version (e.g. v1.1.2)")
+    parser.add_argument("--version", default="v1.1.3", help="Release tag version (e.g. v1.1.3)")
     parser.add_argument("--target", default=None, help="Git branch or commit SHA to tag (defaults to current branch)")
     parser.add_argument("--title", default=None, help="Optional release title")
     parser.add_argument("--out-dir", default=None, help="Output folder root (default: dist/releases)")

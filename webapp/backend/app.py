@@ -106,7 +106,7 @@ def _load_app_settings() -> dict:
     cfg = dict(DEFAULT_SETTINGS)
     try:
         if SETTINGS_FILE.exists():
-            saved = json.loads(SETTINGS_FILE.read_text())
+            saved = json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
             if isinstance(saved, dict):
                 if saved.get("device") in ("auto", "cuda", "cpu") and not os.environ.get("ATLAS_DEVICE"):
                     cfg["device"] = saved["device"]
@@ -141,7 +141,7 @@ _apply_cpu_threads(SETTINGS["cpu_threads"])
 
 def _save_app_settings() -> None:
     try:
-        SETTINGS_FILE.write_text(json.dumps(SETTINGS, indent=2))
+        SETTINGS_FILE.write_text(json.dumps(SETTINGS, indent=2), encoding="utf-8")
     except Exception:
         pass
 

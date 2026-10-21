@@ -159,6 +159,12 @@
               <div class="sub" id="jobSub">Pick a benchmark, then run a forward solve.</div>
             </div>
             <div class="job-ctrl">
+              <div class="job-ctrl">
+  <span class="chip" id="jobRuntimeBadge" style="font-weight:600;">Runtime: 0s</span>
+  <a class="mini-btn" id="exportJob" href="#" download hidden>Export JSON</a>
+  <button type="button" class="mini-btn danger" id="cancelJob" hidden>Stop run</button>
+  <span class="chip" id="jobChip">Idle</span>
+</div>
               <a class="mini-btn" id="exportJob" href="#" download hidden>Export JSON</a>
               <button type="button" class="mini-btn danger" id="cancelJob" hidden>Stop run</button>
               <span class="chip" id="jobChip">Idle</span>

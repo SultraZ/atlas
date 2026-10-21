@@ -1611,6 +1611,22 @@ function renderEnergy(j) {
 function isBusy() { return state.jobs.some((j) => j.status === "queued" || j.status === "running"); }
 
 function renderJobs() {
+   const rtBadge = $("#jobRuntimeBadge");
+  if (rtBadge) {
+    if (state.job && (state.job.status === "running" || state.job.status === "queued")) {
+      const started = state.job.started ? new Date(state.job.started).getTime() : Date.now();
+      const sec = Math.max(0, (Date.now() - started) / 1000);
+      rtBadge.textContent = `Runtime: ${sec < 60 ? sec.toFixed(1) + "s" : Math.floor(sec / 60) + "m " + (sec % 60).toFixed(0) + "s"} (running)`;
+      rtBadge.style.display = "inline-block";
+    } else if (state.job && state.job.status === "done") {
+      rtBadge.textContent = `Runtime: ${state.job.formatted_runtime || (state.job.elapsed_seconds ? state.job.elapsed_seconds + "s" : "done")}`;
+      rtBadge.style.display = "inline-block";
+    } else {
+      rtBadge.textContent = "Runtime: 0s";
+    }
+  }
+
+  
   const ul = $("#jobs");
   const clearBtn = $("#clearJobsBtn");
   if (clearBtn) clearBtn.hidden = !state.jobs.some((j) => j.status !== "queued" && j.status !== "running");

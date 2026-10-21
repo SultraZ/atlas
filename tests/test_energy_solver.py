@@ -88,11 +88,18 @@ def t_energy_decreases_and_positive_strain():
     assert se.item() > 0.0
 
 
-check("quadrature exact for polynomials / lengths", t_quadrature)
-check("quadrature areas match the three geometries", t_areas)
-check("hard BCs exact (clamp, symmetry rollers)", t_hard_bcs)
-check("Williams enrichment finite (value+gradient) at the corner", t_williams_finite_at_corner)
-check("energy decreases under training", t_energy_decreases_and_positive_strain)
+def test_energy_solver_suite():
+    ok.clear()
+    bad.clear()
+    check("quadrature exact for polynomials / lengths", t_quadrature)
+    check("quadrature areas match the three geometries", t_areas)
+    check("hard BCs exact (clamp, symmetry rollers)", t_hard_bcs)
+    check("Williams enrichment finite (value+gradient) at the corner", t_williams_finite_at_corner)
+    check("energy decreases under training", t_energy_decreases_and_positive_strain)
+    print(f"passed: {len(ok)}  failed: {len(bad)}")
+    assert not bad, f"Failed energy solver checks: {bad}"
 
-print(f"passed: {len(ok)}  failed: {len(bad)}")
-sys.exit(1 if bad else 0)
+
+if __name__ == "__main__":
+    test_energy_solver_suite()
+    sys.exit(0)

@@ -5,20 +5,20 @@ and dual selectable finite-element validation (**genuine FEniCS 2019.1.0** + **B
 
 ## Download & Install (GitHub Releases)
 
-Grab the latest standalone **ATLAS Desktop Studio (`v1.1.5B` — Published by `ATLAS`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
+Grab the latest standalone **ATLAS Desktop Studio (`v1.1.6` — Published by `ATLAS`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
 
-- **Full Complete Package (`.zip` — Includes Native `ATLAS-Setup.exe` & `ATLAS.exe`)**: **[Download `ATLAS-v1.1.5B.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.5B.zip)**
+- **Full Complete Package (`.zip` — Includes Native `ATLAS-Setup.exe` & `ATLAS.exe`)**: **[Download `ATLAS-v1.1.6.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.6.zip)**
   - Extract the `.zip` archive and double-click **`ATLAS-Setup.exe`** *(Native Win32 GUI Installer & Updater — Publisher/Author: `ATLAS`)*.
-- **Windows Native GUI Installer & Updater (`ATLAS-Setup.exe`)**: **[Download `ATLAS-Setup.exe`](https://github.com/SultraZ/atlas/raw/v1.1.5B/ATLAS-Setup.exe)**
+- **Windows Native GUI Installer & Updater (`ATLAS-Setup.exe`)**: **[Download `ATLAS-Setup.exe`](https://github.com/SultraZ/atlas/raw/v1.1.6/ATLAS-Setup.exe)**
   - Real Windows x64 GUI Installer (`Publisher: ATLAS`) with dedicated **Update** & **Install ATLAS** buttons — lets you fast-update an existing installation in seconds without re-downloading Python/CUDA wheels, or install **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** / **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***.
 - **macOS & Linux (1-Line Guided Installer)**:
   ```bash
-  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.1.5B/setup_atlas.sh | bash
+  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.1.6/setup_atlas.sh | bash
   ```
 - **Rebuild Windows Executables / Publish a New Release Anytime**:
   ```bash
   python scripts/build_windows_exes.py
-  python scripts/create_release.py --version v1.1.5B --publish
+  python scripts/create_release.py --version v1.1.6 --publish
   ```
 
 ## Layout

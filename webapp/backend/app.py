@@ -1213,7 +1213,7 @@ def _run_inverse(job_id: str, payload: dict) -> None:
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return FileResponse(str(FRONTEND_DIR / "index.html"))
+    return FileResponse(str(FRONTEND_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/benchmarks")

@@ -94,10 +94,17 @@ def t_solver_recovers_beam_height():
     assert out['converged'] and abs(out['p_star'] - (1 / 0.7) ** (1 / 3)) < 0.07
 
 
-check("areas, subdomain totals and interface lengths (all three cases)", t_areas_and_interfaces)
-check("router assigns every quadrature point to its own subnetwork", t_router_matches_blocks)
-check("decomposed autodiff shape derivative = finite differences ~ beam theory", t_gradient_matches_fd)
-check("decomposed solver recovers the beam height for a compliance target", t_solver_recovers_beam_height)
+def test_energy_xpinn_design_suite():
+    ok.clear()
+    bad.clear()
+    check("areas, subdomain totals and interface lengths (all three cases)", t_areas_and_interfaces)
+    check("router assigns every quadrature point to its own subnetwork", t_router_matches_blocks)
+    check("decomposed autodiff shape derivative = finite differences ~ beam theory", t_gradient_matches_fd)
+    check("decomposed solver recovers the beam height for a compliance target", t_solver_recovers_beam_height)
+    print(f"passed: {len(ok)}  failed: {len(bad)}")
+    assert not bad, f"Failed XPINN design checks: {bad}"
 
-print(f"passed: {len(ok)}  failed: {len(bad)}")
-sys.exit(1 if bad else 0)
+
+if __name__ == "__main__":
+    test_energy_xpinn_design_suite()
+    sys.exit(0)

@@ -74,6 +74,10 @@ def test_desktop_launcher_helpers(tmp_path):
         "Inline python -c string detected in PowerShell section!"
     )
     assert "ATLAS_ACTION" in ps1_text and "v1.1.5B" in ps1_text
+    assert "please close and re-open ATLAS-Setup.exe" not in ps1_text
+    assert "Install-OfficialPython312" in ps1_text
+    assert "PythonCore" in ps1_text
+    assert "python-3.12.10-amd64.exe" in ps1_text
     assert "pip uninstall -y torch" in ps1_text, "Must uninstall CPU PyTorch before installing CUDA wheel!"
     for tag in ("cu130", "cu128", "cu126", "cu124"):
         assert tag in ps1_text, f"Missing CUDA index tag {tag} in setup_worker.ps1!"

@@ -31,27 +31,212 @@ function Emit-Step([int]$Pct, [string]$Msg) {
     Write-Output ("@@PROGRESS|{0}|{1}" -f $Pct, $Msg)
 }
 
-function Find-SystemPython([string]$CheckScript) {
-    if (Get-Command py.exe -ErrorAction SilentlyContinue) {
-        foreach ($ver in @('-3.12', '-3.13', '-3.11', '-3.14', '-3.10')) {
-            $p = (& py.exe $ver $CheckScript 2>$null | Select-Object -First 1)
-            if ($LASTEXITCODE -eq 0 -and $p -and (Test-Path $p.Trim())) { return $p.Trim() }
+function Test-PythonCandidate([string]$ExePath, [string]$CheckScript) {
+    if (-not $ExePath) { return $null }
+    if (-not (Test-Path -LiteralPath $ExePath)) { return $null }
+    try {
+        $outLines = @(& $ExePath $CheckScript 2>$null)
+        $rc = $LASTEXITCODE
+        if ($rc -eq 0 -and $outLines.Count -gt 0) {
+            $resolved = ([string]$outLines[0]).Trim()
+            if ($resolved -and (Test-Path -LiteralPath $resolved)) {
+                return $resolved
+            }
+            return $ExePath
+        }
+    } catch {}
+    return $null
+}
+
+function Find-SystemPython([string]$CheckScript, [switch]$IncludeStoreFallback) {
+    # 1. PEP 773 Python Install Manager & standalone py.exe launchers (works even before PATH refreshes)
+    $pyLaunchers = @()
+    $pyCmd = Get-Command py.exe -ErrorAction SilentlyContinue
+    if ($pyCmd -and $pyCmd.Source) { $pyLaunchers += $pyCmd.Source }
+    $pyLaunchers += @(
+        "$env:LOCALAPPDATA\Python\bin\py.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Launcher\py.exe",
+        "$env:SystemRoot\py.exe",
+        "$env:ProgramFiles\Python Launcher\py.exe"
+    )
+    foreach ($launcher in ($pyLaunchers | Select-Object -Unique)) {
+        if ($launcher -and (Test-Path -LiteralPath $launcher)) {
+            foreach ($ver in @('-3.12', '-3.13', '-3.11', '-3.14', '-3.10')) {
+                try {
+                    $outLines = @(& $launcher $ver $CheckScript 2>$null)
+                    $rc = $LASTEXITCODE
+                    if ($rc -eq 0 -and $outLines.Count -gt 0) {
+                        $resolved = ([string]$outLines[0]).Trim()
+                        if ($resolved -and (Test-Path -LiteralPath $resolved) -and ($IncludeStoreFallback -or $resolved -notmatch 'WindowsApps\\PythonSoftwareFoundation')) {
+                            return $resolved
+                        }
+                    }
+                } catch {}
+            }
         }
     }
-    foreach ($cmd in @('python.exe', 'python3.exe')) {
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    # 2. PEP 773 Python Installation Manager directories (2025-2026 default on Windows)
+    foreach ($glob in @(
+        "$env:LOCALAPPDATA\Python\python*\python.exe",
+        "$env:ProgramFiles\Python\python*\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
+        "$env:ProgramFiles\Python3*\python.exe",
+        "${env:ProgramFiles(x86)}\Python3*\python.exe",
+        "$env:SystemDrive\Python3*\python.exe"
+    )) {
+        $items = Get-ChildItem -Path $glob -ErrorAction SilentlyContinue | Sort-Object FullName -Descending
+        foreach ($it in $items) { $candidates.Add($it.FullName) }
+    }
+
+    # 3. PEP 514 Windows Registry keys (HKCU + HKLM — works regardless of install drive or PATH checkboxes)
+    foreach ($regRoot in @(
+        'HKCU:\Software\Python\PythonCore',
+        'HKLM:\Software\Python\PythonCore',
+        'HKLM:\Software\WOW6432Node\Python\PythonCore'
+    )) {
+        if (Test-Path $regRoot) {
+            $verKeys = Get-ChildItem -Path $regRoot -ErrorAction SilentlyContinue | Sort-Object PSChildName -Descending
+            foreach ($vk in $verKeys) {
+                $ipKey = Join-Path $vk.PSPath 'InstallPath'
+                if (Test-Path $ipKey) {
+                    $props = Get-ItemProperty -Path $ipKey -ErrorAction SilentlyContinue
+                    if ($props.ExecutablePath) {
+                        $candidates.Add([string]$props.ExecutablePath)
+                    }
+                    $defDir = $props.'(default)'
+                    if ($defDir) {
+                        $candidates.Add((Join-Path ([string]$defDir) 'python.exe'))
+                    }
+                }
+            }
+        }
+    }
+
+    # 4. Commands on PATH (skipping bare WindowsApps\python.exe & python3.exe Store stubs; versioned python3.1x.exe never exist as uninstalled stubs)
+    foreach ($cmd in @('python3.12.exe', 'python3.13.exe', 'python3.11.exe', 'python3.14.exe', 'python3.10.exe', 'python.exe', 'python3.exe')) {
         $found = Get-Command $cmd -ErrorAction SilentlyContinue
-        if ($found -and $found.Source -notmatch 'WindowsApps\\python') {
-            $ok = (& $found.Source $CheckScript 2>$null | Select-Object -First 1)
-            if ($LASTEXITCODE -eq 0 -and $ok -and (Test-Path $ok.Trim())) { return $ok.Trim() }
+        if ($found -and $found.Source) {
+            $src = [string]$found.Source
+            if ($src -notmatch 'WindowsApps\\python3?\.exe$') {
+                $candidates.Add($src)
+            }
         }
     }
-    $localCandidates = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe" -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending
-    foreach ($cand in $localCandidates) {
-        $ok = (& $cand.FullName $CheckScript 2>$null | Select-Object -First 1)
-        if ($LASTEXITCODE -eq 0 -and $ok -and (Test-Path $ok.Trim())) { return $ok.Trim() }
+
+    # 5. UV / Pyenv-Win / Conda installations
+    foreach ($glob2 in @(
+        "$env:LOCALAPPDATA\uv\python\cpython-3.*\python.exe",
+        "$env:APPDATA\uv\python\cpython-3.*\python.exe",
+        "$env:USERPROFILE\.pyenv\pyenv-win\versions\3.*\python.exe",
+        "$env:USERPROFILE\miniconda3\python.exe",
+        "$env:USERPROFILE\anaconda3\python.exe",
+        "$env:USERPROFILE\miniforge3\python.exe",
+        "$env:ProgramData\miniconda3\python.exe",
+        "$env:ProgramData\anaconda3\python.exe"
+    )) {
+        $items2 = Get-ChildItem -Path $glob2 -ErrorAction SilentlyContinue | Sort-Object FullName -Descending
+        foreach ($it2 in $items2) { $candidates.Add($it2.FullName) }
+    }
+
+    # 6. Installed Microsoft Store Appx packages (queried cleanly via Get-AppxPackage — never opens Microsoft Store)
+    if ($IncludeStoreFallback) {
+        try {
+            $appxPkgs = Get-AppxPackage -Name 'PythonSoftwareFoundation.Python.3*' -ErrorAction SilentlyContinue | Sort-Object Version -Descending
+            foreach ($pkg in $appxPkgs) {
+                if ($pkg.InstallLocation) {
+                    $candidates.Add((Join-Path $pkg.InstallLocation 'python.exe'))
+                }
+            }
+        } catch {}
+    }
+
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($candPath in $candidates) {
+        if (-not $candPath) { continue }
+        if (-not $seen.Add($candPath)) { continue }
+        $verified = Test-PythonCandidate $candPath $CheckScript
+        if ($verified) {
+            if ((-not $IncludeStoreFallback) -and ($verified -match 'WindowsApps\\PythonSoftwareFoundation')) {
+                continue
+            }
+            return $verified
+        }
     }
     return $null
+}
+
+function Refresh-ProcessPath {
+    $mPath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $uPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = ($mPath + ';' + $uPath).Trim(';')
+}
+
+function Install-OfficialPython312([string]$CheckScript) {
+    # Step 1: Try winget with --force so stale/existing package registrations still reinstall cleanly
+    if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
+        Emit-Step 37 "Provisioning Python 3.12 runtime via Windows Package Manager..."
+        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.12 --source winget --scope user --force --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+        Refresh-ProcessPath
+        $foundAfterWinget = Find-SystemPython $CheckScript
+        if ($foundAfterWinget) { return $foundAfterWinget }
+    }
+
+    # Step 2: Direct official python.org x64 installer into deterministic per-user directory (zero PATH/winget dependency)
+    $directPyDir = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312'
+    $directPyExe = Join-Path $directPyDir 'python.exe'
+    $pyUrls = @(
+        'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe',
+        'https://www.python.org/ftp/python/3.12.9/python-3.12.9-amd64.exe',
+        'https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe'
+    )
+    $tmpInstaller = Join-Path $env:TEMP ("atlas_python312_" + [Guid]::NewGuid().ToString('N') + ".exe")
+    $downloaded = $false
+    foreach ($u in $pyUrls) {
+        try {
+            Emit-Step 39 "Downloading official Python 3.12 x64 installer from python.org..."
+            Invoke-WebRequest -Uri $u -Headers @{ 'User-Agent' = 'ATLAS-Setup-Wizard' } -OutFile $tmpInstaller -UseBasicParsing -ErrorAction Stop
+            if ((Test-Path -LiteralPath $tmpInstaller) -and ((Get-Item -LiteralPath $tmpInstaller).Length -gt 5000000)) {
+                $downloaded = $true
+                break
+            }
+        } catch {
+            Write-Output "Python mirror notice: $($_.Exception.Message)"
+        }
+    }
+
+    if ($downloaded) {
+        Emit-Step 41 "Installing standalone Python 3.12 runtime into $directPyDir ..."
+        Start-Process -FilePath $tmpInstaller -ArgumentList "/quiet InstallAllUsers=0 TargetDir=`"$directPyDir`" PrependPath=1 Include_test=0 Include_launcher=0" -Wait
+        Refresh-ProcessPath
+        $found = Test-PythonCandidate $directPyExe $CheckScript
+        if (-not $found) { $found = Find-SystemPython $CheckScript }
+
+        # Self-heal stale MSI state (e.g., if user previously installed & manually deleted folder without running uninstaller)
+        if (-not $found) {
+            Write-Output "Repairing existing Python 3.12 Windows Installer registration..."
+            Start-Process -FilePath $tmpInstaller -ArgumentList '/repair /quiet' -Wait
+            Refresh-ProcessPath
+            $found = Test-PythonCandidate $directPyExe $CheckScript
+            if (-not $found) { $found = Find-SystemPython $CheckScript }
+        }
+        if (-not $found) {
+            Write-Output "Performing clean per-user Python 3.12 reinstallation..."
+            Start-Process -FilePath $tmpInstaller -ArgumentList '/uninstall /quiet' -Wait
+            Start-Process -FilePath $tmpInstaller -ArgumentList "/quiet InstallAllUsers=0 TargetDir=`"$directPyDir`" PrependPath=1 Include_test=0 Include_launcher=0" -Wait
+            Refresh-ProcessPath
+            $found = Test-PythonCandidate $directPyExe $CheckScript
+            if (-not $found) { $found = Find-SystemPython $CheckScript -IncludeStoreFallback }
+        }
+        Remove-Item -LiteralPath $tmpInstaller -Force -ErrorAction SilentlyContinue
+        if ($found) { return $found }
+    }
+
+    $lastTry = Find-SystemPython $CheckScript -IncludeStoreFallback
+    if ($lastTry) { return $lastTry }
+    throw "Could not automatically install or locate a 64-bit Python 3.10-3.14 runtime. Check internet connectivity or install Python 3.12 (64-bit) from https://www.python.org/downloads/."
 }
 
 function Get-NvidiaGpuInfo {
@@ -159,7 +344,7 @@ if ((-not $IsUpdate) -and
     (Test-Path (Join-Path $InstallDir 'installer\check_cuda.py')) -and
     (Test-Path $InstalledWorker)) {
     $existingWorkerText = [System.IO.File]::ReadAllText($InstalledWorker)
-    if ($existingWorkerText.Contains("APP_VERSION = '$APP_VERSION'")) {
+    if ($existingWorkerText.Contains("python-3.12.10-amd64.exe")) {
         $NeedsPackageSync = $false
     }
 }
@@ -271,8 +456,7 @@ $venvPy          = Join-Path $venvDir 'Scripts\python.exe'
 $FastUpdatedEnv = $false
 if ($IsUpdate -and (Test-Path $venvPy) -and (-not $WithFenics)) {
     Emit-Step 52 "Checking existing Python & compute runtime for fast update..."
-    & $venvPy $checkPyScript 2>$null | Out-Null
-    $pyOk = ($LASTEXITCODE -eq 0)
+    $pyOk = [bool](Test-PythonCandidate $venvPy $checkPyScript)
     $cudaNeedOk = $true
     if ($pyOk -and $useCuda) {
         & $venvPy $checkCudaScript
@@ -288,33 +472,37 @@ if ($IsUpdate -and (Test-Path $venvPy) -and (-not $WithFenics)) {
 }
 
 if (-not $FastUpdatedEnv) {
-    Emit-Step 34 "Checking Python 3.10-3.14 runtime..."
-    $pyExe = Find-SystemPython $checkPyScript
-    if (-not $pyExe) {
-        if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-            throw "Compatible Python 3.10-3.14 runtime was not found and winget is unavailable. Please install Python 3.12 from https://www.python.org/downloads/ and re-run ATLAS-Setup.exe."
-        }
-        Emit-Step 38 "Installing Python 3.12 automatically via Windows Package Manager (winget)..."
-        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
-        $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
-        $pyExe = Find-SystemPython $checkPyScript
-        if (-not $pyExe) {
-            throw "Python 3.12 finished installing; please close and re-open ATLAS-Setup.exe once to refresh PATH."
-        }
-    }
-    Write-Output "Selected Python runtime: $pyExe"
-
+    Emit-Step 34 "Checking 64-bit Python 3.10-3.14 runtime..."
+    $existingVenvOk = $false
     if (Test-Path $venvPy) {
-        & $venvPy $checkPyScript 2>$null | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Output "Existing .venv uses an incompatible Python version; recreating .venv with $pyExe ..."
+        $existingVenvOk = [bool](Test-PythonCandidate $venvPy $checkPyScript)
+        if (-not $existingVenvOk) {
+            Write-Output "Existing .venv uses an incompatible or missing base Python; recreating .venv ..."
             Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
-    if (-not (Test-Path $venvPy)) {
+
+    if ($existingVenvOk) {
+        Write-Output "Reusing existing virtual environment Python: $venvPy"
+    } else {
+        $pyExe = Find-SystemPython $checkPyScript
+        if (-not $pyExe) {
+            $pyExe = Install-OfficialPython312 $checkPyScript
+        }
+        Write-Output "Selected Python runtime: $pyExe"
+
         Emit-Step 42 "Creating dedicated Python virtual environment (.venv)..."
         & $pyExe -m venv $venvDir
-        if ($LASTEXITCODE -ne 0) { throw "Failed to create Python virtual environment in $venvDir." }
+        if ($LASTEXITCODE -ne 0 -or (-not (Test-Path $venvPy))) {
+            Write-Output "Primary Python candidate could not create .venv cleanly; installing standalone Python 3.12 runtime..."
+            Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
+            $pyExe = Install-OfficialPython312 $checkPyScript
+            Write-Output "Retrying virtual environment creation with: $pyExe"
+            & $pyExe -m venv $venvDir
+            if ($LASTEXITCODE -ne 0 -or (-not (Test-Path $venvPy))) {
+                throw "Failed to create Python virtual environment in $venvDir."
+            }
+        }
     }
 
     Emit-Step 48 "Upgrading pip, setuptools & wheel..."
@@ -355,7 +543,7 @@ if (-not $FastUpdatedEnv) {
                     $probeRc = $LASTEXITCODE
                     if ($probeRc -eq 4 -and (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
                         Write-Output "Installing Microsoft Visual C++ Redistributable required by CUDA libraries..."
-                        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
+                        Start-Process -FilePath 'winget.exe' -ArgumentList 'install -e --id Microsoft.VCRedist.2015+.x64 --force --silent --accept-package-agreements --accept-source-agreements' -Wait -NoNewWindow
                         & $venvPy $checkCudaScript
                         $probeRc = $LASTEXITCODE
                     }

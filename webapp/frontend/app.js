@@ -57,6 +57,8 @@ const GLOSSARY = {
   E: ["Young's modulus, E", "How stiff a material is: how hard it is to stretch. Steel is about 210 GPa, aluminium 70, concrete 30 and epoxy 3.5."],
   nu: ["Poisson's ratio, ν", "How much a material narrows when you stretch it. Most metals are about 0.3. It can range from 0 to 0.5."],
   training: ["Training", "The network starts from random numbers and adjusts them thousands of times until the energy stored in the part stops going down. A shorter run adjusts fewer times, so its errors are larger: on the plate with a hole, 20 % of the training gave 5.9 % bending error instead of 0.75 %, just over the 5 % goal."],
+  device: ["GPU vs CPU compute", "A graphics card (CUDA GPU) computes thousands of network weights at once and finishes runs several times faster. Switching to CPU runs everything on your processor instead — handy when keeping a laptop GPU cool, running without a GPU, or comparing GPU and CPU times."],
+  solver: ["Solver architecture", "ATLAS-XPINN splits the part into regions (one network per region or material) joined smoothly at their borders. Single-network ATLAS trains one network over the whole part."],
 };
 
 const tip = (key) => (GLOSSARY[key] ? `<button type="button" class="tip" data-tip="${key}" aria-label="What is ${esc(GLOSSARY[key][0])}?" aria-expanded="false">?</button>` : "");
@@ -82,8 +84,26 @@ const RUN_STEPS = [
   { epochs: 2000, lbfgs: 2000, label: "Full" },
 ];
 const FULL_STEP = RUN_STEPS.length - 1;
-const snapLbfgs = (n) => Math.min(MAX_LBFGS, Math.max(LBFGS_UNIT, Math.round(n / LBFGS_UNIT) * LBFGS_UNIT));
+const snapLbfgs = (n) => (n <= 0 ? 0 : Math.min(MAX_LBFGS, Math.max(100, Math.round(n / 100) * 100)));
 const stepOf = (b) => RUN_STEPS.findIndex((r) => r.epochs === b.epochs && r.lbfgs === b.lbfgs);
+
+const SOLVER_DEFAULT = {
+  formulation: "energy_xpinn",
+  hidden_layers: 4,
+  neurons: 64,
+  lr: 0.002,
+  precision: "float64",
+  seed: 42,
+  warm_start: 1000,
+  al_stages: 3,
+  gamma_u: 30,
+  gamma_t: 0.1,
+  inv_metric: {},
+  inv_ratio: {},
+  forward_epochs: 2000,
+  forward_lbfgs: 2000,
+  n_outer: 12,
+};
 
 const THUMB = {
   cantilever: `<rect class="t-fill t-ink" x="14" y="18" width="50" height="12.5" stroke-width="1.4"/><path class="t-ink" d="M13 9v30" stroke-width="2"/><path class="t-hatch" d="M13 12l-5 5M13 19l-5 5M13 26l-5 5M13 33l-5 5" stroke-width="1.2"/>`,
@@ -96,12 +116,23 @@ const THUMB = {
 const thumb = (key, w, h) => `<svg width="${w}" height="${h}" viewBox="0 0 72 48" fill="none" aria-hidden="true">${THUMB[key] || ""}</svg>`;
 
 const readJSON = (k) => { try { return JSON.parse(store.get(k) || "null"); } catch { return null; } };
-const reduced = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reduced = () => document.documentElement.getAttribute("data-motion") === "reduced"
+  || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
 const state = {
   results: null, meta: null, bench: store.get("atlas-bench"), fig: {},
   liveBench: store.get("atlas-live-bench"), job: null, jobs: [], poll: null, health: null,
+  workspace: null, filesTab: "runs", filesFilter: "all", femTest: null, filesMsg: "",
   params: readJSON("atlas-params") || {}, heroShown: false, tabsShown: false, geo: null,
+  advOpen: store.get("atlas-adv-open") === "1", settingsOpen: false, settingsMsg: "",
   budget: (() => { const b = { ...FULL, ...(readJSON("atlas-budget") || {}) }; return { epochs: b.epochs, lbfgs: snapLbfgs(b.lbfgs) }; })(),
+  solver: (() => {
+    const s = readJSON("atlas-solver") || {};
+    return {
+      ...SOLVER_DEFAULT, ...s,
+      inv_metric: { ...(s.inv_metric || {}) },
+      inv_ratio: { ...(s.inv_ratio || {}) },
+    };
+  })(),
 };
 
 function countUp(el, delay = 0) {
@@ -137,7 +168,11 @@ function withTransition(fn) {
 
 function switchTheme(t) {
   if (t === document.documentElement.getAttribute("data-theme")) return;
-  withTransition(() => { applyTheme(t); flow.recolor(); });
+  withTransition(() => {
+    applyTheme(t);
+    flow.recolor();
+    if (currentView() === "settings") renderSettingsDrawer();
+  });
 }
 
 function applyTheme(t) {
@@ -146,17 +181,67 @@ function applyTheme(t) {
   $$("[data-theme-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themePick === t)));
 }
 
+function applyScale(sc) {
+  if (sc === "default" || !sc) {
+    document.documentElement.removeAttribute("data-scale");
+    store.set("atlas-scale", "");
+  } else {
+    document.documentElement.setAttribute("data-scale", sc);
+    store.set("atlas-scale", sc);
+  }
+  if (currentView() === "settings") renderSettingsDrawer();
+}
+
+function applyMotion(enableAnimations) {
+  if (enableAnimations) {
+    document.documentElement.removeAttribute("data-motion");
+    store.set("atlas-motion", "full");
+  } else {
+    document.documentElement.setAttribute("data-motion", "reduced");
+    store.set("atlas-motion", "reduced");
+  }
+  flow.recolor();
+  if (currentView() === "settings") renderSettingsDrawer();
+}
+
+function toggleSidebar() {
+  const collapsed = document.documentElement.getAttribute("data-sidebar") === "collapsed";
+  if (collapsed) {
+    document.documentElement.removeAttribute("data-sidebar");
+    store.set("atlas-sidebar", "open");
+  } else {
+    document.documentElement.setAttribute("data-sidebar", "collapsed");
+    store.set("atlas-sidebar", "collapsed");
+  }
+}
+
+function closeMobileSidebar() {
+  const sb = $("#sidebar"), bd = $("#sideBackdrop");
+  if (sb) sb.classList.remove("mobile-open");
+  if (bd) bd.hidden = true;
+}
+
+function currentView() {
+  const h = (location.hash || "").replace(/^#/, "");
+  if (h === "live" || h === "files" || h === "settings") return h;
+  return "results";
+}
+
 function setStaticText() {
   $$("[data-level-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.levelPick === (simple() ? "simple" : "expert"))));
-  $('nav.seg a[data-view="live"]').textContent = S("Try it", "Live solver");
+  const liveNav = $('.side-nav a[data-view="live"] .nav-text');
+  if (liveNav) liveNav.textContent = S("Try it live", "Live solver");
+  const filesNav = $('.side-nav a[data-view="files"] .nav-text');
+  if (filesNav) filesNav.textContent = S("Folder & runs", "Folder & files");
   $("#heroEyebrow").textContent = S("What is ATLAS?", "Stored study · validated against FEniCS");
   $("#heroLead").innerHTML = S(
-    `Engineers simulate parts on a computer to see how they bend under load and where they might break. The standard method, the finite element method ${tip("fem")}, is accurate but slow to repeat for every design change. ATLAS trains a neural network on the laws of physics instead. This page compares its answers with the trusted simulation on six test parts; the Try it tab lets you run it yourself.`,
+    `Engineers simulate parts on a computer to see how they bend under load and where they might break. The standard method, the finite element method ${tip("fem")}, is accurate but slow to repeat for every design change. ATLAS trains a neural network on the laws of physics instead. Browse all six benchmark parts below, or pick Live Solver on the left to simulate your own.`,
     "Relative L² error of displacement and von Mises stress against FEniCS reference solutions. Every number on this page is read from the stored study in results/ — nothing is retrained in the browser.");
   $("#runTitle").textContent = S("Try it yourself", "New run");
   const intro = $("#liveIntro");
   intro.hidden = !simple();
-  intro.textContent = "Pick a part, choose its materials and load, and ATLAS works out how it bends and where it is most stressed. The trusted simulation (FEM) then checks the answer.";
+  intro.textContent = "Pick a part, choose its materials and load, and ATLAS works out how it bends and where it is most stressed. A finite-element solver (FEniCS or Built-in P2 FEM) then verifies the answer.";
+  renderWorkspaceHeader();
 }
 
 function applyLevel(level) {
@@ -165,8 +250,475 @@ function applyLevel(level) {
   store.set("atlas-level", level);
   setStaticText();
   if (state.results) { renderHero(); renderResults(); }
-  if (state.meta) { renderBenchPick(); renderProps(); renderBudget(); renderJob(); }
+  if (state.meta) { renderBenchPick(); renderProps(); renderCompute(); renderBudget(); renderSolverCfg(); renderJob(); }
+  if (currentView() === "files") renderFilesView();
+  if (currentView() === "settings") renderSettingsDrawer();
   pollHealth();
+}
+
+const shortGpu = (name) => (name ? name.replace(/^NVIDIA\s+GeForce\s+/i, "").replace(/\s+Laptop\s+GPU$/i, " Laptop") : "CUDA GPU");
+const humanBytes = (b) => {
+  if (!b) return "0 KB";
+  return b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+};
+const selectedDevice = () => state.health?.selected_device || store.get("atlas-device") || "auto";
+const effectiveDevice = () => {
+  const pref = selectedDevice();
+  if (pref === "cpu") return "cpu";
+  if (pref === "cuda") return state.health?.cuda_available ? "cuda" : "cpu";
+  return state.health?.device || "cpu";
+};
+const selectedFem = () => state.health?.selected_fem_backend || store.get("atlas-fem") || "auto";
+const effectiveFemName = () => {
+  const h = state.health;
+  if (!h) return "Built-in P2 FEM";
+  if (h.fem_backend === "fenics") return `FEniCS ${h.fenics_version || "2019.1"}`;
+  return "Built-in P2 FEM";
+};
+const saveSolver = () => store.set("atlas-solver", JSON.stringify(state.solver));
+
+async function updateAppSettings(patch) {
+  try {
+    const h = await api("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    state.health = h;
+    state.settingsMsg = "";
+    if (patch.device) store.set("atlas-device", patch.device);
+    if (patch.fem_backend) store.set("atlas-fem", patch.fem_backend);
+    applyHealthUI(h);
+    if (state.meta) { renderCompute(); renderSpec(); renderBudget(); }
+    if (currentView() === "settings") renderSettingsDrawer();
+  } catch (e) {
+    state.settingsMsg = e.message;
+    if (currentView() === "settings") renderSettingsDrawer();
+  }
+}
+
+function updateNavBadges() {
+  const liveBadge = $("#navLiveBadge");
+  const filesBadge = $("#navFilesBadge");
+  const resBadge = $("#navResultsBadge");
+  const busy = isBusy() || (state.health?.active_jobs > 0);
+  if (liveBadge) {
+    liveBadge.hidden = !busy;
+    liveBadge.textContent = S("Running", "Active");
+  }
+  if (filesBadge) {
+    const n = (state.health?.plots_count ?? 0) + state.jobs.length;
+    filesBadge.textContent = String(n);
+  }
+  if (resBadge && state.results?.order) {
+    resBadge.textContent = String(state.results.order.length);
+  }
+}
+
+function applyHealthUI(h) {
+  const pill = $("#health");
+  const sub = $("#brandSub");
+  if (sub) sub.textContent = h.app_mode === "desktop" ? S("Desktop Studio", "Desktop Studio · Local") : S("Design Studio", "Structural Studio");
+  const busy = h.active_jobs > 0;
+  const runDev = (h.running_device || h.device) === "cuda" ? "GPU" : "CPU";
+  const idleDev = h.device === "cuda"
+    ? S(`GPU · ${shortGpu(h.gpu_name)}`, `GPU · ${shortGpu(h.gpu_name)}${h.selected_device !== "auto" ? " (pinned)" : ""}`)
+    : S(`CPU · ${h.cpu_threads} threads`, `CPU · ${h.cpu_threads}/${h.cpu_count} threads${h.selected_device === "cpu" && h.cuda_available ? " (GPU idle)" : ""}`);
+  const mainLine = busy
+    ? S(`${runDev} busy · ${plural(h.active_jobs, "run", "runs")}`, `${runDev} · ${plural(h.active_jobs, "job", "jobs")} running`)
+    : idleDev;
+  const femShort = h.fem_backend === "fenics" ? `FEM: FEniCS ${h.fenics_version || ""}`.trim() : "FEM: Built-in P2";
+  pill.innerHTML = `<span class="dot ${busy ? "busy" : "ok"}"></span><span class="runtime-lines"><span class="runtime-main">${esc(mainLine)}</span><span class="runtime-sub">${esc(femShort)}</span></span>`;
+  updateNavBadges();
+}
+
+function renderWorkspaceHeader() {
+  const v = currentView();
+  const eye = $("#wsEyebrow"), title = $("#wsTitle"), act = $("#wsActions");
+  if (!eye || !title || !act) return;
+  const activeRunPill = isBusy() && v !== "live"
+    ? `<a href="#live" class="mini-btn"><span class="dot busy"></span><span>View active run</span></a>`
+    : "";
+
+  if (v === "results") {
+    const b = state.results?.benchmarks?.[state.bench];
+    eye.textContent = S("Benchmark Study", "Stored FEniCS Study");
+    title.textContent = b ? b.title : "Overview";
+    act.innerHTML = `${activeRunPill}
+      <button type="button" class="mini-btn" data-try-bench="${esc(state.bench || "cantilever")}">${S("Open in Live Solver →", "Simulate this benchmark →")}</button>
+      <a href="#files" class="mini-btn">${S("Browse Folder", "Study Files")}</a>`;
+  } else if (v === "live") {
+    const m = liveMeta(state.liveBench);
+    eye.textContent = S("Interactive Simulation", "Live Solver & Inverse Design");
+    title.textContent = m ? m.title : "Workbench";
+    act.innerHTML = `<a href="#files" class="mini-btn">${S("Saved Runs & Plots", "Output Folder")}</a>
+      <a href="#settings" class="mini-btn">${S("Compute & FEM Settings", "Engine Settings")}</a>`;
+  } else if (v === "files") {
+    eye.textContent = S("Workspace Explorer", "Output & Reference Storage");
+    title.textContent = S("Folder & Saved Runs", "Runs, Plots & Reference Data");
+    act.innerHTML = `${activeRunPill}
+      <button type="button" class="mini-btn" id="refreshWorkspaceBtn">Refresh</button>
+      <button type="button" class="mini-btn" data-open-folder="plots">Open Plots Folder</button>`;
+  } else {
+    eye.textContent = S("Preferences", "Application Configuration");
+    title.textContent = S("Appearance, Compute & FEM Engine", "Studio & Runtime Settings");
+    act.innerHTML = `${activeRunPill}
+      <button type="button" class="mini-btn" id="quickTestFem">Test Active FEM Engine</button>
+      <button type="button" class="mini-btn" id="resetAllBtn">Reset Defaults</button>`;
+  }
+}
+
+async function loadWorkspace() {
+  try {
+    state.workspace = await api("/api/workspace");
+    if (currentView() === "files") renderFilesView();
+  } catch (e) {
+    state.filesMsg = `Could not read workspace files: ${e.message}`;
+    if (currentView() === "files") renderFilesView();
+  }
+}
+
+function renderFilesView() {
+  const box = $("#filesContent");
+  if (!box) return;
+  const ws = state.workspace;
+  const plots = ws?.plots || { count: 0, bytes: 0, path: "webapp/static/plots", items: [] };
+  const resFiles = ws?.results || { count: 0, bytes: 0, path: "results", items: [] };
+  const refs = ws?.references || { count: 0, bytes: 0, path: "fem/reference", items: [] };
+  const tab = state.filesTab || "runs";
+
+  let tabBody = "";
+  if (tab === "runs") {
+    const jobCards = state.jobs.map((j) => {
+      const m = liveMeta(j.benchmark);
+      const mx = j.metrics || {};
+      const img = j.plots?.fem_comparison || j.plots?.design || j.plots?.deformed || j.plots?.convergence;
+      const devLabel = (mx.device || j.device) === "cuda" ? "GPU" : "CPU";
+      const femLabel = mx.fem_engine || j.fem_engine || "FEM";
+      const statLine = j.status === "done"
+        ? (j.kind === "inverse"
+          ? `Design: ${mx.final?.toFixed(3) ?? "—"} m · ${dur(mx.train_seconds)}`
+          : `Disp ${pct(mx.relative_L2_displacement)} · VM ${pct(mx.von_mises_l2_excl ?? mx.von_mises_l2)} · ${dur(mx.train_seconds)}`)
+        : `Status: ${j.status}`;
+      return `<article class="file-card">
+        <div>
+          ${img ? `<div class="file-thumb" data-open-img="${esc(img)}"><img src="${esc(img)}" alt="${esc(m?.title || j.benchmark)}"></div>`
+            : `<div class="file-thumb">${thumb(j.benchmark, 96, 64)}</div>`}
+          <div class="file-info" style="margin-top:12px">
+            <span class="file-name">${j.kind === "inverse" ? "Inverse Design" : "Forward Solve"} · ${esc(m?.title || j.benchmark)}</span>
+            <span class="file-meta">${esc(statLine)}</span>
+            <span class="file-meta">${esc(`${j.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN"} · ${devLabel} · ${femLabel}`)}</span>
+          </div>
+        </div>
+        <div class="file-actions">
+          <button type="button" class="mini-btn" data-inspect-job="${esc(j.id)}">Open in Live Solver</button>
+          ${j.status === "done" ? `<a class="mini-btn" href="/api/jobs/${esc(j.id)}/export" download>Export JSON</a>` : ""}
+        </div>
+      </article>`;
+    }).join("");
+
+    const loosePlots = plots.items.map((f) => `<article class="file-card">
+      <div>
+        ${f.is_image ? `<div class="file-thumb" data-open-img="${esc(f.url)}"><img src="${esc(f.url)}" alt="${esc(f.name)}"></div>` : ""}
+        <div class="file-info" style="margin-top:10px">
+          <span class="file-name">${esc(f.name)}</span>
+          <span class="file-meta">${esc(humanBytes(f.bytes))} · ${esc(f.modified.replace("T", " "))}</span>
+        </div>
+      </div>
+      <div class="file-actions">
+        <a class="mini-btn" href="${esc(f.url)}" target="_blank" rel="noopener">Open Full Size</a>
+        <a class="mini-btn" href="${esc(f.url)}" download="${esc(f.name)}">Download</a>
+      </div>
+    </article>`).join("");
+
+    tabBody = (jobCards || loosePlots)
+      ? `<div class="files-grid">${jobCards}${loosePlots}</div>`
+      : `<div class="card"><p class="note" style="margin:0">No live runs or saved plot files yet in this session. Start a simulation in <a href="#live" style="text-decoration:underline;font-weight:600">Live Solver</a> to populate this folder automatically.</p></div>`;
+  } else if (tab === "results") {
+    const flt = state.filesFilter || "all";
+    const items = resFiles.items.filter((i) => flt === "all" || (flt === "png" ? i.is_image : !i.is_image));
+    tabBody = `
+      <div class="toolbar-row">
+        <div class="seg" role="group" aria-label="File type filter">
+          <button type="button" data-files-filter="all" aria-pressed="${flt === "all"}">All (${resFiles.items.length})</button>
+          <button type="button" data-files-filter="png" aria-pressed="${flt === "png"}">Figures (.png)</button>
+          <button type="button" data-files-filter="data" aria-pressed="${flt === "data"}">JSON &amp; Reports</button>
+        </div>
+        <span class="meta">Directory: ${esc(resFiles.path)}</span>
+      </div>
+      <div class="files-grid">
+        ${items.map((item) => `<article class="file-card">
+          <div>
+            ${item.is_image ? `<div class="file-thumb" data-open-img="${esc(item.url)}"><img src="${esc(item.url)}" alt="${esc(item.path)}" loading="lazy"></div>` : ""}
+            <div class="file-info" style="margin-top:${item.is_image ? "10px" : "0"}">
+              <span class="file-name">${esc(item.path)}</span>
+              <span class="file-meta">${esc(item.group)} · ${esc(humanBytes(item.bytes))}</span>
+            </div>
+          </div>
+          <div class="file-actions">
+            <a class="mini-btn" href="${esc(item.url)}" target="_blank" rel="noopener">View</a>
+            <a class="mini-btn" href="${esc(item.url)}" download>Download</a>
+          </div>
+        </article>`).join("")}
+      </div>`;
+  } else {
+    tabBody = `
+      <section class="card">
+        <div class="card-head">
+          <h2>Precomputed FEniCS 2019.1.0 Reference Datasets</h2>
+          <span class="meta">${esc(refs.path)}</span>
+        </div>
+        <p class="note">Genuine legacy FEniCS (dolfin + mshr) reference solutions bundled with ATLAS so all six benchmarks validate immediately on Windows, macOS, and Linux even before WSL2 is configured.</p>
+        <div class="data-table-wrap" style="margin-top:16px">
+          <table class="data-table">
+            <thead><tr><th>Dataset</th><th>Mesh / Grid Points</th><th>Reference Compliance</th><th>Files</th><th>Size</th></tr></thead>
+            <tbody>
+              ${refs.items.map((r) => `<tr>
+                <td><strong>${esc(r.key)}</strong></td>
+                <td>${r.points != null ? r.points.toLocaleString("en-US") : "—"}</td>
+                <td>${r.compliance != null ? sci(r.compliance) : "—"}</td>
+                <td>${r.files}</td>
+                <td>${esc(humanBytes(r.bytes))}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  box.innerHTML = `
+    <div class="page-banner">
+      <div>
+        <div class="eyebrow">Workspace &amp; Output Directory</div>
+        <h1>${S("Folder, Runs & Reference Data", "Workspace Explorer")}</h1>
+        <p>${S("Browse every simulation figure and JSON report created during your session, open your local folders in File Explorer, or inspect the bundled study figures and FEniCS references.",
+          "Inspect live session outputs in webapp/static/plots/, browse study artifacts in results/, and verify FEniCS reference datasets in fem/reference/.")}</p>
+      </div>
+      <div class="set-actions">
+        <button type="button" class="mini-btn" data-open-folder="plots">Open Live Plots</button>
+        <button type="button" class="mini-btn" data-open-folder="results">Open Study Results</button>
+        <button type="button" class="mini-btn" data-open-folder="references">Open FEniCS Refs</button>
+        <button type="button" class="mini-btn danger" id="clearStorageBtnFiles">Clear Finished Runs &amp; Plots</button>
+      </div>
+    </div>
+
+    ${state.filesMsg ? `<div class="status-banner">${esc(state.filesMsg)}</div>` : ""}
+
+    <div class="tiles">
+      ${tile("Session runs", String(state.jobs.length), `${state.jobs.filter((j) => j.status === "done").length} completed this session`)}
+      ${tile("Live plot files", String(plots.count), `${humanBytes(plots.bytes)} in webapp/static/plots`)}
+      ${tile("Study artifacts", String(resFiles.count), `${humanBytes(resFiles.bytes)} in results/`)}
+      ${tile("FEniCS references", String(refs.count), `${humanBytes(refs.bytes)} in fem/reference/`)}
+    </div>
+
+    <div class="toolbar-row">
+      <div class="seg" role="group" aria-label="Workspace sections">
+        <button type="button" data-files-tab="runs" aria-pressed="${tab === "runs"}">Session Runs &amp; Live Plots (${state.jobs.length + plots.count})</button>
+        <button type="button" data-files-tab="results" aria-pressed="${tab === "results"}">Study Figures &amp; JSON (${resFiles.count})</button>
+        <button type="button" data-files-tab="refs" aria-pressed="${tab === "refs"}">FEniCS References (${refs.count})</button>
+      </div>
+    </div>
+
+    ${tabBody}`;
+}
+
+function openSettingsDrawer() {
+  state.settingsMsg = "";
+  if (location.hash !== "#settings") location.hash = "#settings";
+  else renderSettingsDrawer();
+}
+
+function closeSettingsDrawer() {
+  if (location.hash === "#settings") location.hash = "#results";
+}
+
+function renderSettingsDrawer() {
+  const body = $("#settingsBody");
+  if (!body) return;
+  const h = state.health;
+  const curTheme = document.documentElement.getAttribute("data-theme") || "light";
+  const curScale = document.documentElement.getAttribute("data-scale") || "default";
+  const animOn = !reduced();
+  const prefDev = selectedDevice();
+  const prefFem = selectedFem();
+  const cudaOk = !!h?.cuda_available;
+  const fenicsOk = !!h?.fenics_available;
+  const cfg = h?.settings || { plot_dpi: 140, poll_ms: 1500, auto_open_log: true };
+  const mem = h?.gpu_memory;
+  const vram = mem ? `${(mem.free_mb / 1024).toFixed(1)} GB free / ${(mem.total_mb / 1024).toFixed(1)} GB total` : null;
+  const threads = h?.cpu_threads || 4;
+  const maxThreads = h?.cpu_count || 8;
+  const dpis = [[120, "120 DPI · Fast"], [180, "180 DPI · High"], [300, "300 DPI · Print"]];
+  const polls = [[750, "0.75 s"], [1500, "1.5 s"], [3000, "3.0 s"]];
+
+  const themeCards = [
+    ["light", "Light Studio", "Clean daylight paper surface & high-contrast blue accents", "#FCFCFA", "#F3F2EE", "#15171A", "#1E5BC6"],
+    ["dark", "Dark Studio", "Low-glare charcoal slate tuned for long GPU training sessions", "#17191B", "#131416", "#EDEDEA", "#7FA6EE"],
+    ["atlas", "Atlas Parchment", "Editorial serif typography on warm drafting parchment", "#F2E9D4", "#EDE3CC", "#2A2016", "#2F5A7A"],
+  ];
+
+  body.innerHTML = `
+    <div class="page-banner">
+      <div>
+        <div class="eyebrow">Application Preferences</div>
+        <h1>${S("Appearance, Compute & FEM Engine", "Studio & Runtime Configuration")}</h1>
+        <p>${S("Customize your theme and layout scale, switch between GPU and CPU execution, and choose whether custom simulations verify against WSL2 FEniCS or the built-in cross-platform FEM solver.",
+          "Configure theme, detail level, UI scale, PyTorch GPU/CPU execution, and FEM validation backend (genuine WSL2/Conda FEniCS 2019.1.0 vs Built-in SciPy P2 FEM).")}</p>
+      </div>
+    </div>
+
+    ${state.settingsMsg ? `<div class="status-banner">${esc(state.settingsMsg)}</div>` : ""}
+
+    <div class="settings-grid">
+      <section class="card settings-card full">
+        <div class="settings-card-head">
+          <div>
+            <h2>${S("Theme & Interface Layout", "Appearance & Display")}</h2>
+            <p>${S("Switch color palette, explanation style, text scaling, and background animations.", "Persisted automatically across desktop sessions.")}</p>
+          </div>
+        </div>
+        <div class="theme-cards" role="group" aria-label="Color theme">
+          ${themeCards.map(([id, name, desc, railBg, mainBg, inkCol, accCol]) => `
+            <button type="button" class="theme-card" data-theme-pick="${id}" aria-pressed="${curTheme === id}">
+              <div class="theme-swatch" style="background:${mainBg}">
+                <div class="sw-rail" style="background:${railBg};border-right:1px solid rgba(128,128,128,.2)">
+                  <span class="sw-bar" style="background:${accCol}"></span>
+                  <span class="sw-bar" style="background:${inkCol};opacity:.25"></span>
+                  <span class="sw-bar" style="background:${inkCol};opacity:.25"></span>
+                </div>
+                <div class="sw-main">
+                  <span class="sw-bar" style="background:${inkCol};opacity:.8;width:58%"></span>
+                  <span class="sw-accent" style="background:${accCol}"></span>
+                </div>
+              </div>
+              <div class="theme-card-title"><span>${esc(name)}</span>${curTheme === id ? '<span class="badge custom">Active</span>' : ""}</div>
+              <span class="theme-card-sub">${esc(desc)}</span>
+            </button>`).join("")}
+        </div>
+
+        <div class="grid-2" style="margin-top:4px">
+          <div class="field compact">
+            <span>Explanation &amp; metric detail level</span>
+            <div class="seg seg-block two" role="group" aria-label="Detail mode">
+              <button type="button" data-level-pick="simple" aria-pressed="${simple()}">Simple (Guided)</button>
+              <button type="button" data-level-pick="expert" aria-pressed="${!simple()}">Expert (Technical)</button>
+            </div>
+          </div>
+          <div class="field compact">
+            <span>Interface zoom / density</span>
+            <div class="seg seg-block" role="group" aria-label="UI scale">
+              <button type="button" data-scale-pick="compact" aria-pressed="${curScale === "compact"}">Compact (93%)</button>
+              <button type="button" data-scale-pick="default" aria-pressed="${curScale === "default"}">Default (100%)</button>
+              <button type="button" data-scale-pick="large" aria-pressed="${curScale === "large"}">Large (107%)</button>
+            </div>
+          </div>
+        </div>
+
+        <label class="toggle-row">
+          <span>Enable stress-flow background animation &amp; smooth theme transitions</span>
+          <input type="checkbox" id="setMotion" ${animOn ? "checked" : ""}>
+        </label>
+      </section>
+
+      <section class="card settings-card">
+        <div class="settings-card-head">
+          <div>
+            <h2>${S("FEM Validation Engine", "Finite-Element Reference Backend")}</h2>
+            <p>${S("Choose how custom geometries and inverse shape designs are verified.", "Select between untouched WSL2/Conda FEniCS 2019.1.0 and Built-in SciPy P2 FEM.")}</p>
+          </div>
+          <button type="button" class="mini-btn" id="testFemBtn">Run Self-Test</button>
+        </div>
+
+        <div class="engine-list" role="group" aria-label="FEM backend">
+          <button type="button" class="engine-opt" data-fem-pick="auto" aria-pressed="${prefFem === "auto"}">
+            <span class="engine-radio"></span>
+            <span class="engine-body">
+              <span class="engine-title"><span>Auto (Recommended)</span><span class="badge">Active: ${esc(effectiveFemName())}</span></span>
+              <span class="engine-desc">Uses genuine WSL2 / Conda FEniCS 2019.1.0 automatically when present, and seamlessly falls back to Built-in P2 FEM on machines without WSL2.</span>
+            </span>
+          </button>
+          <button type="button" class="engine-opt" data-fem-pick="fenics" aria-pressed="${prefFem === "fenics"}" ${fenicsOk ? "" : 'disabled title="WSL2 / Conda FEniCS (dolfin + mshr) not detected on this host"'}>
+            <span class="engine-radio"></span>
+            <span class="engine-body">
+              <span class="engine-title"><span>WSL2 / Conda FEniCS 2019.1.0</span><span class="badge ${fenicsOk ? "custom" : ""}">${fenicsOk ? `Ready (${esc(h.fenics_version)})` : "Not installed"}</span></span>
+              <span class="engine-desc">Runs untouched fem/fem_live.py &amp; fem/fem_parametric.py (dolfin + mshr) natively or through WSL2 for thesis-identical validation.</span>
+            </span>
+          </button>
+          <button type="button" class="engine-opt" data-fem-pick="builtin" aria-pressed="${prefFem === "builtin"}">
+            <span class="engine-radio"></span>
+            <span class="engine-body">
+              <span class="engine-title"><span>Built-in Quadratic P2 FEM (No WSL Needed)</span><span class="badge custom">Ready</span></span>
+              <span class="engine-desc">Cross-platform body-fitted 6-node P2 triangular FEM solver (${esc(h?.builtin_fem_version || "SciPy sparse")}). Works natively on Windows, macOS &amp; Linux with zero WSL setup.</span>
+            </span>
+          </button>
+        </div>
+
+        ${state.femTest ? `<div class="status-banner">${esc(state.femTest)}</div>` : ""}
+      </section>
+
+      <section class="card settings-card">
+        <div class="settings-card-head">
+          <div>
+            <h2>${S("Compute Hardware (GPU / CPU)", "PyTorch Compute Device & Threads")}</h2>
+            <p>${S("Switch neural-network training between CUDA GPU and multi-core CPU.", "Applies immediately to upcoming forward and inverse runs.")}</p>
+          </div>
+        </div>
+
+        <div class="seg seg-block" role="group" aria-label="Compute device">
+          <button type="button" data-dev-pick="auto" aria-pressed="${prefDev === "auto"}">Auto</button>
+          <button type="button" data-dev-pick="cuda" aria-pressed="${prefDev === "cuda"}" ${cudaOk ? "" : 'disabled title="No CUDA GPU detected in this Python environment"'}>GPU (CUDA)</button>
+          <button type="button" data-dev-pick="cpu" aria-pressed="${prefDev === "cpu"}">CPU</button>
+        </div>
+
+        <div class="prow">
+          <div class="prow-top"><span>CPU worker threads</span><span class="pnum"><input type="number" id="setThreadsNum" min="1" max="${maxThreads}" step="1" value="${threads}"><span>/ ${maxThreads}</span></span></div>
+          <input type="range" class="slider" id="setThreadsRange" min="1" max="${maxThreads}" step="1" value="${threads}" style="--fill:${maxThreads > 1 ? ((threads - 1) / (maxThreads - 1)) * 100 : 100}%">
+        </div>
+
+        <dl class="hw-list">
+          <div><dt>Runtime mode</dt><dd>${h?.app_mode === "desktop" ? "Standalone Desktop App" : "Local Application Console"}</dd></div>
+          <div><dt>PyTorch</dt><dd>${esc(h?.torch || "—")}</dd></div>
+          <div><dt>CUDA GPU</dt><dd>${cudaOk ? esc(h.gpu_name) : "Not detected (CPU active)"}</dd></div>
+          ${vram ? `<div><dt>GPU VRAM</dt><dd>${esc(vram)}</dd></div>` : ""}
+        </dl>
+        ${cudaOk ? `<div class="set-actions"><button type="button" class="mini-btn" id="clearCudaBtn">Free GPU memory cache</button></div>` : ""}
+      </section>
+
+      <section class="card settings-card full">
+        <div class="settings-card-head">
+          <div>
+            <h2>${S("Figures, Polling & Workspace Storage", "Output Resolution & Session Storage")}</h2>
+            <p>${S("Control figure DPI quality, live chart update speed, and saved run files.", "Saved settings persist in webapp/.app_settings.json.")}</p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field compact">
+            <span>Figure export resolution</span>
+            <div class="seg seg-block" role="group" aria-label="Plot DPI">
+              ${dpis.map(([v, l]) => `<button type="button" data-dpi="${v}" aria-pressed="${cfg.plot_dpi === v || (v === 120 && cfg.plot_dpi < 160)}">${esc(l)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="field compact">
+            <span>Live progress polling interval</span>
+            <div class="seg seg-block" role="group" aria-label="Refresh interval">
+              ${polls.map(([v, l]) => `<button type="button" data-poll="${v}" aria-pressed="${cfg.poll_ms === v}">${esc(l)}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+        <label class="toggle-row">
+          <span>Auto-open solver log when a simulation starts</span>
+          <input type="checkbox" id="setAutoLog" ${cfg.auto_open_log !== false ? "checked" : ""}>
+        </label>
+        <div class="toolbar-row" style="padding-top:4px;border-top:1px solid var(--line-soft)">
+          <span class="meta">Saved live plots: <strong>${h ? `${h.plots_count} files (${humanBytes(h.plots_bytes)})` : "—"}</strong> · Session jobs: <strong>${h ? h.total_jobs : 0}</strong></span>
+          <div class="set-actions">
+            <a href="#files" class="mini-btn">Browse in Folder View</a>
+            <button type="button" class="mini-btn" id="openPlotsBtn">Open Plots Folder</button>
+            <button type="button" class="mini-btn danger" id="clearStorageBtn">Clear Finished Runs &amp; Plots</button>
+          </div>
+        </div>
+      </section>
+    </div>`;
 }
 
 const tipState = { btn: null };
@@ -194,28 +746,46 @@ function openTip(btn) {
 }
 
 function route() {
-  const view = location.hash === "#live" ? "live" : "results";
-  $("#view-results").hidden = view !== "results";
-  $("#view-live").hidden = view !== "live";
-  $$("nav.seg a").forEach((a) => (a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  const view = currentView();
+  closeMobileSidebar();
+  ["results", "live", "files", "settings"].forEach((k) => {
+    const p = $(`#view-${k}`);
+    if (p) p.hidden = k !== view;
+  });
+  $$(".side-nav a[data-view]").forEach((a) => (a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  renderWorkspaceHeader();
+  if (view === "files") {
+    renderFilesView();
+    loadWorkspace();
+  } else if (view === "settings") {
+    renderSettingsDrawer();
+    pollHealth();
+  }
   const el = $(`#view-${view}`);
-  el.classList.remove("view");
-  void el.offsetWidth;
-  el.classList.add("view");
+  if (el) {
+    el.classList.remove("view");
+    void el.offsetWidth;
+    el.classList.add("view");
+  }
 }
 
 async function pollHealth() {
   const pill = $("#health");
   try {
+    const prevCuda = state.health?.cuda_available;
+    const prevSel = state.health?.selected_device;
+    const prevFem = state.health?.fem_backend;
     const h = await api("/api/health");
     state.health = h;
-    const busy = h.active_jobs > 0;
-    const text = busy
-      ? S(`Busy · ${plural(h.active_jobs, "run", "runs")} in progress`, `${esc(h.device)} · ${plural(h.active_jobs, "job", "jobs")} running`)
-      : S("Server ready", `${h.device === "cuda" ? "GPU" : "CPU"} ready · ${esc(h.device)}`);
-    pill.innerHTML = `<span class="dot ${busy ? "busy" : "ok"}"></span><span>${text}</span>`;
+    applyHealthUI(h);
+    if (state.meta && (prevCuda !== h.cuda_available || prevSel !== h.selected_device || prevFem !== h.fem_backend)) {
+      renderCompute();
+      renderSpec();
+      renderBudget();
+    }
+    if (currentView() === "settings" && document.activeElement?.tagName !== "INPUT") renderSettingsDrawer();
   } catch {
-    pill.innerHTML = `<span class="dot bad"></span><span>${S("Server offline", "Backend unreachable")}</span>`;
+    pill.innerHTML = `<span class="dot bad"></span><span class="runtime-lines"><span class="runtime-main">${S("App offline", "Backend unreachable")}</span><span class="runtime-sub">Disconnected</span></span>`;
   }
 }
 
@@ -533,29 +1103,103 @@ function renderBenchPick() {
   $("#benchPick").innerHTML = `<legend class="eyebrow">${S("Part", "Benchmark")}</legend>${html}`;
 }
 
+function invDefaultMetric(key) {
+  return liveMeta(key)?.inverse?.metric || inverseOf(key)?.metric || "compliance";
+}
+function invDefaultRatio(key) {
+  return liveMeta(key)?.inverse?.default_ratio ?? inverseOf(key)?.target_ratio ?? 0.75;
+}
+function invSelectedMetric(key) {
+  return state.solver.inv_metric[key] || invDefaultMetric(key);
+}
+function invSelectedRatio(key) {
+  const saved = state.solver.inv_ratio[key];
+  return saved != null ? saved : invDefaultRatio(key);
+}
+
+function isSolverModified(key) {
+  const s = state.solver;
+  const d = SOLVER_DEFAULT;
+  if (s.formulation !== d.formulation || s.hidden_layers !== d.hidden_layers || s.neurons !== d.neurons
+    || Math.abs(s.lr - d.lr) > 1e-8 || s.precision !== d.precision || s.seed !== d.seed
+    || s.warm_start !== d.warm_start || s.al_stages !== d.al_stages
+    || Math.abs(s.gamma_u - d.gamma_u) > 1e-6 || Math.abs(s.gamma_t - d.gamma_t) > 1e-6
+    || s.forward_epochs !== d.forward_epochs || s.forward_lbfgs !== d.forward_lbfgs || s.n_outer !== d.n_outer) {
+    return true;
+  }
+  if (key && liveMeta(key)?.inverse) {
+    if (invSelectedMetric(key) !== invDefaultMetric(key)) return true;
+    if (Math.abs(invSelectedRatio(key) - invDefaultRatio(key)) > 1e-6) return true;
+  }
+  return false;
+}
+
+function renderCompute() {
+  const box = $("#computeBox");
+  if (!box) return;
+  const h = state.health;
+  const pref = selectedDevice();
+  const prefFem = selectedFem();
+  const cudaOk = !!h?.cuda_available;
+  const fenicsOk = !!h?.fenics_available;
+  const eff = effectiveDevice();
+  const form = state.solver.formulation;
+  const devDesc = eff === "cuda"
+    ? `${shortGpu(h?.gpu_name)}${pref === "auto" ? " (auto)" : " (pinned)"}`
+    : `CPU · ${h?.cpu_threads || 4} threads${pref === "cpu" && cudaOk ? " (GPU idle)" : ""}`;
+  box.innerHTML = `
+    <div class="props-head"><span class="eyebrow">${S(`Compute, Solver & FEM ${tip("device")}`, "Compute, Solver & FEM")}</span><a href="#settings" class="link-btn">${S("All settings", "Settings")}</a></div>
+    <div class="seg seg-block" role="group" aria-label="Compute device">
+      <button type="button" data-dev-pick="auto" aria-pressed="${pref === "auto"}">Auto</button>
+      <button type="button" data-dev-pick="cuda" aria-pressed="${pref === "cuda"}" ${cudaOk ? "" : 'disabled title="No CUDA GPU detected in this Python environment"'}>GPU</button>
+      <button type="button" data-dev-pick="cpu" aria-pressed="${pref === "cpu"}">CPU</button>
+    </div>
+    <div class="compute-meta"><span>Active: <b>${esc(devDesc)}</b></span><span>FEM: <b>${esc(effectiveFemName())}</b></span></div>
+    <div class="seg seg-block two" role="group" aria-label="Solver architecture">
+      <button type="button" data-form-pick="energy_xpinn" aria-pressed="${form === "energy_xpinn"}">ATLAS-XPINN</button>
+      <button type="button" data-form-pick="energy" aria-pressed="${form === "energy"}">${S("ATLAS (1 network)", "ATLAS single")}</button>
+    </div>
+    <div class="field compact">
+      <span>FEM validator for custom sliders &amp; design</span>
+      <div class="seg seg-block" role="group" aria-label="FEM validator">
+        <button type="button" data-fem-pick="auto" aria-pressed="${prefFem === "auto"}">Auto</button>
+        <button type="button" data-fem-pick="fenics" aria-pressed="${prefFem === "fenics"}" ${fenicsOk ? "" : 'disabled title="WSL2 / Conda FEniCS not detected — Auto uses Built-in P2 FEM"'}>FEniCS</button>
+        <button type="button" data-fem-pick="builtin" aria-pressed="${prefFem === "builtin"}">Built-in P2</button>
+      </div>
+    </div>`;
+}
+
 function renderSpec() {
   const m = liveMeta(state.liveBench);
   if (!m) return;
-  const rows = [["Solver", "ATLAS-XPINN"], ["Subdomains", String(m.subdomains)],
-    ["Network", `${m.subdomains} × (${m.network.hidden_layers} × ${m.network.neurons}), ${m.network.activation}`]];
+  const s = state.solver;
+  const isXpinn = s.formulation === "energy_xpinn";
+  const nSub = isXpinn ? m.subdomains : 1;
+  const rows = [
+    ["Solver", isXpinn ? "ATLAS-XPINN" : "ATLAS (single network)"],
+    ["Compute", effectiveDevice() === "cuda" ? `GPU (${shortGpu(state.health?.gpu_name)})` : `CPU (${state.health?.cpu_threads || 4} threads)`],
+    ["Network", `${nSub} × (${s.hidden_layers} × ${s.neurons}), tanh · ${s.precision}`],
+  ];
   $("#spec").hidden = simple();
   $("#spec").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
   const inv = m.inverse;
   const custom = isCustom(m.key);
+  const devWord = effectiveDevice() === "cuda" ? "GPU" : "CPU";
   $("#runInverse").disabled = !inv || isBusy();
   $("#runForward").textContent = isBusy() ? "Running…" : S("Run simulation", "Run forward + validate");
   $("#runInverse").textContent = S("Find a shape (inverse design)", "Run inverse design");
+  const goalObj = inv ? { ...inv, target_ratio: invSelectedRatio(m.key), metric: invSelectedMetric(m.key) } : null;
   $("#runNote").innerHTML = simple()
     ? (!inv
-      ? "Runs on the server's graphics card, one run at a time. If someone else is running, yours waits in line. Finding a shape is available for the one-material parts."
+      ? `Runs locally on ${devWord}, one run at a time, then validates against FEniCS. Finding a shape is available for the one-material parts.`
       : custom
-        ? `Find a shape ${tip("inverse")} searches for ${esc(inverseRatio(m.key) ? goalText({ ...inv, target_ratio: inverseRatio(m.key), metric: inverseMetric(m.key) }) : `the best ${inv.param}`)}, starting from your settings, then FEM checks the result. It takes a while; runs go one at a time.`
-        : `Find a shape ${tip("inverse")} searches for ${esc(inverseRatio(m.key) ? goalText({ ...inv, target_ratio: inverseRatio(m.key), metric: inverseMetric(m.key) }) : `the best ${inv.param}`)}, then FEM checks the result. Runs one at a time on the server.`)
+        ? `Find a shape ${tip("inverse")} searches for ${esc(goalText(goalObj))}, starting from your settings, then FEniCS checks the result on ${devWord}.`
+        : `Find a shape ${tip("inverse")} searches for ${esc(goalText(goalObj))}, then FEniCS checks the result. Runs on ${devWord}.`)
     : esc(!inv
-      ? "Inverse design is set up for the three paper benchmarks. One GPU job runs at a time; new runs wait in a queue."
+      ? `Inverse design is available on the three paper benchmarks. Runs on ${devWord} and validates against FEniCS.`
       : custom
-        ? `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}, starting from the custom settings; FEniCS then checks the design. One GPU job runs at a time.`
-        : `Inverse design finds the ${inv.param} that meets a ${inv.objective.toLowerCase()}; FEniCS then checks the design. One GPU job runs at a time; new runs wait in a queue.`);
+        ? `Inverse design optimizes ${inv.param} (${invSelectedMetric(m.key)} = ${invSelectedRatio(m.key).toFixed(2)}× baseline) from custom settings, then validates with FEniCS.`
+        : `Inverse design optimizes ${inv.param} (${invSelectedMetric(m.key)} = ${invSelectedRatio(m.key).toFixed(2)}× baseline), then validates with FEniCS.`);
 }
 
 const inverseOf = (key) => state.results?.benchmarks?.[key]?.inverse;
@@ -563,11 +1207,15 @@ const inverseRatio = (key) => inverseOf(key)?.target_ratio;
 const inverseMetric = (key) => inverseOf(key)?.metric;
 
 function runEstimate(key, budget) {
-  const full = state.results?.benchmarks?.[key]?.solvers?.atlas_xpinn?.seconds;
+  const solverKey = state.solver.formulation === "energy_xpinn" ? "atlas_xpinn" : "atlas";
+  const full = state.results?.benchmarks?.[key]?.solvers?.[solverKey]?.seconds
+    || state.results?.benchmarks?.[key]?.solvers?.atlas_xpinn?.seconds;
   if (!full) return "";
   const share = ADAM_SHARE * budget.epochs / FULL.epochs + (1 - ADAM_SHARE) * budget.lbfgs / FULL.lbfgs;
-  const sec = full * share + (isCustom(key) ? 30 : 0);
-  return `about ${Math.max(1, Math.round(sec / 60))} min`;
+  const cpuMult = effectiveDevice() === "cpu" ? 2.4 : 1.0;
+  const widthMult = (state.solver.neurons / 64) ** 1.35 * (state.solver.hidden_layers / 4);
+  const sec = full * share * cpuMult * widthMult + (isCustom(key) ? 30 : 0);
+  return sec < 90 ? `about ${Math.max(5, Math.round(sec / 5) * 5)} s` : `about ${Math.max(1, Math.round(sec / 60))} min`;
 }
 
 function runText() {
@@ -578,7 +1226,7 @@ function runText() {
   if (i === FULL_STEP) return ["Full", `The same training as the study.${end}`];
   if (i === 0) return [r.label, `${r.label} of the study's training: the fastest, but it may miss the accuracy goals.${end}`];
   if (i > 0) return [r.label, `${r.label} of the study's training, so less accurate.${end}`];
-  return ["Custom", `Set in Expert view: ${state.budget.epochs} + ${state.budget.lbfgs} steps.${end}`];
+  return ["Custom", `${state.budget.epochs} Adam + ${state.budget.lbfgs} L-BFGS steps.${end}`];
 }
 
 function renderBudget() {
@@ -598,9 +1246,106 @@ function renderBudget() {
   }
   box.innerHTML = `<div class="grid-2">
       <label class="field">Adam epochs<input id="epochs" type="number" min="50" max="40000" step="50" value="${state.budget.epochs}"></label>
-      <label class="field">L-BFGS iterations<input id="lbfgs" type="number" min="${LBFGS_UNIT}" max="${state.maxLbfgs ?? MAX_LBFGS}" step="${LBFGS_UNIT}" value="${state.budget.lbfgs}"></label>
+      <label class="field">L-BFGS iterations<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
     </div>
-    <span class="hint">Study budget: ${FULL.epochs} Adam + ${state.lbfgs ?? FULL.lbfgs} L-BFGS, seed ${state.seed ?? 42}; up to ${(state.maxLbfgs ?? MAX_LBFGS).toLocaleString("en-US")} L-BFGS. L-BFGS runs in four stages of whole 100-step chunks, so it is set in steps of ${LBFGS_UNIT}.</span>`;
+    <span class="hint">Study budget: ${FULL.epochs} Adam + ${state.lbfgs ?? FULL.lbfgs} L-BFGS, seed ${state.solver.seed}; up to ${(state.maxLbfgs ?? MAX_LBFGS).toLocaleString("en-US")} L-BFGS (${runEstimate(state.liveBench, state.budget) || "custom"}).</span>`;
+}
+
+function renderSolverCfg() {
+  const box = $("#solverCfg");
+  if (!box || !state.meta) return;
+  const m = liveMeta(state.liveBench);
+  if (!m) return;
+  const s = state.solver;
+  const isXpinn = s.formulation === "energy_xpinn";
+  const modified = isSolverModified(m.key);
+  const presets = [[3, 32, "3×32 Fast"], [4, 64, "4×64 Study"], [4, 91, "4×91 Wide"], [5, 128, "5×128 Deep"]];
+  const seeds = [42, 43, 44, 45, 46];
+  const inv = m.inverse;
+  const invMet = inv ? invSelectedMetric(m.key) : null;
+  const invRat = inv ? invSelectedRatio(m.key) : null;
+  const metricLabels = { compliance: S("Stiffness / compliance", "Compliance"), peak_vm: S("Peak stress (von Mises)", "Peak von Mises"), volume: "Volume" };
+
+  const simpleSteps = simple() ? `
+    <div class="adv-sec">
+      <div class="pgroup-label">Exact training steps</div>
+      <div class="grid-2">
+        <label class="field compact">Adam epochs<input id="epochs" type="number" min="50" max="40000" step="50" value="${state.budget.epochs}"></label>
+        <label class="field compact">L-BFGS steps<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
+      </div>
+    </div>` : "";
+
+  const inner = `
+    ${simpleSteps}
+    <div class="adv-sec">
+      <div class="adv-head"><span class="pgroup-label">${S("Network & optimizer", "Architecture & optimizer")}</span></div>
+      <div class="preset-row" role="group" aria-label="Network size presets">
+        ${presets.map(([hl, nn, label]) => `<button type="button" class="preset-pill ${s.hidden_layers === hl && s.neurons === nn ? "on" : ""}" data-net-preset="${hl}x${nn}">${esc(label)}</button>`).join("")}
+      </div>
+      <div class="grid-2">
+        <label class="field compact">Hidden layers<input id="cfgLayers" type="number" min="2" max="8" step="1" value="${s.hidden_layers}"></label>
+        <label class="field compact">Neurons / layer<input id="cfgNeurons" type="number" min="16" max="256" step="8" value="${s.neurons}"></label>
+      </div>
+      <div class="grid-2">
+        <label class="field compact">Learning rate<input id="cfgLr" type="number" min="0.00001" max="0.05" step="0.0005" value="${s.lr}"></label>
+        <label class="field compact">Seed<input id="cfgSeed" type="number" min="0" max="999999" step="1" value="${s.seed}"></label>
+      </div>
+      <div class="preset-row" role="group" aria-label="Study seeds">
+        ${seeds.map((sd) => `<button type="button" class="preset-pill ${s.seed === sd ? "on" : ""}" data-seed-pick="${sd}">Seed ${sd}</button>`).join("")}
+      </div>
+      <div class="field compact">
+        <span>Floating-point precision</span>
+        <div class="seg seg-block two" role="group" aria-label="Precision">
+          <button type="button" data-prec-pick="float64" aria-pressed="${s.precision === "float64"}">float64 (Study)</button>
+          <button type="button" data-prec-pick="float32" aria-pressed="${s.precision === "float32"}">float32 (Faster)</button>
+        </div>
+      </div>
+    </div>
+
+    ${isXpinn ? `
+    <div class="adv-sec">
+      <div class="pgroup-label">${S("Subdomain coupling (XPINN)", "XPINN warm-start & interface penalties")}</div>
+      <div class="grid-2">
+        <label class="field compact">Warm-start steps<input id="cfgWarm" type="number" min="0" max="20000" step="100" value="${s.warm_start}"></label>
+        <label class="field compact">AL stages<input id="cfgAl" type="number" min="0" max="8" step="1" value="${s.al_stages}"></label>
+      </div>
+      <div class="grid-2">
+        <label class="field compact">Disp. penalty γ_u<input id="cfgGu" type="number" min="0.1" max="1000" step="5" value="${s.gamma_u}"></label>
+        <label class="field compact">Traction penalty γ_t<input id="cfgGt" type="number" min="0" max="100" step="0.05" value="${s.gamma_t}"></label>
+      </div>
+    </div>` : ""}
+
+    ${inv ? `
+    <div class="adv-sec">
+      <div class="pgroup-label">${S(`Shape search settings (${inv.param})`, `Inverse design (${inv.param})`)}</div>
+      <div class="grid-2">
+        <label class="field compact">Objective
+          <select id="cfgInvMetric">
+            ${(inv.metrics || ["compliance", "peak_vm", "volume"]).map((mk) => `<option value="${mk}" ${invMet === mk ? "selected" : ""}>${esc(metricLabels[mk] || mk)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field compact">Target × baseline<input id="cfgInvRatio" type="number" min="0.1" max="5" step="0.05" value="${(+invRat).toFixed(2)}"></label>
+      </div>
+      <input type="range" class="slider" id="cfgInvRatioRange" min="0.3" max="1.6" step="0.05" value="${Math.min(1.6, Math.max(0.3, invRat))}" style="--fill:${((Math.min(1.6, Math.max(0.3, invRat)) - 0.3) / 1.3) * 100}%" aria-label="Target ratio">
+      <div class="grid-2">
+        <label class="field compact">Max outer steps<input id="cfgInvOuter" type="number" min="1" max="100" step="1" value="${s.n_outer}"></label>
+        <label class="field compact">Forward L-BFGS<input id="cfgInvLbfgs" type="number" min="0" max="8000" step="100" value="${s.forward_lbfgs}"></label>
+      </div>
+    </div>` : ""}`;
+
+  const headRight = `<span style="display:flex;align-items:center;gap:8px"><span class="badge ${modified ? "custom" : ""}">${modified ? S("Modified", "Custom") : S("Defaults", "Study")}</span><button type="button" class="link-btn" id="resetSolver" ${modified ? "" : "disabled"}>Reset</button></span>`;
+
+  if (simple()) {
+    box.innerHTML = `<details class="solver-adv" id="solverAdv" ${state.advOpen ? "open" : ""}>
+      <summary><span>Adjustable solver &amp; design settings</span>${headRight}</summary>
+      <div class="adv-body">${inner}</div>
+    </details>`;
+  } else {
+    box.innerHTML = `<div class="solver-adv">
+      <div class="props-head"><span class="eyebrow">Solver &amp; design settings</span>${headRight}</div>
+      <div class="adv-body" style="margin-top:2px">${inner}</div>
+    </div>`;
+  }
 }
 
 function setBudget(epochs, lbfgs) {
@@ -846,12 +1591,16 @@ function isBusy() { return state.jobs.some((j) => j.status === "queued" || j.sta
 
 function renderJobs() {
   const ul = $("#jobs");
+  const clearBtn = $("#clearJobsBtn");
+  if (clearBtn) clearBtn.hidden = !state.jobs.some((j) => j.status !== "queued" && j.status !== "running");
   if (!state.jobs.length) { ul.innerHTML = `<li><p class="empty">No jobs yet this session.</p></li>`; return; }
-  ul.innerHTML = state.jobs.slice(0, 8).map((j) => {
+  ul.innerHTML = state.jobs.slice(0, 10).map((j) => {
     const m = liveMeta(j.benchmark);
-    const cls = j.status === "done" ? "ok" : j.status === "error" ? "bad" : "busy";
-    const right = j.status === "done" ? dur(secondsBetween(j.started, j.finished)) : j.status === "error" ? "failed" : j.status;
-    return `<li><button type="button" data-job="${j.id}" aria-current="${state.job?.id === j.id}"><span class="dot ${cls}"></span><span class="job-label">${j.kind === "inverse" ? S("Shape search", "Inverse") : S("Simulation", "Forward")} · ${esc(m?.title || j.benchmark)}</span><span class="job-right">${esc(right)}</span></button></li>`;
+    const cls = j.status === "done" ? "ok" : j.status === "error" ? "bad" : j.status === "cancelled" ? "" : "busy";
+    const right = j.status === "done" ? dur(secondsBetween(j.started, j.finished)) : j.status === "error" ? "failed" : j.status === "cancelled" ? "stopped" : j.status;
+    const devTag = j.device === "cuda" ? "GPU" : j.device === "cpu" ? "CPU" : "";
+    const formTag = j.formulation === "energy" ? "1-net" : "XPINN";
+    return `<li><button type="button" data-job="${j.id}" aria-current="${state.job?.id === j.id}"><span class="dot ${cls}"></span><span class="job-label">${j.kind === "inverse" ? S("Shape search", "Inverse") : S("Simulation", "Forward")} · ${esc(m?.title || j.benchmark)} <span class="job-meta-tag">${esc(devTag ? `${formTag} · ${devTag}` : formTag)}</span></span><span class="job-right">${esc(right)}</span></button></li>`;
   }).join("");
 }
 
@@ -862,10 +1611,22 @@ function renderJob() {
   $("#runForward").textContent = busy ? "Running…" : S("Run simulation", "Run forward + validate");
   const m = liveMeta(state.liveBench);
   $("#runInverse").disabled = busy || !m?.inverse;
+  const cancelBtn = $("#cancelJob");
+  const exportBtn = $("#exportJob");
+  const activeRun = j && (j.status === "queued" || j.status === "running");
+  if (cancelBtn) {
+    cancelBtn.hidden = !activeRun;
+    cancelBtn.disabled = !!j?.cancel_requested;
+    cancelBtn.textContent = j?.cancel_requested ? "Stopping…" : S("Stop", "Stop run");
+  }
+  if (exportBtn) {
+    exportBtn.hidden = !(j && j.status === "done");
+    if (j && j.status === "done") exportBtn.href = `/api/jobs/${j.id}/export`;
+  }
   const steps = (simple() ? STEPS_SIMPLE : STEPS)[j?.kind === "inverse" ? "inverse" : "forward"];
   if (!j) {
     $("#jobTitle").textContent = S("Nothing run yet", "No run yet");
-    $("#jobSub").textContent = S("Pick a part on the left, then press Run simulation.", "Pick a benchmark, then run a forward solve.");
+    $("#jobSub").textContent = S("Pick a part on the left, choose GPU or CPU if needed, then press Run simulation.", "Pick a benchmark, choose compute/solver settings on the left, then run.");
     $("#jobChip").className = "chip";
     $("#jobChip").textContent = "Idle";
     $("#progress").hidden = true;
@@ -877,11 +1638,19 @@ function renderJob() {
     const bud = j.budget;
     const step = bud ? stepOf(bud) : FULL_STEP;
     const fullRun = step === FULL_STEP;
-    $("#jobTitle").textContent = j.kind === "inverse" ? S("Finding a shape", "Inverse design") : S("Simulation, checked with FEM", "Forward solve + FEM validation");
+    const solverLabel = j.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN";
+    const devLabel = j.device === "cuda" ? `GPU (${shortGpu(j.device_name)})` : j.device ? (j.device_name || "CPU") : "";
+    $("#jobTitle").textContent = j.kind === "inverse" ? S("Finding a shape", "Inverse design") : S("Simulation, checked with FEniCS", "Forward solve + FEniCS validation");
     $("#jobSub").textContent = simple()
-      ? `${jm?.title || j.benchmark} · ${j.custom ? "your settings" : "original settings"}${j.kind === "inverse" ? "" : fullRun ? " · full training" : step >= 0 ? ` · ${RUN_STEPS[step].label} training` : " · custom length"}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`
-      : `${jm?.title || j.benchmark} · ATLAS-XPINN · ${j.custom ? "custom settings" : "study settings"}${bud && !fullRun ? ` · ${bud.epochs} Adam + ${bud.lbfgs} L-BFGS` : ""} · seed ${j.metrics?.seed ?? state.seed ?? 42}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
-    const chip = { queued: ["run", S("Waiting in line", "Queued")], running: ["run", "Running"], done: ["done", "Done"], error: ["fail", "Failed"] }[j.status] || ["", j.status];
+      ? `${jm?.title || j.benchmark} · ${devLabel ? `${devLabel} · ` : ""}${j.custom ? "your settings" : "original settings"}${j.kind === "inverse" ? "" : fullRun ? " · full training" : step >= 0 ? ` · ${RUN_STEPS[step].label} training` : " · custom steps"}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`
+      : `${jm?.title || j.benchmark} · ${solverLabel}${devLabel ? ` · ${devLabel}` : ""} · ${j.custom ? "custom settings" : "study settings"}${bud && !fullRun && j.kind !== "inverse" ? ` · ${bud.epochs} Adam + ${bud.lbfgs} L-BFGS` : ""} · seed ${j.metrics?.seed ?? j.solver_config?.seed ?? state.seed ?? 42}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
+    const chip = {
+      queued: ["run", S("Waiting in line", "Queued")],
+      running: ["run", j.cancel_requested ? "Stopping…" : "Running"],
+      done: ["done", "Done"],
+      cancelled: ["cancel", "Stopped"],
+      error: ["fail", "Failed"],
+    }[j.status] || ["", j.status];
     $("#jobChip").className = `chip ${chip[0]}`;
     $("#jobChip").textContent = chip[1];
     $("#progress").hidden = !(j.status === "running" || j.status === "queued");
@@ -889,12 +1658,12 @@ function renderJob() {
     $("#jobError").textContent = j.error || "";
     const pre = $("#log");
     const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
-    pre.textContent = j.log || (j.status === "queued" ? S("Waiting for the run before yours to finish…", "Waiting for the GPU…") : "Solver output appears here as it is written.");
+    pre.textContent = j.log || (j.status === "queued" ? S("Waiting for the run before yours to finish…", "Waiting in queue…") : "Solver output appears here as it is written.");
     if (atBottom) pre.scrollTop = pre.scrollHeight;
   }
   const idx = !j ? -1 : j.status === "done" ? steps.length : Math.max(0, steps.findIndex(([k]) => k === j.stage));
   $("#steps").innerHTML = steps.map(([, label], i) => {
-    const cls = i < idx ? "done" : i === idx ? (j?.status === "error" ? "failed" : j?.status === "queued" ? "" : "active") : "";
+    const cls = i < idx ? "done" : i === idx ? (j?.status === "error" ? "failed" : j?.status === "queued" || j?.status === "cancelled" ? "" : "active") : "";
     return `<li class="${cls}"><span class="step-dot">${i < idx ? ICON.check : ""}</span><span class="step-label">${esc(label)}</span>${i < steps.length - 1 ? '<span class="step-line"></span>' : ""}</li>`;
   }).join("");
   renderEnergy(j);
@@ -912,7 +1681,8 @@ function renderTiles(j) {
   const t = state.results?.targets || { displacement: 0.05, von_mises: 0.1 };
   const done = j?.status === "done";
   const mx = done ? j.metrics : {};
-  const waiting = j && !done ? (j.status === "error" ? "failed" : "running") : "no run yet";
+  const runDevText = (mx.device || j?.device) === "cuda" ? `GPU (${shortGpu(mx.device_name || j?.device_name)})` : (mx.device_name || j?.device_name || state.health?.device || "CPU");
+  const waiting = j && !done ? (j.status === "error" ? "failed" : j.status === "cancelled" ? "stopped" : "running") : "no run yet";
   if (j?.kind === "inverse") {
     const fc = mx.fem_check || {};
     const ratio = fc.target_ratio;
@@ -925,17 +1695,17 @@ function renderTiles(j) {
       tile(done ? `${cap(mx.param)} found` : S("Shape found", "Design found"), done ? `${mx.final?.toFixed(3)} m` : null, done ? `started from ${mx.initial?.toFixed(3)} m${stop}` : waiting),
       tile(S("Goal", "Objective"), done ? change : null, done ? S(`change in ${what} from the start`, `${mx.objective}: ${sci(mx.target)}`) : waiting),
       tile(S("Checked with FEM", "FEM check"), done && fc.error_vs_target != null ? spct(fc.error_vs_target) : null,
-        done ? S("from the goal, by the trusted simulation", `FEM ${what} at the design vs its target`) : waiting, done && fc.within_10pct != null ? fc.within_10pct : null),
-      tile("Run time", done ? dur(mx.train_seconds) : null, done ? S("design loop on the server's graphics card", `design loop on ${state.health?.device || "the server"}`) : waiting),
+        done ? S("from the goal, verified by FEniCS", `FEniCS ${what} at the design vs its target`) : waiting, done && fc.within_10pct != null ? fc.within_10pct : null),
+      tile("Run time", done ? dur(mx.train_seconds) : null, done ? `design loop on ${runDevText}` : waiting),
     ].join("");
     return;
   }
   const vmKey = mx.von_mises_l2_excl != null ? "von_mises_l2_excl" : "von_mises_l2";
   $("#tiles").innerHTML = [
-    tile(S("Bending error", "Displacement L²"), done ? pct(mx.relative_L2_displacement) : null, S(`vs FEM · goal under ${t.displacement * 100} %`, `relative to FEM · target < ${t.displacement * 100} %`), done ? mx.relative_L2_displacement < t.displacement : null),
-    tile(S("Stress error", vmKey === "von_mises_l2_excl" || !done ? "von Mises L², excl." : "von Mises L²"), done ? pct(mx[vmKey]) : null, S(`vs FEM · goal under ${t.von_mises * 100} %`, `relative to FEM · target < ${t.von_mises * 100} %`), done ? mx[vmKey] < t.von_mises : null),
-    tile(S("Training time", "Run time"), done ? dur(mx.train_seconds) : null, done ? S("on the server's graphics card", `training wall-clock on ${state.health?.device || "the server"}`) : waiting),
-    tile(S("Network size", "Parameters"), done ? mx.params?.toLocaleString("en-US") : null, done ? S(`adjustable numbers · ${plural(mx.subdomains, "network", "networks")}`, plural(mx.subdomains, "subnetwork", "subnetworks")) : waiting),
+    tile(S("Bending error", "Displacement L²"), done ? pct(mx.relative_L2_displacement) : null, S(`vs FEniCS · goal under ${t.displacement * 100} %`, `relative to FEniCS · target < ${t.displacement * 100} %`), done ? mx.relative_L2_displacement < t.displacement : null),
+    tile(S("Stress error", vmKey === "von_mises_l2_excl" || !done ? "von Mises L², excl." : "von Mises L²"), done ? pct(mx[vmKey]) : null, S(`vs FEniCS · goal under ${t.von_mises * 100} %`, `relative to FEniCS · target < ${t.von_mises * 100} %`), done ? mx[vmKey] < t.von_mises : null),
+    tile(S("Training time", "Run time"), done ? dur(mx.train_seconds) : null, done ? `wall-clock on ${runDevText}` : waiting),
+    tile(S("Network size", "Parameters"), done ? mx.params?.toLocaleString("en-US") : null, done ? S(`adjustable numbers · ${plural(mx.subdomains, "network", "networks")}`, `${plural(mx.subdomains, "subnetwork", "subnetworks")} · ${mx.hidden_layers || 4}×${mx.neurons || 64}`) : waiting),
   ].join("");
 }
 
@@ -947,9 +1717,13 @@ function renderLiveFigure(j) {
   const avail = done ? figs.filter(([k]) => j.plots?.[k]) : [];
   const cur = avail.find(([k]) => k === state.fig.live) || avail[0];
   const m = j ? liveMeta(j.benchmark) : null;
-  const head = `<div class="fig-head"><div><h2>${j?.kind === "inverse" ? S("The shape ATLAS found", "Design") : S("ATLAS vs the trusted answer", "ATLAS vs FEM")}</h2>${m ? `<span class="meta">${esc(m.title)} · ATLAS-XPINN</span>` : ""}</div>${avail.length > 1 ? `<div class="seg" role="group" aria-label="Figure">${avail.map(([k, l]) => `<button type="button" data-livefig="${k}" aria-pressed="${k === cur[0]}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`;
+  const solverTag = j?.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN";
+  const head = `<div class="fig-head"><div><h2>${j?.kind === "inverse" ? S("The shape ATLAS found", "Design") : S("ATLAS vs the trusted answer", "ATLAS vs FEniCS")}</h2>${m ? `<span class="meta">${esc(m.title)} · ${esc(solverTag)}</span>` : ""}</div>${avail.length > 1 ? `<div class="seg" role="group" aria-label="Figure">${avail.map(([k, l]) => `<button type="button" data-livefig="${k}" aria-pressed="${k === cur[0]}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`;
   if (!cur) {
-    const msg = !j ? "The FEM comparison appears here when a run finishes." : j.status === "error" ? "The run failed before producing figures." : "The figures appear here when the run finishes.";
+    const msg = !j ? "The FEniCS comparison appears here when a run finishes."
+      : j.status === "error" ? "The run failed before producing figures."
+        : j.status === "cancelled" ? "Run stopped before figures were generated."
+          : "The figures appear here when the run finishes.";
     card.innerHTML = `${head}<div class="fig-empty">${esc(msg)}</div>`;
     return;
   }
@@ -1035,10 +1809,16 @@ function renderDetails(j) {
       ["Points left out near singularities", mx.von_mises_exclusion_radius != null ? `r = ${(+mx.von_mises_exclusion_radius).toPrecision(4)}` : "", mx.von_mises_total_points != null ? `${mx.von_mises_excluded_points} of ${mx.von_mises_total_points.toLocaleString("en-US")}` : "—"],
     ];
   }
+  if (mx.device_name || mx.precision) {
+    rows.push(["Compute runtime", `${mx.precision || "float64"} · seed ${mx.seed ?? 42}`, mx.device_name || mx.device || "—"]);
+  }
+  if (mx.fem_engine) {
+    rows.push(["FEM reference engine", mx.custom ? "solved on demand" : "reference source", mx.fem_engine]);
+  }
   if (mx.custom && mx.settings && m) {
     const units = Object.fromEntries(m.params.map((s) => [s.key, [s.label, s.unit, s.step, s.group]]));
     const changed = m.params.filter((s) => Math.abs(mx.settings[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
-    if (mx.fem_cells) rows.push(["FEniCS reference", "solved for these settings", `${mx.fem_cells.toLocaleString("en-US")} cells`]);
+    if (mx.fem_cells) rows.push(["FEM mesh cells", mx.fem_engine || "solved for these settings", `${mx.fem_cells.toLocaleString("en-US")} cells`]);
     for (const s of changed) rows.push([`${s.group}: ${s.label}`, `study value ${fmtParam(s.value, s.step)} ${s.unit}`.trim(), `${fmtParam(mx.settings[s.key], units[s.key][2])} ${s.unit}`.trim()]);
   }
   card.innerHTML = `<h2>${j.kind === "inverse" ? "Design detail" : "Validation detail"}</h2><dl class="detail-grid">${rows.map(([l, s, v]) => `<div><dt><span>${esc(l)}</span><span>${esc(s)}</span></dt><dd>${esc(v ?? "—")}</dd></div>`).join("")}</dl>`;
@@ -1049,6 +1829,7 @@ async function refreshJobs() {
     const { jobs } = await api("/api/jobs");
     state.jobs = jobs;
     renderJobs();
+    updateNavBadges();
   } catch {}
 }
 
@@ -1060,13 +1841,17 @@ async function watchJob(id) {
     const prevStatus = state.job?.status;
     state.job = j;
     const justDone = wasOpen && prevStatus && prevStatus !== "done" && j.status === "done";
-    if (!wasOpen || (prevStatus !== j.status && j.status === "running")) $("#logBox").open = !simple() && (j.status === "running" || j.status === "queued");
+    const autoLog = state.health?.settings?.auto_open_log !== false;
+    if ((!wasOpen || (prevStatus !== j.status && j.status === "running")) && autoLog) {
+      $("#logBox").open = !simple() && (j.status === "running" || j.status === "queued");
+    }
     const i = state.jobs.findIndex((x) => x.id === j.id);
     if (i >= 0) state.jobs[i] = { ...state.jobs[i], ...j }; else state.jobs.unshift(j);
     renderJobs();
     renderJob();
     if (justDone) $$("#tiles .tile-value > span:first-child").forEach((el, i) => countUp(el, i * 90));
-    if (j.status === "queued" || j.status === "running") state.poll = setTimeout(() => watchJob(id), 1500);
+    const waitMs = j.cancel_requested ? 350 : (state.health?.settings?.poll_ms || 1500);
+    if (j.status === "queued" || j.status === "running") state.poll = setTimeout(() => watchJob(id), waitMs);
     else { refreshJobs(); pollHealth(); }
   } catch (e) {
     $("#jobError").hidden = false;
@@ -1077,17 +1862,47 @@ async function watchJob(id) {
 
 async function submit(kind) {
   const bench = state.liveBench;
+  const s = state.solver;
+  const common = {
+    benchmark: bench,
+    device: selectedDevice(),
+    fem_backend: selectedFem(),
+    formulation: s.formulation,
+    hidden_layers: s.hidden_layers,
+    neurons: s.neurons,
+    precision: s.precision,
+    seed: s.seed,
+    warm_start: s.warm_start,
+    al_stages: s.al_stages,
+    gamma_u: s.gamma_u,
+    gamma_t: s.gamma_t,
+    params: paramValues(bench),
+  };
   const body = kind === "inverse"
-    ? { benchmark: bench, params: paramValues(bench) }
-    : { benchmark: bench, formulation: "energy_xpinn", epochs: state.budget.epochs, lbfgs: state.budget.lbfgs,
-        params: paramValues(bench) };
+    ? {
+      ...common,
+      metric: invSelectedMetric(bench),
+      target_ratio: invSelectedRatio(bench),
+      forward_epochs: state.budget.epochs,
+      forward_lbfgs: s.forward_lbfgs,
+      n_outer: s.n_outer,
+    }
+    : {
+      ...common,
+      epochs: state.budget.epochs,
+      lbfgs: state.budget.lbfgs,
+      lr: s.lr,
+    };
   $("#runForward").disabled = true;
   $("#runInverse").disabled = true;
   $("#jobChip").className = "chip run";
   $("#jobChip").textContent = S("Starting…", "Submitting…");
   try {
     const { job_id } = await api(`/api/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    state.jobs.unshift({ id: job_id, kind, benchmark: bench, status: "queued", stage: "queued" });
+    state.jobs.unshift({
+      id: job_id, kind, benchmark: bench, formulation: s.formulation,
+      device: effectiveDevice(), status: "queued", stage: "queued",
+    });
     state.fig.live = null;
     await watchJob(job_id);
     pollHealth();
@@ -1103,7 +1918,7 @@ async function loadLive() {
     const data = await api("/api/benchmarks");
     state.meta = data.benchmarks;
     state.lbfgs = data.lbfgs_iters;
-    state.maxLbfgs = data.max_lbfgs ?? FULL.lbfgs;
+    state.maxLbfgs = data.max_lbfgs ?? MAX_LBFGS;
     state.seed = data.seed;
   } catch (e) {
     $("#benchPick").innerHTML = `<legend class="eyebrow">Benchmark</legend><p class="empty">Could not load the benchmarks: ${esc(e.message)}</p>`;
@@ -1111,15 +1926,17 @@ async function loadLive() {
   }
   if (!liveMeta(state.liveBench)) state.liveBench = state.meta[0].key;
   renderBenchPick();
+  renderCompute();
   renderSpec();
   renderProps();
   renderBudget();
+  renderSolverCfg();
   await refreshJobs();
   const active = state.jobs.find((j) => j.status === "running" || j.status === "queued") || state.jobs[0];
   if (active) await watchJob(active.id); else renderJob();
 }
 
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
   const tipBtn = e.target.closest(".tip");
   if (tipBtn) {
     e.preventDefault();
@@ -1129,6 +1946,229 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (!e.target.closest("#tipPop")) closeTip();
+
+  if (e.target.closest("#collapseSidebar")) {
+    toggleSidebar();
+    return;
+  }
+  if (e.target.closest("#mobileMenuBtn")) {
+    const sb = $("#sidebar"), bd = $("#sideBackdrop");
+    if (sb) sb.classList.toggle("mobile-open");
+    if (bd) bd.hidden = !sb?.classList.contains("mobile-open");
+    return;
+  }
+  if (e.target === $("#sideBackdrop")) {
+    closeMobileSidebar();
+    return;
+  }
+
+  if (e.target.closest("#health") || e.target.closest("[data-open-settings]")) {
+    openSettingsDrawer();
+    return;
+  }
+
+  const tryBench = e.target.closest("[data-try-bench]");
+  if (tryBench) {
+    const k = tryBench.dataset.tryBench;
+    if (k && liveMeta(k)) {
+      state.liveBench = k;
+      store.set("atlas-live-bench", k);
+      renderBenchPick();
+      renderCompute();
+      renderSpec();
+      renderProps();
+      renderSolverCfg();
+      renderJob();
+    }
+    location.hash = "#live";
+    return;
+  }
+
+  const inspectJob = e.target.closest("[data-inspect-job]");
+  if (inspectJob) {
+    const id = inspectJob.dataset.inspectJob;
+    state.fig.live = null;
+    location.hash = "#live";
+    await watchJob(id);
+    return;
+  }
+
+  const openImg = e.target.closest("[data-open-img]");
+  if (openImg) {
+    window.open(openImg.dataset.openImg, "_blank", "noopener");
+    return;
+  }
+
+  const filesTabBtn = e.target.closest("[data-files-tab]");
+  if (filesTabBtn) {
+    state.filesTab = filesTabBtn.dataset.filesTab;
+    renderFilesView();
+    return;
+  }
+  const filesFltBtn = e.target.closest("[data-files-filter]");
+  if (filesFltBtn) {
+    state.filesFilter = filesFltBtn.dataset.filesFilter;
+    renderFilesView();
+    return;
+  }
+  if (e.target.closest("#refreshWorkspaceBtn")) {
+    await refreshJobs();
+    await loadWorkspace();
+    state.filesMsg = "Refreshed workspace directory listing.";
+    renderFilesView();
+    return;
+  }
+
+  const openFolderBtn = e.target.closest("[data-open-folder]");
+  if (openFolderBtn) {
+    const target = openFolderBtn.dataset.openFolder;
+    const r = await api("/api/open-folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target }),
+    });
+    const msg = r.opened ? `Opened folder: ${r.path}` : `Folder path: ${r.path}`;
+    state.filesMsg = msg;
+    state.settingsMsg = msg;
+    if (currentView() === "files") renderFilesView();
+    if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+
+  const femBtn = e.target.closest("[data-fem-pick]");
+  if (femBtn && !femBtn.disabled) {
+    state.femTest = null;
+    await updateAppSettings({ fem_backend: femBtn.dataset.femPick });
+    return;
+  }
+  const scaleBtn = e.target.closest("[data-scale-pick]");
+  if (scaleBtn) {
+    applyScale(scaleBtn.dataset.scalePick);
+    return;
+  }
+  if (e.target.closest("#testFemBtn") || e.target.closest("#quickTestFem")) {
+    state.femTest = "Running cantilever verification check…";
+    if (currentView() === "settings") renderSettingsDrawer();
+    try {
+      const r = await api("/api/fem/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fem_backend: selectedFem() }),
+      });
+      state.femTest = `Verified ${r.engine_name}: cantilever compliance = ${r.compliance.toFixed(2)} N·m in ${r.elapsed_ms} ms.`;
+      state.settingsMsg = state.femTest;
+    } catch (err) {
+      state.femTest = `FEM self-test failed: ${err.message}`;
+      state.settingsMsg = state.femTest;
+    }
+    if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+
+  const devBtn = e.target.closest("[data-dev-pick]");
+  if (devBtn && !devBtn.disabled) {
+    await updateAppSettings({ device: devBtn.dataset.devPick });
+    return;
+  }
+  const formBtn = e.target.closest("[data-form-pick]");
+  if (formBtn) {
+    state.solver.formulation = formBtn.dataset.formPick;
+    saveSolver();
+    renderCompute();
+    renderSpec();
+    renderBudget();
+    renderSolverCfg();
+    return;
+  }
+  const precBtn = e.target.closest("[data-prec-pick]");
+  if (precBtn) {
+    state.solver.precision = precBtn.dataset.precPick;
+    saveSolver();
+    renderSpec();
+    renderSolverCfg();
+    return;
+  }
+  const netPreset = e.target.closest("[data-net-preset]");
+  if (netPreset) {
+    const [hl, nn] = netPreset.dataset.netPreset.split("x").map(Number);
+    state.solver.hidden_layers = hl;
+    state.solver.neurons = nn;
+    saveSolver();
+    renderSpec();
+    renderBudget();
+    renderSolverCfg();
+    return;
+  }
+  const seedPick = e.target.closest("[data-seed-pick]");
+  if (seedPick) {
+    state.solver.seed = parseInt(seedPick.dataset.seedPick, 10);
+    saveSolver();
+    renderBudget();
+    renderSolverCfg();
+    return;
+  }
+  if (e.target.closest("#resetSolver") || e.target.closest("#resetAllBtn")) {
+    state.solver = { ...SOLVER_DEFAULT, inv_metric: {}, inv_ratio: {} };
+    saveSolver();
+    setBudget(FULL.epochs, FULL.lbfgs);
+    applyScale("default");
+    applyMotion(true);
+    await updateAppSettings({ device: "auto", fem_backend: "auto", plot_dpi: 140, poll_ms: 1500, auto_open_log: true });
+    state.settingsMsg = "Restored default appearance, solver, compute, and FEM settings.";
+    renderCompute();
+    renderSpec();
+    renderBudget();
+    renderSolverCfg();
+    if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+
+  const dpiBtn = e.target.closest("[data-dpi]");
+  if (dpiBtn) {
+    await updateAppSettings({ plot_dpi: parseInt(dpiBtn.dataset.dpi, 10) });
+    return;
+  }
+  const pollBtn = e.target.closest("[data-poll]");
+  if (pollBtn) {
+    await updateAppSettings({ poll_ms: parseInt(pollBtn.dataset.poll, 10) });
+    return;
+  }
+  if (e.target.closest("#clearCudaBtn")) {
+    const h = await api("/api/cuda/clear", { method: "POST" });
+    state.health = h;
+    state.settingsMsg = "Freed unused CUDA memory cache.";
+    if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+  if (e.target.closest("#openPlotsBtn")) {
+    const r = await api("/api/open-plots", { method: "POST" });
+    state.settingsMsg = r.opened ? `Opened ${r.path}` : `Plots directory: ${r.path}`;
+    if (currentView() === "settings") renderSettingsDrawer();
+    return;
+  }
+  if (e.target.closest("#clearStorageBtn") || e.target.closest("#clearStorageBtnFiles") || e.target.closest("#clearJobsBtn")) {
+    const h = await api("/api/jobs/clear", { method: "POST" });
+    state.health = h;
+    if (state.job && state.job.status !== "queued" && state.job.status !== "running") state.job = null;
+    await refreshJobs();
+    await loadWorkspace();
+    renderJob();
+    const msg = `Cleared ${h.removed_jobs || 0} finished runs and ${h.deleted_files || 0} plot files.`;
+    state.settingsMsg = msg;
+    state.filesMsg = msg;
+    if (currentView() === "settings") renderSettingsDrawer();
+    if (currentView() === "files") renderFilesView();
+    applyHealthUI(h);
+    return;
+  }
+  if (e.target.closest("#cancelJob") && state.job) {
+    const j = await api(`/api/jobs/${state.job.id}/cancel`, { method: "POST" });
+    state.job = j;
+    renderJob();
+    watchJob(j.id);
+    return;
+  }
+
   const themeBtn = e.target.closest("[data-theme-pick]");
   if (themeBtn) return switchTheme(themeBtn.dataset.themePick);
   const levelBtn = e.target.closest("[data-level-pick]");
@@ -1149,6 +2189,7 @@ document.addEventListener("click", (e) => {
     state.bench = bt.dataset.bench;
     store.set("atlas-bench", state.bench);
     renderResults();
+    renderWorkspaceHeader();
     return;
   }
   const fb = e.target.closest("[data-fig]");
@@ -1165,14 +2206,24 @@ document.addEventListener("click", (e) => {
   if (img) window.open(img.dataset.full, "_blank", "noopener");
 });
 
-document.addEventListener("change", (e) => {
+document.addEventListener("toggle", (e) => {
+  if (e.target.id === "solverAdv") {
+    state.advOpen = e.target.open;
+    store.set("atlas-adv-open", e.target.open ? "1" : "0");
+  }
+}, true);
+
+document.addEventListener("change", async (e) => {
   if (e.target.name === "bench") {
     state.liveBench = e.target.value;
     store.set("atlas-live-bench", state.liveBench);
     $$(".opt").forEach((o) => o.classList.toggle("on", $("input", o).checked));
+    renderCompute();
     renderSpec();
     renderProps();
+    renderSolverCfg();
     renderJob();
+    renderWorkspaceHeader();
     return;
   }
   if (e.target.dataset.num) setParam(e.target.dataset.num, e.target.value, "num");
@@ -1181,14 +2232,51 @@ document.addEventListener("change", (e) => {
     if (mat) { setParam(e.target.dataset.mat, mat[2], "mat"); setParam(e.target.dataset.matNu, mat[3], "mat"); }
   }
   if (e.target.id === "epochs" || e.target.id === "lbfgs") {
-    const ep = Math.min(40000, Math.max(50, parseInt($("#epochs").value, 10) || FULL.epochs));
-    const lb = snapLbfgs(parseInt($("#lbfgs").value, 10) || FULL.lbfgs);
+    const epEl = $("#epochs"), lbEl = $("#lbfgs");
+    const ep = Math.min(40000, Math.max(50, parseInt(epEl ? epEl.value : state.budget.epochs, 10) || FULL.epochs));
+    const rawLb = lbEl ? parseInt(lbEl.value, 10) : state.budget.lbfgs;
+    const lb = snapLbfgs(Number.isFinite(rawLb) ? rawLb : FULL.lbfgs);
     setBudget(ep, lb);
     renderBudget();
+    renderSolverCfg();
+    return;
+  }
+  const s = state.solver;
+  if (e.target.id === "cfgLayers") { s.hidden_layers = Math.min(8, Math.max(2, parseInt(e.target.value, 10) || 4)); saveSolver(); renderSpec(); renderBudget(); renderSolverCfg(); }
+  if (e.target.id === "cfgNeurons") { s.neurons = Math.min(256, Math.max(16, parseInt(e.target.value, 10) || 64)); saveSolver(); renderSpec(); renderBudget(); renderSolverCfg(); }
+  if (e.target.id === "cfgLr") { s.lr = Math.min(0.05, Math.max(0.00001, parseFloat(e.target.value) || 0.002)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgSeed") { s.seed = Math.min(999999, Math.max(0, parseInt(e.target.value, 10) || 42)); saveSolver(); renderBudget(); renderSolverCfg(); }
+  if (e.target.id === "cfgWarm") { s.warm_start = Math.min(20000, Math.max(0, parseInt(e.target.value, 10) || 0)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgAl") { s.al_stages = Math.min(8, Math.max(0, parseInt(e.target.value, 10) || 0)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgGu") { s.gamma_u = Math.min(1000, Math.max(0.1, parseFloat(e.target.value) || 30)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgGt") { s.gamma_t = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgInvMetric") { s.inv_metric[state.liveBench] = e.target.value; saveSolver(); renderSpec(); renderSolverCfg(); }
+  if (e.target.id === "cfgInvRatio") {
+    s.inv_ratio[state.liveBench] = Math.min(5, Math.max(0.1, parseFloat(e.target.value) || invDefaultRatio(state.liveBench)));
+    saveSolver();
+    renderSpec();
+    renderSolverCfg();
+  }
+  if (e.target.id === "cfgInvOuter") { s.n_outer = Math.min(100, Math.max(1, parseInt(e.target.value, 10) || 12)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "cfgInvLbfgs") { s.forward_lbfgs = Math.min(8000, Math.max(0, parseInt(e.target.value, 10) || 0)); saveSolver(); renderSolverCfg(); }
+  if (e.target.id === "setThreadsNum" || e.target.id === "setThreadsRange") {
+    const n = Math.max(1, parseInt(e.target.value, 10) || 1);
+    await updateAppSettings({ cpu_threads: n });
+  }
+  if (e.target.id === "setAutoLog") {
+    await updateAppSettings({ auto_open_log: e.target.checked });
+  }
+  if (e.target.id === "setMotion") {
+    applyMotion(e.target.checked);
   }
 });
 
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTip(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeTip();
+    closeMobileSidebar();
+  }
+});
 window.addEventListener("scroll", closeTip, { passive: true });
 window.addEventListener("resize", closeTip);
 
@@ -1203,6 +2291,22 @@ document.addEventListener("input", (e) => {
     $("#runHint").textContent = hint;
     e.target.setAttribute("aria-valuetext", val);
     e.target.style.setProperty("--fill", `${(idx / (RUN_STEPS.length - 1)) * 100}%`);
+    if ($("#epochs")) $("#epochs").value = r.epochs;
+    if ($("#lbfgs")) $("#lbfgs").value = r.lbfgs;
+  }
+  if (e.target.id === "setThreadsRange") {
+    const v = +e.target.value;
+    const maxT = +e.target.max || 8;
+    e.target.style.setProperty("--fill", `${((v - 1) / Math.max(1, maxT - 1)) * 100}%`);
+    if ($("#setThreadsNum")) $("#setThreadsNum").value = v;
+  }
+  if (e.target.id === "cfgInvRatioRange") {
+    const v = +e.target.value;
+    e.target.style.setProperty("--fill", `${((v - 0.3) / 1.3) * 100}%`);
+    state.solver.inv_ratio[state.liveBench] = v;
+    saveSolver();
+    if ($("#cfgInvRatio")) $("#cfgInvRatio").value = v.toFixed(2);
+    renderSpec();
   }
 });
 

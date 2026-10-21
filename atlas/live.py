@@ -3,7 +3,7 @@ import math
 import numpy as np
 import torch
 
-from atlas.energy_solver import EnergyNet, _gauss_on_edges, line_quadrature
+from atlas.energy_solver import EnergyNet, EnergyProblem, _gauss_on_edges, line_quadrature
 from atlas.energy_xpinn import (FAR_MARGIN, MID_MARGIN, DecomposedEnergyProblem, RoutedEnergyXPINN,
                                 _polar_block, cantilever_geometry, l_bracket_geometry, plate_geometry,
                                 williams_features)
@@ -107,7 +107,8 @@ def _inclusion_problem(bench, p):
     return mat, blocks, loads, ifaces, u_s, abs(sigma) * u_s * H, W, 2, router, ((0.0, 0.0), (W, H), 'sym', 1.0), None
 
 
-def build(bench, params=None, device='cpu', hidden_layers=4, neurons=64, dtype=torch.float64):
+def build(bench, params=None, device='cpu', hidden_layers=4, neurons=64, dtype=torch.float64,
+          formulation='energy_xpinn', gamma_u=30.0, gamma_t=0.1):
     p = si(bench, params)
     if bench in INCLUSION:
         phys, blocks, loads, ifaces, u_s, escale, length, n_sub, router, box, enrich = _inclusion_problem(bench, p)
@@ -153,9 +154,15 @@ def build(bench, params=None, device='cpu', hidden_layers=4, neurons=64, dtype=t
             raise ValueError(f"unknown benchmark {bench!r}")
     lo, hi, mask, mask_len = box
     kw = dict(enrich_fn=enrich[0], n_enrich=enrich[1]) if enrich else {}
+    if formulation == 'energy':
+        net = EnergyNet(lo, hi, hidden_layers, neurons, u_s, mask, mask_len, **kw).to(device).to(dtype)
+        problem = EnergyProblem(phys, [b[1:] for b in blocks],
+                                [ld[1:] for ld in loads], escale, device=device, dtype=dtype)
+        return net, problem
     subnets = [EnergyNet(lo, hi, hidden_layers, neurons, u_s, mask, mask_len, **kw) for _ in range(n_sub)]
     model = RoutedEnergyXPINN(subnets, router).to(device).to(dtype)
-    problem = DecomposedEnergyProblem(phys, blocks, loads, ifaces, escale, u_s, length, 30.0, 0.1, device, dtype)
+    problem = DecomposedEnergyProblem(phys, blocks, loads, ifaces, escale, u_s, length,
+                                      gamma_u, gamma_t, device, dtype)
     return model, problem
 
 

@@ -153,32 +153,18 @@ function countUp(el, delay = 0) {
   requestAnimationFrame(step);
 }
 
-function setRevealOrigin(x, y) {
-  const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-  const s = document.documentElement.style;
-  s.setProperty("--vt-x", `${x}px`);
-  s.setProperty("--vt-y", `${y}px`);
-  s.setProperty("--vt-r", `${r}px`);
-}
-
-function withTransition(fn) {
-  if (document.startViewTransition && !reduced()) document.startViewTransition(fn);
-  else fn();
-}
-
 function switchTheme(t) {
-  if (t === document.documentElement.getAttribute("data-theme")) return;
-  withTransition(() => {
-    applyTheme(t);
-    flow.recolor();
-    if (currentView() === "settings") renderSettingsDrawer();
-  });
+  const next = t === "dark" ? "dark" : "light";
+  if (next === document.documentElement.getAttribute("data-theme")) return;
+  applyTheme(next);
+  if (currentView() === "settings") renderSettingsDrawer();
 }
 
 function applyTheme(t) {
-  document.documentElement.setAttribute("data-theme", t);
-  store.set("atlas-theme", t);
-  $$("[data-theme-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themePick === t)));
+  const clean = t === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", clean);
+  store.set("atlas-theme", clean);
+  $$("[data-theme-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themePick === clean)));
 }
 
 function applyScale(sc) {
@@ -189,18 +175,6 @@ function applyScale(sc) {
     document.documentElement.setAttribute("data-scale", sc);
     store.set("atlas-scale", sc);
   }
-  if (currentView() === "settings") renderSettingsDrawer();
-}
-
-function applyMotion(enableAnimations) {
-  if (enableAnimations) {
-    document.documentElement.removeAttribute("data-motion");
-    store.set("atlas-motion", "full");
-  } else {
-    document.documentElement.setAttribute("data-motion", "reduced");
-    store.set("atlas-motion", "reduced");
-  }
-  flow.recolor();
   if (currentView() === "settings") renderSettingsDrawer();
 }
 
@@ -474,7 +448,7 @@ function renderFilesView() {
             <thead><tr><th>Dataset</th><th>Mesh / Grid Points</th><th>Reference Compliance</th><th>Files</th><th>Size</th></tr></thead>
             <tbody>
               ${refs.items.map((r) => `<tr>
-                <td><strong>${esc(r.key)}</strong></td>
+                <td><strong>${esc(r.title || r.key)}</strong></td>
                 <td>${r.points != null ? r.points.toLocaleString("en-US") : "—"}</td>
                 <td>${r.compliance != null ? sci(r.compliance) : "—"}</td>
                 <td>${r.files}</td>
@@ -538,7 +512,6 @@ function renderSettingsDrawer() {
   const h = state.health;
   const curTheme = document.documentElement.getAttribute("data-theme") || "light";
   const curScale = document.documentElement.getAttribute("data-scale") || "default";
-  const animOn = !reduced();
   const prefDev = selectedDevice();
   const prefFem = selectedFem();
   const cudaOk = !!h?.cuda_available;
@@ -552,9 +525,8 @@ function renderSettingsDrawer() {
   const polls = [[750, "0.75 s"], [1500, "1.5 s"], [3000, "3.0 s"]];
 
   const themeCards = [
-    ["light", "Light Studio", "Clean daylight paper surface & high-contrast blue accents", "#FCFCFA", "#F3F2EE", "#15171A", "#1E5BC6"],
-    ["dark", "Dark Studio", "Low-glare charcoal slate tuned for long GPU training sessions", "#17191B", "#131416", "#EDEDEA", "#7FA6EE"],
-    ["atlas", "Atlas Parchment", "Editorial serif typography on warm drafting parchment", "#F2E9D4", "#EDE3CC", "#2A2016", "#2F5A7A"],
+    ["light", "Light", "Clean white interface with crisp contrast", "#FFFFFF", "#F9FAFB", "#111827", "#1D4ED8"],
+    ["dark", "Dark", "Low-glare dark slate interface", "#12151B", "#0F1115", "#F3F4F6", "#60A5FA"],
   ];
 
   body.innerHTML = `
@@ -562,8 +534,8 @@ function renderSettingsDrawer() {
       <div>
         <div class="eyebrow">Application Preferences</div>
         <h1>${S("Appearance, Compute & FEM Engine", "Studio & Runtime Configuration")}</h1>
-        <p>${S("Customize your theme and layout scale, switch between GPU and CPU execution, and choose whether custom simulations verify against WSL2 FEniCS or the built-in cross-platform FEM solver.",
-          "Configure theme, detail level, UI scale, PyTorch GPU/CPU execution, and FEM validation backend (genuine WSL2/Conda FEniCS 2019.1.0 vs Built-in SciPy P2 FEM).")}</p>
+        <p>${S("Switch between light and dark mode, adjust layout scale, choose GPU or CPU execution, and configure your FEM validation backend.",
+          "Configure light/dark mode, detail level, UI scale, PyTorch GPU/CPU execution, and FEM validation backend (genuine WSL2/Conda FEniCS 2019.1.0 vs Built-in SciPy P2 FEM).")}</p>
       </div>
     </div>
 
@@ -574,7 +546,7 @@ function renderSettingsDrawer() {
         <div class="settings-card-head">
           <div>
             <h2>${S("Theme & Interface Layout", "Appearance & Display")}</h2>
-            <p>${S("Switch color palette, explanation style, text scaling, and background animations.", "Persisted automatically across desktop sessions.")}</p>
+            <p>${S("Switch color mode, explanation style, and interface zoom.", "Persisted automatically across desktop sessions.")}</p>
           </div>
         </div>
         <div class="theme-cards" role="group" aria-label="Color theme">
@@ -613,11 +585,6 @@ function renderSettingsDrawer() {
             </div>
           </div>
         </div>
-
-        <label class="toggle-row">
-          <span>Enable stress-flow background animation &amp; smooth theme transitions</span>
-          <input type="checkbox" id="setMotion" ${animOn ? "checked" : ""}>
-        </label>
       </section>
 
       <section class="card settings-card">
@@ -733,9 +700,9 @@ function renderSettingsDrawer() {
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.4.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.4.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.4/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.4/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.5.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.5.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;
@@ -773,21 +740,15 @@ function route() {
     if (p) p.hidden = k !== view;
   });
   $$(".side-nav a[data-view]").forEach((a) => (a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  renderWorkspaceHeader();
-  if (view === "files") {
-    renderFilesView();
-    loadWorkspace();
-  } else if (view === "settings") {
-    renderSettingsDrawer();
-    pollHealth();
+    renderWorkspaceHeader();
+    if (view === "files") {
+      renderFilesView();
+      loadWorkspace();
+    } else if (view === "settings") {
+      renderSettingsDrawer();
+      pollHealth();
+    }
   }
-  const el = $(`#view-${view}`);
-  if (el) {
-    el.classList.remove("view");
-    void el.offsetWidth;
-    el.classList.add("view");
-  }
-}
 
 async function pollHealth() {
   const pill = $("#health");
@@ -869,9 +830,7 @@ function renderHero() {
     }
   }
   const h = $("#heroTitle");
-  if (!state.heroShown && !reduced()) {
-    h.innerHTML = title.split(" ").map((w, i) => `<span class="w" style="animation-delay:${60 + i * 36}ms">${esc(w)}</span>`).join(" ");
-  } else h.textContent = title;
+  h.textContent = title;
 
   const kpis = [];
   const nameOf = (r) => solverName(r.bench.group, r.key)[0];
@@ -2133,7 +2092,6 @@ document.addEventListener("click", async (e) => {
     saveSolver();
     setBudget(FULL.epochs, FULL.lbfgs);
     applyScale("default");
-    applyMotion(true);
     await updateAppSettings({ device: "auto", fem_backend: "auto", plot_dpi: 140, poll_ms: 1500, auto_open_log: true });
     state.settingsMsg = "Restored default appearance, solver, compute, and FEM settings.";
     renderCompute();
@@ -2204,7 +2162,7 @@ document.addEventListener("click", async (e) => {
   const levelBtn = e.target.closest("[data-level-pick]");
   if (levelBtn) {
     const level = levelBtn.dataset.levelPick;
-    if (level !== (simple() ? "simple" : "expert")) withTransition(() => applyLevel(level));
+    if (level !== (simple() ? "simple" : "expert")) applyLevel(level);
     return;
   }
 
@@ -2296,9 +2254,6 @@ document.addEventListener("change", async (e) => {
   if (e.target.id === "setAutoLog") {
     await updateAppSettings({ auto_open_log: e.target.checked });
   }
-  if (e.target.id === "setMotion") {
-    applyMotion(e.target.checked);
-  }
 });
 
 document.addEventListener("keydown", (e) => {
@@ -2340,156 +2295,9 @@ document.addEventListener("input", (e) => {
   }
 });
 
-document.addEventListener("pointerdown", (e) => setRevealOrigin(e.clientX, e.clientY), { passive: true });
-
-let spotRaf = null, spotEv = null;
-document.addEventListener("pointermove", (e) => {
-  spotEv = e;
-  if (spotRaf) return;
-  spotRaf = requestAnimationFrame(() => {
-    spotRaf = null;
-    const card = spotEv.target.closest && spotEv.target.closest(".card");
-    if (!card) return;
-    const r = card.getBoundingClientRect();
-    card.style.setProperty("--mx", `${spotEv.clientX - r.left}px`);
-    card.style.setProperty("--my", `${spotEv.clientY - r.top}px`);
-  });
-}, { passive: true });
-
-const flow = (() => {
-  const cv = $("#flow");
-  const ctx = cv && cv.getContext("2d");
-  if (!ctx) return { recolor() {}, update() {} };
-  let w = 0, h = 0, hole = null, parts = [], raf = null, colors = { a: "#2A78D6", b: "#C9561A" }, visible = true;
-  const running = () => visible && !document.hidden && !$("#view-results").hidden && !reduced()
-    && document.documentElement.getAttribute("data-theme") !== "atlas";
-
-  function field(x, y) {
-    const dx = (x - hole.x) / hole.a, dy = (hole.y - y) / hole.a;
-    const r2 = dx * dx + dy * dy;
-    if (r2 < 1.02) return null;
-    const th = Math.atan2(dy, dx), c2 = Math.cos(2 * th), s2 = Math.sin(2 * th);
-    const a2 = 1 / r2, a4 = a2 * a2;
-    const srr = 0.5 * (1 - a2) + 0.5 * (1 - 4 * a2 + 3 * a4) * c2;
-    const stt = 0.5 * (1 + a2) - 0.5 * (1 + 3 * a4) * c2;
-    const srt = -0.5 * (1 + 2 * a2 - 3 * a4) * s2;
-    const c = Math.cos(th), s = Math.sin(th);
-    const sxx = srr * c * c + stt * s * s - 2 * srt * s * c;
-    const syy = srr * s * s + stt * c * c + 2 * srt * s * c;
-    const sxy = (srr - stt) * s * c + srt * (c * c - s * s);
-    const phi = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-    const s1 = 0.5 * (sxx + syy) + Math.sqrt(0.25 * (sxx - syy) ** 2 + sxy * sxy);
-    let ux = Math.cos(phi), uy = -Math.sin(phi);
-    if (ux < 0) { ux = -ux; uy = -uy; }
-    return [ux, uy, s1];
-  }
-
-  function spawn(p, edge) {
-    p.x = edge ? Math.random() * w * 0.05 : Math.random() * w;
-    p.y = Math.random() * h;
-    p.age = 0;
-    p.life = 160 + Math.random() * 340;
-  }
-
-  function drawStatic() {
-    ctx.clearRect(0, 0, w, h);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = colors.a;
-    ctx.globalAlpha = 0.18;
-    for (let i = 0; i < 44; i++) {
-      let x = 0, y = ((i + 0.5) / 44) * h;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let k = 0; k < 2000 && x < w; k++) {
-        const f = field(x, y);
-        if (!f) break;
-        x += f[0] * 2; y += f[1] * 2;
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const r = cv.getBoundingClientRect();
-    w = r.width; h = r.height;
-    if (!w || !h) return;
-    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    hole = w > 900 ? { x: w * 0.47, y: h * 0.2, a: Math.max(30, h * 0.1) } : { x: w * 0.78, y: h * 0.1, a: Math.max(22, w * 0.07) };
-    parts = Array.from({ length: Math.min(520, Math.round((w * h) / 1700)) }, () => { const p = {}; spawn(p, false); return p; });
-    if (reduced()) drawStatic();
-  }
-
-  function frame() {
-    raf = null;
-    if (!running()) return;
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "rgba(0,0,0,0.032)";
-    ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.lineWidth = 1.15;
-    ctx.lineCap = "round";
-    for (const p of parts) {
-      const f = field(p.x, p.y);
-      if (!f || p.x > w + 2 || p.y < -2 || p.y > h + 2 || p.age++ > p.life) { spawn(p, Math.random() < 0.7); continue; }
-      const sp = 0.45 + 0.5 * Math.min(f[2], 3);
-      const nx = p.x + f[0] * sp, ny = p.y + f[1] * sp;
-      const hot = Math.min(1, Math.max(0, (f[2] - 1.15) / 1.5));
-      ctx.strokeStyle = hot > 0.4 ? colors.b : colors.a;
-      ctx.globalAlpha = 0.24 + 0.46 * hot;
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(nx, ny);
-      ctx.stroke();
-      p.x = nx; p.y = ny;
-    }
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = colors.a;
-    ctx.setLineDash([3, 4]);
-    ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.a, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
-    raf = requestAnimationFrame(frame);
-  }
-
-  function update() {
-    if (!hole) resize();
-    if (running() && !raf) raf = requestAnimationFrame(frame);
-  }
-
-  function recolor() {
-    const cs = getComputedStyle(document.documentElement);
-    colors = { a: cs.getPropertyValue("--dot-a").trim() || colors.a, b: cs.getPropertyValue("--target").trim() || colors.b };
-    if (w && h) ctx.clearRect(0, 0, w, h);
-    if (reduced() && hole) drawStatic();
-    update();
-  }
-
-  new IntersectionObserver(([e]) => { visible = e.isIntersecting; update(); }).observe(cv);
-  document.addEventListener("visibilitychange", update);
-  let rt = null, lastSize = "";
-  new ResizeObserver(() => {
-    const r = cv.getBoundingClientRect();
-    const size = `${Math.round(r.width)}x${Math.round(r.height)}`;
-    if (size === lastSize) return;
-    lastSize = size;
-    clearTimeout(rt);
-    rt = setTimeout(() => { resize(); update(); }, 120);
-  }).observe(cv);
-  resize();
-  recolor();
-  return { recolor, update };
-})();
-
 $("#runForward").addEventListener("click", () => submit("forward"));
 $("#runInverse").addEventListener("click", () => submit("inverse"));
-window.addEventListener("hashchange", () => withTransition(() => { route(); flow.update(); }));
+window.addEventListener("hashchange", () => route());
 
 applyTheme(document.documentElement.getAttribute("data-theme") || "light");
 setStaticText();

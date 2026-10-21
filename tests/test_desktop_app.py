@@ -57,7 +57,7 @@ def test_desktop_launcher_helpers(tmp_path):
         assert meta["CompanyName"] == "ATLAS"
         assert meta["Publisher"] == "ATLAS"
         assert meta["Author"] == "ATLAS"
-        assert meta["FileVersion"] == "1.1.4.0"
+        assert meta["FileVersion"] == "1.1.5.0"
 
     # Execute standalone installer verification scripts AND guard against PowerShell traps
     import subprocess
@@ -76,27 +76,27 @@ def test_desktop_launcher_helpers(tmp_path):
     assert cuda_probe.returncode in (0, 2, 3)
     subprocess.run([sys.executable, str(ROOT / "installer" / "verify_install.py")], check=True)
 
-    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.4", out_root=tmp_path)
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.5", out_root=tmp_path)
     assert out_dir.is_dir()
     assert notes_file.is_file()
     names = {a.name for a in assets}
     assert {
         "ATLAS-Setup.exe",
         "setup_atlas.sh",
-        "ATLAS-Desktop-Studio-v1.1.4.zip",
+        "ATLAS-Desktop-Studio-v1.1.5.zip",
         "ATLAS-Desktop-Studio.zip",
         "SHA256SUMS.txt",
     } == names
     with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
         znames = set(zf.namelist())
-        assert "ATLAS-Desktop-Studio-v1.1.4/ATLAS-Setup.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/installer/Uninstall-ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/installer/check_python.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/installer/check_cuda.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/installer/verify_install.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/atlas/native_fem.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.4/webapp/desktop.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/ATLAS-Setup.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/installer/Uninstall-ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/installer/check_python.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/installer/check_cuda.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/installer/verify_install.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.5/webapp/desktop.py" in znames
         assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 
@@ -162,6 +162,17 @@ def test_static_frontend_and_study_results():
     assert 'data-view="settings"' in idx.text
     assert 'id="computeBox"' in idx.text
     assert 'id="solverCfg"' in idx.text
+    assert 'data-theme-pick="atlas"' not in idx.text
+    assert 'id="flow"' not in idx.text
+    assert 'class="contours' not in idx.text
+    assert "Inter" in idx.text
+
+    css_text = (ROOT / "webapp" / "frontend" / "style.css").read_text(encoding="utf-8")
+    js_text = (ROOT / "webapp" / "frontend" / "app.js").read_text(encoding="utf-8")
+    assert 'data-theme="atlas"' not in css_text
+    assert "view-transition-new(root)" not in css_text
+    assert "--mx" not in css_text and "--mx" not in js_text
+    assert "startViewTransition" not in js_text
 
     assert client.get("/static/icon.svg").status_code == 200
     assert client.get("/icon.svg").status_code == 200
@@ -171,7 +182,19 @@ def test_static_frontend_and_study_results():
     assert ws.status_code == 200
     ws_data = ws.json()
     assert ws_data["results"]["count"] > 0
-    assert ws_data["references"]["count"] >= 6
+    assert ws_data["references"]["count"] == 6
+    assert [r["title"] for r in ws_data["references"]["items"]] == [
+        "Cantilever beam",
+        "L-shaped bracket",
+        "Plate with hole",
+        "Steel insert",
+        "Soft inclusion",
+        "Epoxy-filled slot",
+    ]
+    allowed_prefixes = ("cantilever_", "l_bracket_", "plate_hole_", "steel_insert_", "bimaterial_c15_", "filled_slot_")
+    for ref_file in (ROOT / "fem" / "reference").iterdir():
+        if ref_file.is_file():
+            assert ref_file.name.startswith(allowed_prefixes), f"Unexpected FEniCS reference file: {ref_file.name}"
 
     fem_chk = client.post("/api/fem/test", json={"fem_backend": "builtin"})
     assert fem_chk.status_code == 200

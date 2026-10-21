@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.0'
+$APP_VERSION = 'v1.1.1'
 $PUBLISHER   = 'ATLAS'
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
 $ZIP_URL_ALT = "https://github.com/$REPO_SLUG/archive/refs/tags/$APP_VERSION.zip"
@@ -141,26 +141,46 @@ if (-not (Test-Path $venvPy)) {
     if ($LASTEXITCODE -ne 0) { throw "Failed to create Python virtual environment in $venvDir." }
 }
 
-Emit-Step 46 "Upgrading pip package installer..."
-& $venvPy -m pip install --upgrade pip wheel --quiet
+Emit-Step 46 "Upgrading pip, setuptools & wheel..."
+& $venvPy -m pip install --upgrade pip setuptools wheel --quiet
 
 $useCuda = if ($ComputePref -eq 'cuda') { $true } elseif ($ComputePref -eq 'cpu') { $false } else { Test-NvidiaGpu }
-$torchIndex = if ($useCuda) { 'https://download.pytorch.org/whl/cu124' } else { 'https://download.pytorch.org/whl/cpu' }
 $modeName = if ($useCuda) { 'NVIDIA CUDA GPU Acceleration' } else { 'Multi-Core CPU Engine' }
 
-Emit-Step 58 "Installing PyTorch ($modeName)..."
+Emit-Step 58 "Installing PyTorch ($modeName — pre-compiled binary wheel)..."
 Write-Output "Installing PyTorch ($modeName). First-time download may take 1-3 minutes..."
-& $venvPy -m pip install torch --index-url $torchIndex
-if ($LASTEXITCODE -ne 0) {
-    Write-Output "Retrying PyTorch installation from default PyPI index..."
-    & $venvPy -m pip install torch
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install PyTorch." }
+$torchInstalled = $false
+$torchUrls = if ($useCuda) {
+    @('https://download.pytorch.org/whl/cu128', 'https://download.pytorch.org/whl/cu126', 'https://download.pytorch.org/whl/cu124')
+} else {
+    @('https://download.pytorch.org/whl/cpu')
+}
+foreach ($idxUrl in $torchUrls) {
+    & $venvPy -m pip install --only-binary=:all: "torch>=2.2" --index-url $idxUrl
+    if ($LASTEXITCODE -eq 0) {
+        $torchInstalled = $true
+        break
+    }
+}
+if (-not $torchInstalled) {
+    Write-Output "Installing pre-compiled PyTorch wheel from default PyPI index..."
+    & $venvPy -m pip install --only-binary=:all: "torch>=2.2"
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install pre-compiled PyTorch binary wheel." }
 }
 
-Emit-Step 74 "Installing scientific & desktop runtime dependencies (SciPy P2 FEM, FastAPI, WebView)..."
+Emit-Step 72 "Installing scientific & server wheels (NumPy, SciPy P2 FEM, Matplotlib, FastAPI)..."
 $reqPath = Join-Path $InstallDir 'requirements.txt'
-& $venvPy -m pip install -r $reqPath
-if ($LASTEXITCODE -ne 0) { throw "Failed to install dependencies from requirements.txt." }
+& $venvPy -m pip install --only-binary=:all: -r $reqPath
+if ($LASTEXITCODE -ne 0) {
+    & $venvPy -m pip install --prefer-binary -r $reqPath
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install dependencies from requirements.txt." }
+}
+
+Emit-Step 78 "Installing native Windows WebView2 shell support..."
+& $venvPy -m pip install --prefer-binary "pywebview>=5.0"
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "Note: pywebview optional wheel skipped; native Microsoft Edge app-mode window remains ready."
+}
 
 if ($WithFenics) {
     Emit-Step 82 "Configuring WSL2 + Legacy FEniCS 2019.1.0 ('Atlas' conda environment)..."

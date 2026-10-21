@@ -97,8 +97,8 @@ def compile_win32_exe(
 1 24 "{manifest_posix}"
 
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 1,1,1,0
+PRODUCTVERSION 1,1,1,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -113,12 +113,12 @@ BEGIN
       VALUE "Publisher", "ATLAS\\0"
       VALUE "Author", "ATLAS\\0"
       VALUE "FileDescription", "{file_desc}\\0"
-      VALUE "FileVersion", "1.0.0.0\\0"
+      VALUE "FileVersion", "1.1.1.0\\0"
       VALUE "InternalName", "{orig_filename}\\0"
       VALUE "LegalCopyright", "Copyright (c) 2026 ATLAS. All rights reserved.\\0"
       VALUE "OriginalFilename", "{orig_filename}\\0"
       VALUE "ProductName", "ATLAS Desktop Studio\\0"
-      VALUE "ProductVersion", "1.0.0\\0"
+      VALUE "ProductVersion", "1.1.1\\0"
     END
   END
   BLOCK "VarFileInfo"

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -106,7 +107,7 @@ def _load_app_settings() -> dict:
     cfg = dict(DEFAULT_SETTINGS)
     try:
         if SETTINGS_FILE.exists():
-            saved = json.loads(SETTINGS_FILE.read_text())
+            saved = json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
             if isinstance(saved, dict):
                 if saved.get("device") in ("auto", "cuda", "cpu") and not os.environ.get("ATLAS_DEVICE"):
                     cfg["device"] = saved["device"]
@@ -141,9 +142,65 @@ _apply_cpu_threads(SETTINGS["cpu_threads"])
 
 def _save_app_settings() -> None:
     try:
-        SETTINGS_FILE.write_text(json.dumps(SETTINGS, indent=2))
+        SETTINGS_FILE.write_text(json.dumps(SETTINGS, indent=2), encoding="utf-8")
     except Exception:
         pass
+
+
+@lru_cache(maxsize=1)
+def system_gpu_details() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Detect physical NVIDIA GPU hardware & driver CUDA version even if PyTorch is CPU-only."""
+    smi_candidates = []
+    which_smi = shutil.which("nvidia-smi")
+    if which_smi:
+        smi_candidates.append(which_smi)
+    if sys.platform == "win32":
+        sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+        prog_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        smi_candidates.extend([
+            os.path.join(sys_root, "System32", "nvidia-smi.exe"),
+            os.path.join(prog_files, "NVIDIA Corporation", "NVSMI", "nvidia-smi.exe"),
+        ])
+
+    create_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+    for smi in smi_candidates:
+        if smi and os.path.isfile(smi):
+            try:
+                hdr = subprocess.check_output(
+                    [smi], text=True, stderr=subprocess.DEVNULL, timeout=5, creationflags=create_flags
+                )
+                drv_m = re.search(r"Driver Version:\s*([0-9]+\.[0-9]+)", hdr)
+                cuda_m = re.search(r"CUDA Version:\s*([0-9]+\.[0-9]+)", hdr)
+                name_out = subprocess.check_output(
+                    [smi, "--query-gpu=name", "--format=csv,noheader"],
+                    text=True, stderr=subprocess.DEVNULL, timeout=5, creationflags=create_flags,
+                ).strip()
+                gpu_name = name_out.splitlines()[0].strip() if name_out else "NVIDIA CUDA GPU"
+                return (
+                    gpu_name,
+                    drv_m.group(1) if drv_m else None,
+                    cuda_m.group(1) if cuda_m else None,
+                )
+            except Exception:
+                pass
+
+    if sys.platform == "win32":
+        try:
+            ps_out = subprocess.check_output(
+                [
+                    "powershell.exe", "-NoProfile", "-Command",
+                    "Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name",
+                ],
+                text=True, stderr=subprocess.DEVNULL, timeout=6, creationflags=create_flags,
+            )
+            for line in ps_out.splitlines():
+                name = line.strip()
+                if re.search(r"NVIDIA|GeForce|RTX|Quadro|Tesla", name, re.IGNORECASE):
+                    return name, None, None
+        except Exception:
+            pass
+
+    return None, None, None
 
 
 def cuda_details() -> Tuple[bool, Optional[str], Optional[str], Optional[dict]]:
@@ -1290,6 +1347,7 @@ def _system_snapshot() -> dict:
     except Exception as e:
         torch_ver = str(e)
     has_cuda, gpu_name, cuda_ver, gpu_mem = cuda_details()
+    sys_gpu_name, sys_gpu_driver, sys_gpu_cuda = system_gpu_details()
     eff_dev, eff_name = resolve_device(None, strict_cuda=False)
     fenics_ok, fenics_ver = fenics_status()
     builtin_ok, builtin_ver = builtin_fem_status()
@@ -1308,6 +1366,9 @@ def _system_snapshot() -> dict:
         "gpu_name": gpu_name,
         "cuda_version": cuda_ver,
         "gpu_memory": gpu_mem,
+        "system_gpu_name": sys_gpu_name,
+        "nvidia_driver": sys_gpu_driver,
+        "driver_cuda_version": sys_gpu_cuda,
         "cpu_count": CPU_COUNT,
         "cpu_threads": SETTINGS.get("cpu_threads", CPU_COUNT),
         "torch": torch_ver,
@@ -1481,6 +1542,39 @@ def clear_cuda_cache():
     except Exception:
         pass
     return _system_snapshot()
+
+
+@app.post("/api/cuda/setup")
+def setup_cuda_runtime():
+    """Launch native CUDA PyTorch runtime installation and restart ATLAS on Windows."""
+    has_cuda, gpu_name, _, _ = cuda_details()
+    if has_cuda:
+        return {"status": "already_active", "gpu_name": gpu_name}
+
+    setup_exe = ROOT / "ATLAS-Setup.exe"
+    if sys.platform == "win32" and setup_exe.is_file():
+        def _handoff_to_wizard() -> None:
+            time.sleep(0.9)
+            try:
+                subprocess.Popen(
+                    [str(setup_exe), "--unattended", "--cuda", "--dest", str(ROOT)],
+                    cwd=str(ROOT),
+                    close_fds=True,
+                )
+            finally:
+                os._exit(0)
+
+        threading.Thread(target=_handoff_to_wizard, daemon=True).start()
+        return {
+            "status": "launching_installer",
+            "message": "Closing ATLAS so ATLAS-Setup.exe can replace CPU PyTorch with the NVIDIA CUDA build and relaunch automatically.",
+        }
+
+    return {
+        "status": "manual",
+        "command": "pip uninstall -y torch && pip install --only-binary=:all: torch --index-url https://download.pytorch.org/whl/cu128",
+        "message": "Run ATLAS-Setup.exe (Windows) or setup_atlas.sh (Linux) to install the CUDA-enabled PyTorch wheel.",
+    }
 
 
 @app.post("/api/forward")

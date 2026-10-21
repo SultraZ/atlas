@@ -595,6 +595,12 @@ def _mesh_inclusion(a: float, b: float, W: float, H: float, n_ang_half: int = 26
 # Public APIs matching `fem/fem_live.py` and `fem/fem_parametric.py` 1-for-1
 # ---------------------------------------------------------------------------
 
+def solve_forward(benchmark: str = "cantilever", params: Optional[dict] = None) -> dict:
+    """Solve any named benchmark with optional parameter overrides using Built-in P2 FEM."""
+    from atlas import live
+    return solve_live_spec(live.fem_spec(benchmark, params))
+
+
 def solve_live_spec(spec: dict) -> dict:
     """Drop-in pure-Python/SciPy counterpart to `fem/fem_live.py` returning
     `dict(coords, u, v, vm, compliance, cells, engine)`."""

@@ -39,21 +39,22 @@ SAMPLERS = {"cantilever": CantileverBeamSampler, "plate_hole": PlateWithHoleSamp
 
 
 def compliance(bench, coords, u, v):
+    _trapz = getattr(np, "trapezoid", None) or np.trapz
     x, y = coords[:, 0], coords[:, 1]
     if bench == "cantilever":
         m = np.isclose(x, 4.0)
         yy, vv = y[m], v[m]
         o = np.argsort(yy)
         s = yy[o] / 1.0
-        return float(np.trapz(6.0 * (-1e6 / 1.0) * s * (1.0 - s) * vv[o], yy[o]))
+        return float(_trapz(6.0 * (-1e6 / 1.0) * s * (1.0 - s) * vv[o], yy[o]))
     if bench == "plate_hole":
         m = np.isclose(x, 2.0)
         o = np.argsort(y[m])
-        return float(np.trapz(1e6 * u[m][o], y[m][o]))
+        return float(_trapz(1e6 * u[m][o], y[m][o]))
     m = np.isclose(x, 2.0) & (y >= 1.0 - 1e-9)
     o = np.argsort(y[m])
     s = y[m][o] - 1.0
-    return float(np.trapz(6.0 * 1e6 * s * (1.0 - s) * u[m][o], y[m][o]))
+    return float(_trapz(6.0 * 1e6 * s * (1.0 - s) * u[m][o], y[m][o]))
 
 
 def vector_l2(z):

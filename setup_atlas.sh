@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.0"
+APP_VERSION="v1.1.4"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
@@ -106,15 +106,20 @@ fi
 
 echo "[3/5] Installing PyTorch & ATLAS dependencies..."
 if [ "${OS_NAME}" = "Linux" ] && [ "${HAS_NVIDIA}" -eq 1 ] && [ "${DEVICE_PREF}" != "cpu" ]; then
-    "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu124 || \
-        "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    if ! "${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/check_cuda.py" >/dev/null 2>&1; then
+        "${TARGET_DIR}/.venv/bin/python" -m pip uninstall -y torch >/dev/null 2>&1 || true
+        "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu128 || \
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu130 || \
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    fi
 elif [ "${OS_NAME}" = "Linux" ] && [ "${DEVICE_PREF}" != "cuda" ]; then
     "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu || \
         "${TARGET_DIR}/.venv/bin/python" -m pip install torch
 else
     "${TARGET_DIR}/.venv/bin/python" -m pip install torch
 fi
-"${TARGET_DIR}/.venv/bin/python" -m pip install -r "${TARGET_DIR}/requirements.txt"
+"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary -r "${TARGET_DIR}/requirements.txt"
+"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary "pywebview>=5.0" || true
 
 if [ "${WITH_FENICS}" -eq 1 ] && [ "${OS_NAME}" = "Linux" ]; then
     echo "[4/5] Configuring Miniconda 'Atlas' environment with genuine FEniCS 2019.1.0..."
@@ -132,7 +137,7 @@ else
     echo "[4/5] Verifying Built-in Cross-Platform P2 FEM engine..."
 fi
 
-"${TARGET_DIR}/.venv/bin/python" -c "import sys; sys.path.insert(0, '${TARGET_DIR}'); from atlas.native_fem import solve_forward; r = solve_forward('cantilever'); print(f'  -> Verified Built-in P2 FEM (cantilever compliance = {r[\"compliance\"]:.2f} N*m)')"
+"${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/verify_install.py"
 
 if [ "${OS_NAME}" = "Linux" ]; then
     APPS_DIR="${HOME}/.local/share/applications"

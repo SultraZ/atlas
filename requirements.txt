@@ -1,14 +1,12 @@
-# Python 3.10:  pip install -r requirements.txt
-# GPU build of torch:  pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
-# FEniCS references (fem/fenics_scripts/):  conda install -c conda-forge fenics=2019.1.0 mshr=2019.1.0 pkg-config
-# Desktop window shell (webapp/desktop.py):  pip install pywebview
-torch==2.11.0
-numpy==1.26.4
+# Core ATLAS solver, Built-in P2 FEM, and Desktop Studio dependencies
+# All packages below ship pre-compiled binary wheels (.whl) on Windows/macOS/Linux across Python 3.10 - 3.14.
+# GPU PyTorch:   pip install --only-binary=:all: torch --index-url https://download.pytorch.org/whl/cu128
+# Native window: pip install --prefer-binary "pywebview>=5.0"
+# Legacy FEniCS: conda install -c conda-forge fenics=2019.1.0 mshr=2019.1.0 pkg-config
+torch>=2.2
+numpy>=1.26
 scipy>=1.10
-matplotlib==3.10.9
-deepxde==1.15.0
-fastapi==0.141.1
-uvicorn==0.52.4
-pydantic==2.13.5
-pywebview>=5.0
-
+matplotlib>=3.9
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6

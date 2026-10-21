@@ -57,25 +57,46 @@ def test_desktop_launcher_helpers(tmp_path):
         assert meta["CompanyName"] == "ATLAS"
         assert meta["Publisher"] == "ATLAS"
         assert meta["Author"] == "ATLAS"
+        assert meta["FileVersion"] == "1.1.4.0"
 
-    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.0", out_root=tmp_path)
+    # Execute standalone installer verification scripts AND guard against PowerShell traps
+    import subprocess
+    ps1_text = (ROOT / "installer" / "setup_worker.ps1").read_text(encoding="utf-8")
+    assert '\\"' not in ps1_text, "Backslash-quote detected in PowerShell script!"
+    assert "Invoke-Native" not in ps1_text, "Pipeline-capturing function detected in PowerShell script!"
+    assert " -c " not in ps1_text.split("# Provisioning Miniconda")[0].split("$wslCmd")[0], (
+        "Inline python -c string detected in PowerShell section!"
+    )
+    assert "pip uninstall -y torch" in ps1_text, "Must uninstall CPU PyTorch before installing CUDA wheel!"
+    for tag in ("cu130", "cu128", "cu126", "cu124"):
+        assert tag in ps1_text, f"Missing CUDA index tag {tag} in setup_worker.ps1!"
+
+    subprocess.run([sys.executable, str(ROOT / "installer" / "check_python.py")], check=True)
+    cuda_probe = subprocess.run([sys.executable, str(ROOT / "installer" / "check_cuda.py")])
+    assert cuda_probe.returncode in (0, 2, 3)
+    subprocess.run([sys.executable, str(ROOT / "installer" / "verify_install.py")], check=True)
+
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.4", out_root=tmp_path)
     assert out_dir.is_dir()
     assert notes_file.is_file()
     names = {a.name for a in assets}
     assert {
         "ATLAS-Setup.exe",
         "setup_atlas.sh",
-        "ATLAS-Desktop-Studio-v1.1.0.zip",
+        "ATLAS-Desktop-Studio-v1.1.4.zip",
         "ATLAS-Desktop-Studio.zip",
         "SHA256SUMS.txt",
     } == names
     with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
         znames = set(zf.namelist())
-        assert "ATLAS-Desktop-Studio-v1.1.0/ATLAS-Setup.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.0/ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.0/installer/Uninstall-ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.0/atlas/native_fem.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.0/webapp/desktop.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/ATLAS-Setup.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/installer/Uninstall-ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/installer/check_python.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/installer/check_cuda.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/installer/verify_install.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.4/webapp/desktop.py" in znames
         assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 
@@ -120,10 +141,14 @@ def test_health_and_adjustable_settings(tmp_path, monkeypatch):
     assert ok.status_code == 200
     assert ok.json()["settings"]["device"] == "auto"
 
-    # CUDA cache clear endpoint always succeeds safely (even on CPU-only hosts)
+    # CUDA cache clear & runtime setup endpoints always respond cleanly
     cc = client.post("/api/cuda/clear")
     assert cc.status_code == 200
     assert cc.json()["status"] == "ok"
+    assert "system_gpu_name" in cc.json()
+    cs = client.post("/api/cuda/setup")
+    assert cs.status_code == 200
+    assert cs.json()["status"] in ("already_active", "manual", "launching_installer")
 
 
 def test_static_frontend_and_study_results():

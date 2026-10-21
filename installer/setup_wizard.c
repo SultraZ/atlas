@@ -391,7 +391,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SelectObject(hdc, g_fSub);
         SetTextColor(hdc, RGB(148, 163, 184));
         RECT rcS = { SX(75), SX(42), SX(650), SX(66) };
-        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.1   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
+        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.2   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
         SelectObject(hdc, oldF);
 
         EndPaint(hwnd, &ps);
@@ -577,7 +577,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
 
     g_hWnd = CreateWindowExW(
         0, L"AtlasSetupWizardWnd",
-        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.1",
+        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.2",
         style,
         (scrW - winW) / 2, (scrH - winH) / 2, winW, winH,
         NULL, NULL, hInst, NULL

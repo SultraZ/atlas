@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.1"
+APP_VERSION="v1.1.2"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
@@ -133,7 +133,7 @@ else
     echo "[4/5] Verifying Built-in Cross-Platform P2 FEM engine..."
 fi
 
-"${TARGET_DIR}/.venv/bin/python" -c "import sys; sys.path.insert(0, '${TARGET_DIR}'); from atlas.native_fem import solve_forward; r = solve_forward('cantilever'); print(f'  -> Verified Built-in P2 FEM (cantilever compliance = {r[\"compliance\"]:.2f} N*m)')"
+"${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/verify_install.py"
 
 if [ "${OS_NAME}" = "Linux" ]; then
     APPS_DIR="${HOME}/.local/share/applications"

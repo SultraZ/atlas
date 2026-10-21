@@ -4,7 +4,8 @@
  *
  * Launches ATLAS Desktop Studio directly without any console popup or .bat script:
  *   1. Native Windows virtual environment (<AppDir>\.venv\Scripts\python.exe webapp\desktop.py)
- *   2. WSL2 'Atlas' environment when run inside \\wsl.localhost\... or WSL-configured host
+ *      with UTF-8 stream configuration + startup error diagnostics from atlas_desktop.log
+ *   2. WSL2 'Atlas' environment when run inside \\wsl.localhost\... or \\wsl$\...
  *   3. Prompts to launch ATLAS-Setup.exe automatically if run prior to first-time setup
  */
 #ifndef UNICODE
@@ -17,6 +18,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <shlwapi.h>
+#include <stdlib.h>
 #include <wchar.h>
 
 static BOOL file_exists(const wchar_t *p) {
@@ -24,27 +26,27 @@ static BOOL file_exists(const wchar_t *p) {
     return (a != INVALID_FILE_ATTRIBUTES) && !(a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-static int run_hidden_process(wchar_t *cmdLine, const wchar_t *workDir, BOOL waitProc) {
-    STARTUPINFOW si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    ZeroMemory(&pi, sizeof(pi));
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-
-    if (!CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE,
-                        CREATE_NO_WINDOW, NULL, workDir, &si, &pi)) {
-        return -1;
+static void show_startup_error(const wchar_t *logPath) {
+    wchar_t msg[4096] = L"ATLAS Desktop Studio exited unexpectedly during startup.\n\n";
+    HANDLE hFile = CreateFileW(logPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        DWORD sz = GetFileSize(hFile, NULL);
+        if (sz > 0 && sz != INVALID_FILE_SIZE) {
+            DWORD readLen = (sz > 3000) ? 3000 : sz;
+            if (sz > readLen) SetFilePointer(hFile, (LONG)(sz - readLen), NULL, FILE_BEGIN);
+            char buf[3008] = {0};
+            DWORD got = 0;
+            if (ReadFile(hFile, buf, readLen, &got, NULL) && got > 0) {
+                buf[got] = '\0';
+                wchar_t wtail[3200] = {0};
+                MultiByteToWideChar(CP_UTF8, 0, buf, -1, wtail, 3190);
+                wcsncat(msg, wtail, 3800);
+            }
+        }
+        CloseHandle(hFile);
     }
-    DWORD exitCode = 0;
-    if (waitProc) {
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        GetExitCodeProcess(pi.hProcess, &exitCode);
-    }
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return (int)exitCode;
+    MessageBoxW(NULL, msg, L"ATLAS Desktop Studio — Startup Error", MB_OK | MB_ICONERROR);
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShowCmd) {
@@ -58,29 +60,63 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
     wchar_t *slash = wcsrchr(appDir, L'\\');
     if (slash) *slash = L'\0';
 
-    wchar_t venvPyw[MAX_PATH * 2] = {0};
-    wchar_t venvPy[MAX_PATH * 2]  = {0};
+    wchar_t venvPy[MAX_PATH * 2]    = {0};
     wchar_t desktopPy[MAX_PATH * 2] = {0};
     wchar_t setupExe[MAX_PATH * 2]  = {0};
+    wchar_t logPath[MAX_PATH * 2]   = {0};
 
-    _snwprintf(venvPyw, MAX_PATH * 2 - 1, L"%ls\\.venv\\Scripts\\pythonw.exe", appDir);
-    _snwprintf(venvPy,  MAX_PATH * 2 - 1, L"%ls\\.venv\\Scripts\\python.exe", appDir);
+    _snwprintf(venvPy,    MAX_PATH * 2 - 1, L"%ls\\.venv\\Scripts\\python.exe", appDir);
     _snwprintf(desktopPy, MAX_PATH * 2 - 1, L"%ls\\webapp\\desktop.py", appDir);
     _snwprintf(setupExe,  MAX_PATH * 2 - 1, L"%ls\\ATLAS-Setup.exe", appDir);
+    _snwprintf(logPath,   MAX_PATH * 2 - 1, L"%ls\\webapp\\atlas_desktop.log", appDir);
 
     /* 1. Native Windows virtual environment */
-    const wchar_t *chosenPy = file_exists(venvPy) ? venvPy : (file_exists(venvPyw) ? venvPyw : NULL);
-    if (chosenPy && file_exists(desktopPy)) {
+    if (file_exists(venvPy) && file_exists(desktopPy)) {
+        SetEnvironmentVariableW(L"PYTHONUTF8", L"1");
+        SetEnvironmentVariableW(L"PYTHONIOENCODING", L"utf-8");
+        SetEnvironmentVariableW(L"ATLAS_LOG_FILE", logPath);
+
         wchar_t cmd[4096] = {0};
         if (lpCmdLine && lpCmdLine[0]) {
-            _snwprintf(cmd, 4095, L"\"%ls\" \"%ls\" %ls", chosenPy, desktopPy, lpCmdLine);
+            _snwprintf(cmd, 4095, L"\"%ls\" \"%ls\" %ls", venvPy, desktopPy, lpCmdLine);
         } else {
-            _snwprintf(cmd, 4095, L"\"%ls\" \"%ls\"", chosenPy, desktopPy);
+            _snwprintf(cmd, 4095, L"\"%ls\" \"%ls\"", venvPy, desktopPy);
         }
-        return run_hidden_process(cmd, appDir, TRUE);
+
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
+        ZeroMemory(&si, sizeof(si));
+        ZeroMemory(&pi, sizeof(pi));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE,
+                            CREATE_NO_WINDOW, NULL, appDir, &si, &pi)) {
+            MessageBoxW(NULL, L"Failed to launch ATLAS Python runtime (.venv\\Scripts\\python.exe).",
+                        L"ATLAS Desktop Studio", MB_OK | MB_ICONERROR);
+            return 1;
+        }
+
+        /* Observe early startup window (4 seconds); if healthy & alive, hand off cleanly */
+        DWORD waitRes = WaitForSingleObject(pi.hProcess, 4000);
+        if (waitRes == WAIT_OBJECT_0) {
+            DWORD exitCode = 0;
+            GetExitCodeProcess(pi.hProcess, &exitCode);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+            if (exitCode != 0) {
+                show_startup_error(logPath);
+                return (int)exitCode;
+            }
+            return 0;
+        }
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        return 0;
     }
 
-    /* 2. Check if located on a WSL UNC path (\\wsl.localhost\Distro\... or \\wsl$\Distro\...) */
+    /* 2. WSL UNC path support (\\wsl.localhost\Distro\... or \\wsl$\Distro\...) */
     if (wcsncmp(appDir, L"\\\\wsl.localhost\\", 16) == 0 || wcsncmp(appDir, L"\\\\wsl$\\", 7) == 0) {
         const wchar_t *p = (appDir[5] == L'$') ? (appDir + 7) : (appDir + 16);
         const wchar_t *nextSlash = wcschr(p, L'\\');
@@ -100,12 +136,23 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
                     distro, linuxPath);
                 wchar_t sysDir[MAX_PATH] = {0};
                 GetSystemDirectoryW(sysDir, MAX_PATH);
-                return run_hidden_process(wslCmd, sysDir, TRUE);
+                STARTUPINFOW si;
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&si, sizeof(si));
+                ZeroMemory(&pi, sizeof(pi));
+                si.cb = sizeof(si);
+                si.dwFlags = STARTF_USESHOWWINDOW;
+                si.wShowWindow = SW_HIDE;
+                if (CreateProcessW(NULL, wslCmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, sysDir, &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                    return 0;
+                }
             }
         }
     }
 
-    /* 3. Not configured yet — offer to run ATLAS-Setup.exe right away */
+    /* 3. Offer one-click Setup Wizard if runtime isn't set up yet */
     if (file_exists(setupExe)) {
         int ans = MessageBoxW(
             NULL,

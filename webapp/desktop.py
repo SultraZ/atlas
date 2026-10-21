@@ -212,6 +212,24 @@ def _try_app_window(url: str, server_thread: threading.Thread) -> bool:
 
 
 def main() -> int:
+    log_path_env = os.environ.get("ATLAS_LOG_FILE")
+    if log_path_env or sys.stdout is None or sys.stderr is None:
+        log_file = Path(log_path_env) if log_path_env else (ROOT / "webapp" / "atlas_desktop.log")
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            fh = log_file.open("w", encoding="utf-8", buffering=1, errors="replace")
+            sys.stdout = fh
+            sys.stderr = fh
+        except Exception:
+            pass
+    else:
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                try:
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
+
     parser = argparse.ArgumentParser(description="Launch the ATLAS standalone desktop application.")
     parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=0, help="TCP port (default: 0 = pick a free local port)")
@@ -249,9 +267,9 @@ def main() -> int:
     base_url = f"http://{connect_host}:{port}"
     target_url = f"{base_url}/#live" if args.live else f"{base_url}/"
 
-    info = wait_for_backend(base_url, timeout=30.0)
+    info = wait_for_backend(base_url, timeout=60.0)
     if info is None:
-        print("[ATLAS] Backend failed to start within 30 seconds.", file=sys.stderr)
+        print("[ATLAS] Backend failed to start within 60 seconds.", file=sys.stderr)
         server.should_exit = True
         return 1
 

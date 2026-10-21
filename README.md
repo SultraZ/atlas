@@ -5,18 +5,20 @@ and dual selectable finite-element validation (**genuine FEniCS 2019.1.0** + **B
 
 ## Download & Install (GitHub Releases)
 
-Grab the latest standalone **ATLAS Desktop Studio (`v1.0.0`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
+Grab the latest standalone **ATLAS Desktop Studio (`v1.1.0` — Published by `ATLAS`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
 
-- **Windows 10 / 11 (2-Click Guided GUI Installer)**: **[Download `Setup-ATLAS.bat`](https://github.com/SultraZ/atlas/raw/v1.0.0/Setup-ATLAS.bat)**
-  - Opens a native Windows Setup Wizard — lets you choose **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** or **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***, builds icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**.
-- **Full Offline-Ready Archive (Windows / macOS / Linux)**: **[Download `ATLAS-v1.0.0.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.0.0.zip)**
+- **Full Complete Package (`.zip` — Includes Native `ATLAS-Setup.exe` & `ATLAS.exe`)**: **[Download `ATLAS-v1.1.0.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.0.zip)**
+  - Extract the `.zip` archive and double-click **`ATLAS-Setup.exe`** *(Native Win32 GUI Installer — Publisher/Author: `ATLAS`)*.
+- **Windows Native GUI Installer (`ATLAS-Setup.exe`)**: **[Download `ATLAS-Setup.exe`](https://github.com/SultraZ/atlas/raw/v1.1.0/ATLAS-Setup.exe)**
+  - Real Windows x64 GUI Installer (`Publisher: ATLAS`) — lets you choose **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** or **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***, installs `ATLAS.exe`, registers in *Windows Settings → Installed Apps*, and adds **Desktop & Start Menu shortcuts**.
 - **macOS & Linux (1-Line Guided Installer)**:
   ```bash
-  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.0.0/setup_atlas.sh | bash
+  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.1.0/setup_atlas.sh | bash
   ```
-- **Publish a New Release Anytime**:
+- **Rebuild Windows Executables / Publish a New Release Anytime**:
   ```bash
-  python scripts/create_release.py --version v1.0.0 --publish
+  python scripts/build_windows_exes.py
+  python scripts/create_release.py --version v1.1.0 --publish
   ```
 
 ## Layout
@@ -50,7 +52,9 @@ atlas_main/
 ├── webapp/                  Desktop app & FastAPI console (results viewer + live solver)
 │   └── desktop.py           Standalone desktop launcher (native window + local backend)
 ├── launch_atlas.sh          Linux / WSL2 / macOS desktop launcher
-├── ATLAS.bat                Windows desktop launcher (native Windows or WSL2 Atlas env)
+├── setup_atlas.sh           macOS / Linux guided installer
+├── ATLAS-Setup.exe          Native Win32 GUI Setup Wizard (Publisher: ATLAS)
+├── ATLAS.exe                Native Win32 Desktop Studio application launcher (Publisher: ATLAS)
 └── results/                 all study outputs; index in results/README.md
 ```
 

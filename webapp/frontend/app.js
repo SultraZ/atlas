@@ -722,15 +722,15 @@ function renderSettingsDrawer() {
       <section class="card settings-card full">
         <div class="settings-card-head">
           <div>
-            <h2>${S("Desktop Installer & Releases", "GitHub Releases & Standalone Setup Wizard")}</h2>
-            <p>${S("Download one-click installers for Windows, macOS, or Linux — with or without WSL2 FEniCS.", "Includes native Windows Setup Wizard (Setup-ATLAS.bat), full offline-ready ZIP bundle, and macOS/Linux installer.")}</p>
+            <h2>${S("Desktop Installer & Releases", "GitHub Releases & Native Win32 Setup Wizard")}</h2>
+            <p>${S("Download the official native installer (Published by ATLAS) for Windows, macOS, or Linux.", "Includes native Windows x64 GUI Installer (ATLAS-Setup.exe), ATLAS.exe launcher, and complete release bundle.")}</p>
           </div>
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
-          <a href="https://github.com/SultraZ/atlas/raw/v1.0.0/Setup-ATLAS.bat" target="_blank" rel="noopener" class="mini-btn">Windows Smart Installer (Setup-ATLAS.bat)</a>
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.0.0.zip" target="_blank" rel="noopener" class="mini-btn">Full Desktop Bundle (.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.0.0/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.0.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.0.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.0/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.0/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;

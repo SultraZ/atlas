@@ -13,11 +13,13 @@ __pycache__/
 webapp/static/plots/
 webapp/.app_settings.json
 
-# locally built Windows executables / PyInstaller bundles
-*.exe
+# locally built PyInstaller bundles / build artifacts (official root EXEs remain tracked)
 *.spec
 build/
 dist/
+!ATLAS-Setup.exe
+!ATLAS.exe
+!installer/Uninstall-ATLAS.exe
 
 # local documents (paper drafts), not versioned
 docs/

@@ -38,7 +38,7 @@ const ICON = {
 const passIcon = (ok, s) => (ok ? ICON.pass(s) : ICON.fail(s));
 
 const simple = () => document.documentElement.getAttribute("data-level") !== "expert";
-const S = (plain, expert) => (simple() ? plain : expert);
+const extra = (detail) => (simple() ? "" : detail);
 
 const GLOSSARY = {
   displacement: ["Bending error (displacement)", "How far each point of the part moves under the load, compared with the trusted answer over the whole part. 0.25 % means the predicted movement is off by about 0.25 % overall."],
@@ -69,11 +69,6 @@ const MATERIALS = [
   ["concrete", "Concrete", 30, 0.20], ["epoxy", "Epoxy", 3.5, 0.35], ["nylon", "Nylon", 2.7, 0.39],
 ];
 
-const SIMPLE_SUB = {
-  cantilever: "beam fixed at one end", l_bracket: "L-shape with a sharp inside corner", plate_hole: "plate with a hole, pulled",
-  steel_insert: "steel insert in aluminium", bimaterial: "soft insert in steel", filled_slot: "epoxy-filled slot in steel",
-};
-const SIMPLE_LABEL = { sigma: "Pulling stress", a: "Slot half-width, along the pull", b: "Slot half-height, across the pull", E: "Stiffness (Young's modulus)" };
 const FULL = { epochs: 2000, lbfgs: 2000 };
 const MAX_LBFGS = 4 * FULL.lbfgs;
 const LBFGS_UNIT = 400;
@@ -203,18 +198,13 @@ function currentView() {
 
 function setStaticText() {
   $$("[data-level-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.levelPick === (simple() ? "simple" : "expert"))));
-  const liveNav = $('.side-nav a[data-view="live"] .nav-text');
-  if (liveNav) liveNav.textContent = S("Try it live", "Live solver");
-  const filesNav = $('.side-nav a[data-view="files"] .nav-text');
-  if (filesNav) filesNav.textContent = S("Folder & runs", "Folder & files");
-  $("#heroEyebrow").textContent = S("What is ATLAS?", "Stored study · validated against FEniCS");
-  $("#heroLead").innerHTML = S(
-    `Engineers simulate parts on a computer to see how they bend under load and where they might break. The standard method, the finite element method ${tip("fem")}, is accurate but slow to repeat for every design change. ATLAS trains a neural network on the laws of physics instead. Browse all six benchmark parts below, or pick Live Solver on the left to simulate your own.`,
-    "Relative L² error of displacement and von Mises stress against FEniCS reference solutions. Every number on this page is read from the stored study in results/ — nothing is retrained in the browser.");
-  $("#runTitle").textContent = S("Try it yourself", "New run");
+  $("#heroEyebrow").textContent = "Stored study · validated against FEniCS";
+  $("#heroLead").innerHTML =
+    `Relative L² error of displacement ${tip("displacement")} and von Mises stress ${tip("vonmises")} against FEniCS reference solutions ${tip("fem")}. Every number on this page is read from the stored study in results/.`
+    + extra(" Reference fields live in fem/reference/ (FEniCS 2019.1.0, dolfin + mshr) alongside the cross-platform quadratic P2 FEM solver in atlas/native_fem.py — nothing is retrained in the browser.");
+  $("#runTitle").textContent = "New run";
   const intro = $("#liveIntro");
-  intro.hidden = !simple();
-  intro.textContent = "Pick a part, choose its materials and load, and ATLAS works out how it bends and where it is most stressed. A finite-element solver (FEniCS or Built-in P2 FEM) then verifies the answer.";
+  if (intro) intro.hidden = true;
   renderWorkspaceHeader();
 }
 
@@ -278,7 +268,7 @@ function updateNavBadges() {
   const busy = isBusy() || (state.health?.active_jobs > 0);
   if (liveBadge) {
     liveBadge.hidden = !busy;
-    liveBadge.textContent = S("Running", "Active");
+    liveBadge.textContent = "Running";
   }
   if (filesBadge) {
     const n = (state.health?.plots_count ?? 0) + state.jobs.length;
@@ -292,14 +282,14 @@ function updateNavBadges() {
 function applyHealthUI(h) {
   const pill = $("#health");
   const sub = $("#brandSub");
-  if (sub) sub.textContent = h.app_mode === "desktop" ? S("Desktop Studio", "Desktop Studio · Local") : S("Design Studio", "Structural Studio");
+  if (sub) sub.textContent = h.app_mode === "desktop" ? "Desktop Studio" : "Structural Design Studio";
   const busy = h.active_jobs > 0;
   const runDev = (h.running_device || h.device) === "cuda" ? "GPU" : "CPU";
   const idleDev = h.device === "cuda"
-    ? S(`GPU · ${shortGpu(h.gpu_name)}`, `GPU · ${shortGpu(h.gpu_name)}${h.selected_device !== "auto" ? " (pinned)" : ""}`)
-    : S(`CPU · ${h.cpu_threads} threads`, `CPU · ${h.cpu_threads}/${h.cpu_count} threads${h.selected_device === "cpu" && h.cuda_available ? " (GPU idle)" : ""}`);
+    ? `GPU · ${shortGpu(h.gpu_name)}${extra(h.selected_device !== "auto" ? " · pinned" : "")}`
+    : `CPU · ${h.cpu_threads}${extra(`/${h.cpu_count}`)} threads${extra(h.selected_device === "cpu" && h.cuda_available ? " · GPU idle" : "")}`;
   const mainLine = busy
-    ? S(`${runDev} busy · ${plural(h.active_jobs, "run", "runs")}`, `${runDev} · ${plural(h.active_jobs, "job", "jobs")} running`)
+    ? `${runDev} busy · ${plural(h.active_jobs, "run", "runs")}`
     : idleDev;
   const femShort = h.fem_backend === "fenics" ? `FEM: FEniCS ${h.fenics_version || ""}`.trim() : "FEM: Built-in P2";
   pill.innerHTML = `<span class="dot ${busy ? "busy" : "ok"}"></span><span class="runtime-lines"><span class="runtime-main">${esc(mainLine)}</span><span class="runtime-sub">${esc(femShort)}</span></span>`;
@@ -316,26 +306,26 @@ function renderWorkspaceHeader() {
 
   if (v === "results") {
     const b = state.results?.benchmarks?.[state.bench];
-    eye.textContent = S("Benchmark Study", "Stored FEniCS Study");
+    eye.textContent = "Benchmark Study";
     title.textContent = b ? b.title : "Overview";
     act.innerHTML = `${activeRunPill}
-      <button type="button" class="mini-btn" data-try-bench="${esc(state.bench || "cantilever")}">${S("Open in Live Solver →", "Simulate this benchmark →")}</button>
-      <a href="#files" class="mini-btn">${S("Browse Folder", "Study Files")}</a>`;
+      <button type="button" class="mini-btn" data-try-bench="${esc(state.bench || "cantilever")}">Open in Live Solver →</button>
+      <a href="#files" class="mini-btn">Study Files</a>`;
   } else if (v === "live") {
     const m = liveMeta(state.liveBench);
-    eye.textContent = S("Interactive Simulation", "Live Solver & Inverse Design");
+    eye.textContent = "Live Solver";
     title.textContent = m ? m.title : "Workbench";
-    act.innerHTML = `<a href="#files" class="mini-btn">${S("Saved Runs & Plots", "Output Folder")}</a>
-      <a href="#settings" class="mini-btn">${S("Compute & FEM Settings", "Engine Settings")}</a>`;
+    act.innerHTML = `<a href="#files" class="mini-btn">Saved Runs &amp; Plots</a>
+      <a href="#settings" class="mini-btn">Settings</a>`;
   } else if (v === "files") {
-    eye.textContent = S("Workspace Explorer", "Output & Reference Storage");
-    title.textContent = S("Folder & Saved Runs", "Runs, Plots & Reference Data");
+    eye.textContent = "Workspace Explorer";
+    title.textContent = "Folder, Runs & Reference Data";
     act.innerHTML = `${activeRunPill}
       <button type="button" class="mini-btn" id="refreshWorkspaceBtn">Refresh</button>
       <button type="button" class="mini-btn" data-open-folder="plots">Open Plots Folder</button>`;
   } else {
-    eye.textContent = S("Preferences", "Application Configuration");
-    title.textContent = S("Appearance, Compute & FEM Engine", "Studio & Runtime Settings");
+    eye.textContent = "Application Settings";
+    title.textContent = "Appearance, Compute & FEM Engine";
     act.innerHTML = `${activeRunPill}
       <button type="button" class="mini-btn" id="quickTestFem">Test Active FEM Engine</button>
       <button type="button" class="mini-btn" id="resetAllBtn">Reset Defaults</button>`;
@@ -464,9 +454,8 @@ function renderFilesView() {
     <div class="page-banner">
       <div>
         <div class="eyebrow">Workspace &amp; Output Directory</div>
-        <h1>${S("Folder, Runs & Reference Data", "Workspace Explorer")}</h1>
-        <p>${S("Browse every simulation figure and JSON report created during your session, open your local folders in File Explorer, or inspect the bundled study figures and FEniCS references.",
-          "Inspect live session outputs in webapp/static/plots/, browse study artifacts in results/, and verify FEniCS reference datasets in fem/reference/.")}</p>
+        <h1>Folder, Runs &amp; Reference Data</h1>
+        <p>Browse simulation figures and JSON reports created during your session, open local folders in File Explorer, or inspect the bundled study figures and FEniCS references.${extra(" Paths: live plots in webapp/static/plots/, study artifacts in results/, and FEniCS 2019.1.0 reference solutions in fem/reference/.")}</p>
       </div>
       <div class="set-actions">
         <button type="button" class="mini-btn" data-open-folder="plots">Open Live Plots</button>
@@ -532,10 +521,9 @@ function renderSettingsDrawer() {
   body.innerHTML = `
     <div class="page-banner">
       <div>
-        <div class="eyebrow">Application Preferences</div>
-        <h1>${S("Appearance, Compute & FEM Engine", "Studio & Runtime Configuration")}</h1>
-        <p>${S("Switch between light and dark mode, adjust layout scale, choose GPU or CPU execution, and configure your FEM validation backend.",
-          "Configure light/dark mode, detail level, UI scale, PyTorch GPU/CPU execution, and FEM validation backend (genuine WSL2/Conda FEniCS 2019.1.0 vs Built-in SciPy P2 FEM).")}</p>
+        <div class="eyebrow">Application Settings</div>
+        <h1>Appearance, Compute &amp; FEM Engine</h1>
+        <p>Configure color theme, detail level, interface scale, GPU or CPU execution, and your FEM validation backend.${extra(" Settings persist automatically in localStorage and webapp/.app_settings.json.")}</p>
       </div>
     </div>
 
@@ -545,8 +533,8 @@ function renderSettingsDrawer() {
       <section class="card settings-card full">
         <div class="settings-card-head">
           <div>
-            <h2>${S("Theme & Interface Layout", "Appearance & Display")}</h2>
-            <p>${S("Switch color mode, explanation style, and interface zoom.", "Persisted automatically across desktop sessions.")}</p>
+            <h2>Appearance &amp; Display</h2>
+            <p>Switch color theme, detail level, and interface scale. Simple and Expert keep the same labels — Expert adds extra technical details and controls.</p>
           </div>
         </div>
         <div class="theme-cards" role="group" aria-label="Color theme">
@@ -570,10 +558,10 @@ function renderSettingsDrawer() {
 
         <div class="grid-2" style="margin-top:4px">
           <div class="field compact">
-            <span>Explanation &amp; metric detail level</span>
+            <span>Detail level</span>
             <div class="seg seg-block two" role="group" aria-label="Detail mode">
-              <button type="button" data-level-pick="simple" aria-pressed="${simple()}">Simple (Guided)</button>
-              <button type="button" data-level-pick="expert" aria-pressed="${!simple()}">Expert (Technical)</button>
+              <button type="button" data-level-pick="simple" aria-pressed="${simple()}">Simple</button>
+              <button type="button" data-level-pick="expert" aria-pressed="${!simple()}">Expert (+ Details)</button>
             </div>
           </div>
           <div class="field compact">
@@ -590,8 +578,8 @@ function renderSettingsDrawer() {
       <section class="card settings-card">
         <div class="settings-card-head">
           <div>
-            <h2>${S("FEM Validation Engine", "Finite-Element Reference Backend")}</h2>
-            <p>${S("Choose how custom geometries and inverse shape designs are verified.", "Select between untouched WSL2/Conda FEniCS 2019.1.0 and Built-in SciPy P2 FEM.")}</p>
+            <h2>FEM Validation Engine</h2>
+            <p>Choose how custom geometries and inverse shape designs are verified.${extra(" Supports untouched WSL2/Conda FEniCS 2019.1.0 and Built-in SciPy P2 FEM.")}</p>
           </div>
           <button type="button" class="mini-btn" id="testFemBtn">Run Self-Test</button>
         </div>
@@ -626,8 +614,8 @@ function renderSettingsDrawer() {
       <section class="card settings-card">
         <div class="settings-card-head">
           <div>
-            <h2>${S("Compute Hardware (GPU / CPU)", "PyTorch Compute Device & Threads")}</h2>
-            <p>${S("Switch neural-network training between CUDA GPU and multi-core CPU.", "Applies immediately to upcoming forward and inverse runs.")}</p>
+            <h2>Compute Hardware (GPU / CPU)</h2>
+            <p>Switch neural-network training between CUDA GPU and multi-core CPU.${extra(" Changes apply immediately to upcoming forward and inverse runs.")}</p>
           </div>
         </div>
 
@@ -659,8 +647,8 @@ function renderSettingsDrawer() {
       <section class="card settings-card full">
         <div class="settings-card-head">
           <div>
-            <h2>${S("Figures, Polling & Workspace Storage", "Output Resolution & Session Storage")}</h2>
-            <p>${S("Control figure DPI quality, live chart update speed, and saved run files.", "Saved settings persist in webapp/.app_settings.json.")}</p>
+            <h2>Figures, Polling &amp; Workspace Storage</h2>
+            <p>Control figure DPI quality, live chart update speed, and saved run files.${extra(" Saved settings persist in webapp/.app_settings.json.")}</p>
           </div>
         </div>
         <div class="grid-2">
@@ -694,16 +682,16 @@ function renderSettingsDrawer() {
       <section class="card settings-card full">
         <div class="settings-card-head">
           <div>
-            <h2>${S("Desktop Installer & Releases", "GitHub Releases & Native Win32 Setup Wizard")}</h2>
-            <p>${S("Download the official native installer (Published by ATLAS) for Windows, macOS, or Linux.", "Includes native Windows x64 GUI Installer (ATLAS-Setup.exe), ATLAS.exe launcher, and complete release bundle.")}</p>
+            <h2>Desktop Installer &amp; Releases</h2>
+            <p>Update directly in place or download standalone installers (Published by ATLAS) for Windows, macOS, and Linux.${extra(" Includes native Windows x64 GUI Installer (ATLAS-Setup.exe), ATLAS.exe launcher, and complete release archive.")}</p>
           </div>
           <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
         </div>
         <div class="set-actions">
           <button type="button" class="mini-btn" id="updateAppBtn">Update App</button>
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.5B.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.5B.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5B/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.5B/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.6.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.6.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.6/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
+          <a href="https://github.com/SultraZ/atlas/raw/v1.1.6/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
         </div>
       </section>
     </div>`;
@@ -767,7 +755,7 @@ async function pollHealth() {
     }
     if (currentView() === "settings" && document.activeElement?.tagName !== "INPUT") renderSettingsDrawer();
   } catch {
-    pill.innerHTML = `<span class="dot bad"></span><span class="runtime-lines"><span class="runtime-main">${S("App offline", "Backend unreachable")}</span><span class="runtime-sub">Disconnected</span></span>`;
+    pill.innerHTML = `<span class="dot bad"></span><span class="runtime-lines"><span class="runtime-main">App offline</span><span class="runtime-sub">Disconnected</span></span>`;
   }
 }
 
@@ -781,18 +769,7 @@ const SOLVER_NAMES = {
     atlas_wide: ["ATLAS", "Single network, parameter-matched", "b"],
   },
 };
-const SOLVER_NAMES_SIMPLE = {
-  paper: {
-    atlas_xpinn: ["ATLAS-XPINN", "split into regions", "a"], atlas: ["ATLAS", "one network", "a"],
-    deepxde: ["Standard PINN", "default settings", "b"], deepxde_configured: ["Standard PINN", "tuned settings", "b"],
-  },
-  multi: {
-    atlas_xpinn: ["ATLAS-XPINN", "one network per material", "a"], atlas: ["ATLAS", "one network", "b"],
-    atlas_wide: ["ATLAS", "one network, same size", "b"],
-  },
-};
-const solverName = (group, key) => (simple() ? SOLVER_NAMES_SIMPLE : SOLVER_NAMES)[group][key];
-const ceilNice = (x) => [0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.5, 1].find((v) => x <= v) ?? x;
+const solverName = (group, key) => SOLVER_NAMES[group][key];
 
 function atlasRows(b) {
   const keys = b.group === "paper" ? ["atlas_xpinn", "atlas"] : ["atlas_xpinn", "atlas", "atlas_wide"];
@@ -813,50 +790,62 @@ function renderHero() {
 
   const worstD = atlas.reduce((a, r) => (r.disp > a.disp ? r : a), atlas[0]);
   const worstV = atlas.reduce((a, r) => (r.vm > a.vm ? r : a), atlas[0]);
-  let title;
-  if (simple() && worstD && atlas.every(pass)) {
-    title = `On all ${word(benches.length)} test parts, ATLAS's bending is off by under ${+(ceilNice(worstD.disp) * 100).toFixed(1)} % and its stress by under ${+(ceilNice(worstV.vm) * 100).toFixed(1)} %, compared with the trusted simulation.`;
-    if (pinnRows.length) {
-      const errs = pinnRows.flatMap((r) => [r.disp, r.vm]);
-      title += ` A standard physics AI is off by ${Math.round(Math.min(...errs) * 100)} to ${Math.round(Math.max(...errs) * 100)} %.`;
-    }
-  } else {
-    title = atlas.every(pass)
-      ? `ATLAS stays inside both accuracy targets on all ${word(benches.length)} benchmarks.`
-      : `ATLAS meets both accuracy targets on ${word(new Set(atlas.filter(pass).map((r) => r.bench.key)).size)} of ${word(benches.length)} benchmarks.`;
-    if (pinnBenches.length) {
-      title += pinnMiss === pinnBenches.length
-        ? ` A standard PINN misses both on all ${word(pinnBenches.length)} it was run on.`
-        : ` A standard PINN misses both on ${word(pinnMiss)} of the ${word(pinnBenches.length)} it was run on.`;
-    }
+  let title = atlas.every(pass)
+    ? `ATLAS stays inside both accuracy targets on all ${word(benches.length)} benchmarks.`
+    : `ATLAS meets both accuracy targets on ${word(new Set(atlas.filter(pass).map((r) => r.bench.key)).size)} of ${word(benches.length)} benchmarks.`;
+  if (pinnBenches.length) {
+    title += pinnMiss === pinnBenches.length
+      ? ` A standard PINN misses both on all ${word(pinnBenches.length)} it was run on.`
+      : ` A standard PINN misses both on ${word(pinnMiss)} of the ${word(pinnBenches.length)} it was run on.`;
   }
   const h = $("#heroTitle");
   h.textContent = title;
 
   const kpis = [];
   const nameOf = (r) => solverName(r.bench.group, r.key)[0];
-  if (worstD) kpis.push([pct(worstD.disp), S(`Largest bending error ${tip("displacement")}`, "Worst ATLAS displacement error"), S(`ATLAS vs the trusted answer · goal under ${t.displacement * 100} % · ${worstD.bench.title}`, `Target < ${t.displacement * 100} % · ${worstD.bench.title}, ${nameOf(worstD)}`), ""]);
-  if (worstV) kpis.push([pct(worstV.vm), S(`Largest stress error ${tip("vonmises")}`, "Worst ATLAS von Mises error"), S(`goal under ${t.von_mises * 100} % · ${worstV.bench.title}`, `Target < ${t.von_mises * 100} % · ${worstV.bench.title}, ${nameOf(worstV)}`), ""]);
+  if (worstD) kpis.push([
+    pct(worstD.disp),
+    `Worst ATLAS displacement error ${tip("displacement")}`,
+    `Target < ${t.displacement * 100} % · ${worstD.bench.title}${extra(`, ${nameOf(worstD)}`)}`,
+    "",
+  ]);
+  if (worstV) kpis.push([
+    pct(worstV.vm),
+    `Worst ATLAS von Mises error ${tip("vonmises")}`,
+    `Target < ${t.von_mises * 100} % · ${worstV.bench.title}${extra(`, ${nameOf(worstV)}`)}`,
+    "",
+  ]);
   if (pinnRows.length) {
     const best = pinnRows.reduce((a, r) => (r.disp < a.disp ? r : a), pinnRows[0]);
-    kpis.push([pct(best.disp), S(`Best bending error of a standard physics AI ${tip("pinn")}`, "Best standard-PINN displacement error"), S(`${best.bench.title} · ${Math.round(best.disp / t.displacement)}× over the goal`, `DeepXDE · ${best.bench.title} · ${Math.round(best.disp / t.displacement)}× the target`), "soft"]);
+    kpis.push([
+      pct(best.disp),
+      `Best standard-PINN displacement error ${tip("pinn")}`,
+      `${best.bench.title} · ${Math.round(best.disp / t.displacement)}× the target${extra(" · DeepXDE")}`,
+      "soft",
+    ]);
   }
   const gains = multi.map((b) => ({ b, x: b.seeds.atlas_xpinn, w: b.seeds.atlas_wide })).filter((g) => g.x && g.w);
   if (gains.length) {
     const g = gains.reduce((a, c) => (c.w.vm_mean / c.x.vm_mean > a.w.vm_mean / a.x.vm_mean ? c : a), gains[0]);
-    kpis.push([`${(g.w.vm_mean / g.x.vm_mean).toFixed(1)}×`, S(`Smaller stress error from splitting the network ${tip("xpinn")}`, "Lower von Mises error from decomposition"),
-      S(`${g.b.title} · vs one network of the same size, ${g.x.n} runs`, `${g.b.title} · ATLAS-XPINN vs a parameter-matched single network, ${g.x.n} seeds`), ""]);
+    kpis.push([
+      `${(g.w.vm_mean / g.x.vm_mean).toFixed(1)}×`,
+      `Lower von Mises error from decomposition ${tip("xpinn")}`,
+      `${g.b.title} · ATLAS-XPINN vs single network${extra(`, parameter-matched, ${g.x.n} seeds`)}`,
+      "",
+    ]);
   }
   $("#heroKpis").innerHTML = kpis.map(([v, l, s, cls]) => `<div class="kpi"><span class="kpi-value ${cls}">${esc(v)}</span><div class="kpi-text"><span class="kpi-label">${l}</span><span class="kpi-sub">${esc(s)}</span></div></div>`).join("");
   if (!state.heroShown) $$("#heroKpis .kpi-value").forEach((el, i) => countUp(el, 250 + i * 110));
   state.heroShown = true;
 }
 
-function benchSubtitle(b) { return S(SIMPLE_SUB[b.key] || b.geometry, `${b.geometry} · ${plural(b.subdomains, "subdomain", "subdomains")}`); }
+function benchSubtitle(b) {
+  return `${b.geometry}${extra(` · ${plural(b.subdomains, "subdomain", "subdomains")}`)}`;
+}
 
 function renderBenchTabs() {
   const { results } = state;
-  const groups = [["paper", S("Test parts made of one material", "Paper benchmarks")], ["multi", S("Test parts made of two materials", "Multi-material · where decomposition pays off")]];
+  const groups = [["paper", "Single-material benchmarks"], ["multi", `Multi-material benchmarks${extra(" · interface decomposition")}`]];
   const enter = !state.tabsShown;
   let n = 0;
   $("#benches").innerHTML = groups.map(([g, label]) => {
@@ -890,17 +879,17 @@ function renderErrors(b) {
   const isPaper = b.group === "paper";
   const lib = b.solvers.deepxde?.library || b.solvers.deepxde_configured?.library;
   const groups = isPaper
-    ? [[S(`ATLAS · energy method ${tip("energy")}`, "ATLAS · deep-energy solvers"), ["atlas_xpinn", "atlas"]], [S(`Standard physics AI (PINN) ${tip("pinn")}`, `Standard PINN · ${esc(lib ? lib.replace(/^deepxde/i, "DeepXDE") : "DeepXDE")}`), ["deepxde", "deepxde_configured"]]]
-    : [[S(`Split at the material boundary ${tip("xpinn")}`, "ATLAS-XPINN · decomposed at the interface"), ["atlas_xpinn"]], [S(`One network for both materials ${tip("matched")}`, "ATLAS · one network over both materials"), ["atlas", "atlas_wide"]]];
+    ? [[`ATLAS · deep-energy solvers ${tip("energy")}`, ["atlas_xpinn", "atlas"]], [`Standard PINN${extra(` · ${esc(lib ? lib.replace(/^deepxde/i, "DeepXDE") : "DeepXDE")}`)} ${tip("pinn")}`, ["deepxde", "deepxde_configured"]]]
+    : [[`ATLAS-XPINN · decomposed at the interface ${tip("xpinn")}`, ["atlas_xpinn"]], [`ATLAS · single network over both materials ${tip("matched")}`, ["atlas", "atlas_wide"]]];
   const all = groups.flatMap(([, ks]) => ks.map((k) => b.solvers[k]).filter(Boolean));
   const scale = axisScale(all.flatMap((r) => [r.disp, r.vm]));
-  const vmLabel = S(`Stress error ${tip("vonmises")}`, isPaper ? "von Mises L², excl." : "von Mises L²");
-  const dLabel = S(`Bending error ${tip("displacement")}`, "Displacement L²");
+  const vmLabel = `${isPaper ? "von Mises L², excl." : "von Mises L²"} ${tip("vonmises")}`;
+  const dLabel = `Displacement L² ${tip("displacement")}`;
   const rows = groups.map(([label, ks]) => {
     const body = ks.filter((k) => b.solvers[k]).map((k, i) => {
       const r = b.solvers[k];
       const [name, sub, dot] = solverName(b.group, k);
-      const size = r.params && !simple() ? ` · ${r.params.toLocaleString("en-US")} params` : "";
+      const size = r.params ? extra(` · ${r.params.toLocaleString("en-US")} params`) : "";
       return `<div class="erow body" style="animation-delay:${i * 60}ms"><div class="who"><span class="who-name">${esc(name)}</span><span class="who-sub">${esc(sub)}${size}</span></div>${metricCell(r.disp, t.displacement, scale, dot, `${name}: displacement ${pct(r.disp)}`)}${metricCell(r.vm, t.von_mises, scale, dot, `${name}: von Mises ${pct(r.vm)}`)}<span class="etime">${mins(r.seconds)}</span></div>`;
     }).join("");
     return body ? `<div class="egroup">${label}</div>${body}` : "";
@@ -909,44 +898,39 @@ function renderErrors(b) {
   const every = last > 3 ? 2 : 1;
   const tickLabel = (v, i) => `${+(v * 100).toPrecision(2)}${i === last ? " %" : ""}`;
   const axis = `<div class="axis"><div class="axis-bar">${scale.ticks.slice(1).map(() => "<span></span>").join("")}</div>${scale.ticks.map((tk, i) => (i % every && i !== last ? "" : `<span class="tick ${i === 0 ? "first" : i === last ? "last" : ""}" style="left:${tk.p}%">${tickLabel(tk.v, i)}</span>`)).join("")}</div>`;
-  const note = S(isPaper
-    ? `Lower is better; the orange line is each goal. At sharp corners and where supports meet edges the true stress is infinite, so a tiny area there is left out of the stress error ${tip("excl")}. One training run per method.`
-    : `Lower is better; the orange line is each goal. "Same size" is one network with as many adjustable numbers as ATLAS-XPINN, so the difference is not just network size. One training run per method.`,
-  esc(isPaper
-    ? `The von Mises error leaves out a small disk around each stress singularity (radius ${b.exclusion?.factor ?? 2.5} × the local point spacing). One training run per solver, seed 42.`
-    : "There are no stress singularities here, so no points are left out. One training run per solver, seed 42. The parameter-matched single network has as many parameters as ATLAS-XPINN, which rules out network size as the reason for the difference."));
+  const note = isPaper
+    ? `Lower is better; the orange line marks each accuracy target. A small disk around sharp corners and support singularities is excluded from the von Mises error ${tip("excl")}.${extra(` Exclusion radius: ${b.exclusion?.factor ?? 2.5}× local point spacing; single seed 42 run per solver.`)}`
+    : `Lower is better; the orange line marks each accuracy target. The parameter-matched single network matches ATLAS-XPINN's parameter count to isolate the effect of domain decomposition.${extra(" No stress singularities are present, so all points are included; single seed 42 run per solver.")}`;
   $("#errors").innerHTML = `
-    <div class="card-head"><h2 class="l">${S("How close is each method to the trusted answer?", "Error against FEniCS")}</h2><span class="meta">${esc(b.title)} · ${S("one run each", "seed 42")}</span></div>
-    <div class="erow head"><span class="col">${S("Method", "Solver")}</span><span class="col"><span>${dLabel}</span><small>${S("goal", "target")} ${t.displacement * 100} %</small></span><span class="col"><span>${vmLabel}</span><small>${S("goal", "target")} ${t.von_mises * 100} %</small></span><span class="col" style="text-align:right">${S("Time", "Train time")}</span></div>
+    <div class="card-head"><h2 class="l">Error against FEniCS</h2><span class="meta">${esc(b.title)}${extra(" · seed 42")}</span></div>
+    <div class="erow head"><span class="col">Solver</span><span class="col"><span>${dLabel}</span><small>target ${t.displacement * 100} %</small></span><span class="col"><span>${vmLabel}</span><small>target ${t.von_mises * 100} %</small></span><span class="col" style="text-align:right">Train time</span></div>
     ${rows}
     <div class="erow eaxis"><span></span><div class="metric"><span class="metric-val"></span>${axis}</div><div class="metric"><span class="metric-val"></span>${axis}</div><span></span></div>
-    <div class="legend"><span><span class="sw a"></span>${isPaper ? "ATLAS" : "ATLAS-XPINN"}</span><span><span class="sw b"></span>${isPaper ? S("Standard physics AI", "Standard PINN") : S("One network", "Single network")}</span><span><span class="sw t"></span>${S("Goal", "Accuracy target")}${S(` ${tip("target")}`, "")}</span><span style="color:var(--muted)">${S("Log scale: each grid line is 10× smaller", "Log scale")}</span></div>
+    <div class="legend"><span><span class="sw a"></span>${isPaper ? "ATLAS" : "ATLAS-XPINN"}</span><span><span class="sw b"></span>${isPaper ? "Standard PINN" : "Single network"}</span><span><span class="sw t"></span>Accuracy target ${tip("target")}</span><span style="color:var(--muted)">Log scale${extra(" · 10× per grid line")}</span></div>
     <p class="note">${note}</p>`;
   requestAnimationFrame(() => requestAnimationFrame(() => $$("#errors .pt").forEach((p) => (p.style.left = p.dataset.left))));
 }
 
 function renderSeeds(b) {
   const entries = b.group === "paper"
-    ? [["ATLAS-XPINN", b.seeds.atlas_xpinn], [S("ATLAS, one network", "ATLAS"), b.seeds.atlas]]
-    : [["ATLAS-XPINN", b.seeds.atlas_xpinn], [S("ATLAS, one network of the same size", "ATLAS, parameter-matched"), b.seeds.atlas_wide]];
+    ? [["ATLAS-XPINN", b.seeds.atlas_xpinn], ["ATLAS", b.seeds.atlas]]
+    : [["ATLAS-XPINN", b.seeds.atlas_xpinn], ["ATLAS, parameter-matched", b.seeds.atlas_wide]];
   const have = entries.filter(([, s]) => s);
-  const title = S(`Repeat runs ${tip("seeds")}`, "Repeatability");
+  const title = `Repeatability ${tip("seeds")}`;
   if (!have.length) { $("#seeds").innerHTML = `<div class="card-head"><h2>${title}</h2></div><p class="note">No multi-seed study stored for this benchmark.</p>`; return; }
   const seeds = have[0][1].seeds;
   const total = have.reduce((a, [, s]) => a + s.n, 0);
   const ok = have.reduce((a, [, s]) => a + s.n_pass_both, 0);
-  const vmLabel = S("Stress error", b.group === "paper" ? "von Mises L², excl." : "von Mises L²");
-  let html = `<div class="card-head"><h2>${title}</h2><span class="meta">${S(`${seeds.length} runs, random starts`, `${plural(seeds.length, "seed", "seeds")} · ${seeds[0]}–${seeds[seeds.length - 1]}`)}</span></div>`;
-  html += have.map(([name, s]) => `<div class="stat"><span class="stat-name">${esc(name)}</span><div class="kv"><span>${S("Bending error", "Displacement L²")}</span><span>${meanStd(s.disp_mean, s.disp_std)}</span></div><div class="kv"><span>${vmLabel}</span><span>${meanStd(s.vm_mean, s.vm_std)}</span></div></div>`).join("");
-  html += `<div class="verdict">${passIcon(ok === total, 16)}<span>${ok === total ? `All ${total} runs meet both ${S("goals", "targets")}` : `${ok} of ${total} runs meet both ${S("goals", "targets")}`}</span></div>`;
+  const vmLabel = b.group === "paper" ? "von Mises L², excl." : "von Mises L²";
+  let html = `<div class="card-head"><h2>${title}</h2><span class="meta">${plural(seeds.length, "seed", "seeds")}${extra(` · ${seeds[0]}–${seeds[seeds.length - 1]}`)}</span></div>`;
+  html += have.map(([name, s]) => `<div class="stat"><span class="stat-name">${esc(name)}</span><div class="kv"><span>Displacement L²</span><span>${meanStd(s.disp_mean, s.disp_std)}</span></div><div class="kv"><span>${vmLabel}</span><span>${meanStd(s.vm_mean, s.vm_std)}</span></div></div>`).join("");
+  html += `<div class="verdict">${passIcon(ok === total, 16)}<span>${ok === total ? `All ${total} runs meet both targets` : `${ok} of ${total} runs meet both targets`}</span></div>`;
   if (b.paired && b.paired.n) {
     const p = b.paired;
-    const unit = S("runs", "seeds");
-    const count = (k) => (k === p.n ? `all ${p.n} ${unit}` : `${k} of ${p.n} ${unit}`);
+    const count = (k) => (k === p.n ? `all ${p.n} seeds` : `${k} of ${p.n} seeds`);
     const txt = p.xpinn_lower_both === p.n
-      ? S(`ATLAS-XPINN beats the single network on both errors in all ${p.n} runs`, `ATLAS-XPINN is lower on both errors in all ${p.n} seeds`)
-      : S(`ATLAS-XPINN beats the single network on bending in ${count(p.xpinn_lower_disp)} and on stress in ${count(p.xpinn_lower_vm)}`,
-        `ATLAS-XPINN is lower on displacement in ${count(p.xpinn_lower_disp)} and on von Mises in ${count(p.xpinn_lower_vm)}`);
+      ? `ATLAS-XPINN is lower on both errors in all ${p.n} seeds`
+      : `ATLAS-XPINN is lower on displacement in ${count(p.xpinn_lower_disp)} and on von Mises in ${count(p.xpinn_lower_vm)}`;
     const icon = p.xpinn_lower_both === p.n ? ICON.pass(16)
       : p.xpinn_lower_disp + p.xpinn_lower_vm === 0 ? ICON.fail(16) : ICON.mixed(16);
     html += `<div class="verdict">${icon}<span>${esc(txt)}</span></div>`;
@@ -958,86 +942,65 @@ function renderSide(b) {
   if (b.group === "paper") {
     const inv = b.inverse;
     if (!inv) { $("#sideCard").innerHTML = `<div class="card-head"><h2>Inverse design</h2></div><p class="note">No inverse design stored.</p>`; return; }
-    if (simple()) {
-      const was = inv.baseline != null ? `<span class="was">was ${(+inv.baseline).toFixed(2)} m</span>` : "";
-      $("#sideCard").innerHTML = `
-        <div class="card-head"><h2>Design it backwards ${tip("inverse")}</h2><span class="meta">ATLAS-XPINN</span></div>
-        <p class="note" style="margin-top:8px">Instead of asking how a shape behaves, ATLAS finds the shape that behaves the way you ask.</p>
-        <div class="big"><span>${esc(cap(inv.param || "design value"))} found</span><span class="num">${inv.value != null ? `${inv.value.toFixed(3)} m` : "—"}${was}</span></div>
-        <div class="stat" style="gap:8px">
-          <div class="kv"><span>Goal</span><span>${esc(goalText(inv))}</span></div>
-          <div class="kv"><span>Checked with FEM ${tip("fem")}</span><span>${passIcon(inv.within_10pct)}${spct(inv.error_vs_target)} from the goal</span></div>
-        </div>
-        <p class="note" style="margin-top:14px">The trusted simulation re-checks the shape ATLAS found. ATLAS itself never sees the trusted answers.</p>`;
-      return;
-    }
+    const was = inv.baseline != null ? `<span class="was">from ${(+inv.baseline).toFixed(2)} m</span>` : "";
+    const detailRows = simple() ? "" : `
+      ${inv.baseline != null ? `<div class="kv"><span>Baseline geometry</span><span>${(+inv.baseline).toFixed(4)} m</span></div>` : ""}
+      ${inv.value != null ? `<div class="kv"><span>Exact design parameter</span><span>${inv.value.toFixed(4)} m</span></div>` : ""}`;
     $("#sideCard").innerHTML = `
-      <div class="card-head"><h2>Inverse design</h2><span class="meta">ATLAS-XPINN</span></div>
-      <div class="big"><span>${esc(cap(inv.param || "Design parameter"))} found</span><span class="num">${inv.value?.toFixed(4) ?? "—"}</span></div>
+      <div class="card-head"><h2>Inverse design ${tip("inverse")}</h2><span class="meta">ATLAS-XPINN</span></div>
+      <div class="big"><span>${esc(cap(inv.param || "Design parameter"))} found</span><span class="num">${inv.value != null ? `${inv.value.toFixed(3)} m` : "—"}${was}</span></div>
       <div class="stat" style="gap:8px">
         <div class="kv"><span>Objective</span><span>${esc(inv.objective || inv.metric || "")}</span></div>
-        <div class="kv"><span>FEM check vs target</span><span>${passIcon(inv.within_10pct)}${spct(inv.error_vs_target)}</span></div>
+        <div class="kv"><span>FEM check vs target ${tip("fem")}</span><span>${passIcon(inv.within_10pct)}${spct(inv.error_vs_target)}</span></div>
+        ${detailRows}
       </div>
-      <p class="note" style="margin-top:14px">FEniCS re-solves the design ATLAS found. The solver itself never sees FEM data.</p>`;
+      <p class="note" style="margin-top:14px">FEniCS re-solves the design ATLAS found. The solver itself never sees FEM data.${extra(" Outer design iterations optimize sensitivity of total potential energy directly.")}</p>`;
     return;
   }
-  const rows = [["atlas_xpinn", "ATLAS-XPINN", ""], ["atlas", "ATLAS", S("one network", "single network")], ["atlas_wide", "ATLAS", S("one network, same size", "parameter-matched")]]
+  const rows = [["atlas_xpinn", "ATLAS-XPINN", ""], ["atlas", "ATLAS", "single network"], ["atlas_wide", "ATLAS", "parameter-matched"]]
     .filter(([k]) => b.solvers[k]);
   $("#sideCard").innerHTML = `
-    <div class="card-head"><h2>${S(`Where the materials meet ${tip("interface")}`, "At the material interface")}</h2><span class="meta">${S("one run each", "seed 42")}</span></div>
-    <table class="band-table"><thead><tr><th>${S("Stress error within 5 cm of the boundary", "von Mises L², within 0.05 m")}</th><th>${esc(b.inside)}</th><th>${esc(b.outside)}</th></tr></thead><tbody>
+    <div class="card-head"><h2>At the material interface ${tip("interface")}</h2><span class="meta">Band analysis${extra(" · seed 42")}</span></div>
+    <table class="band-table"><thead><tr><th>von Mises L², within 0.05 m</th><th>${esc(b.inside)}</th><th>${esc(b.outside)}</th></tr></thead><tbody>
     ${rows.map(([k, n, s]) => `<tr><td>${esc(n)}${s ? `<small>${esc(s)}</small>` : ""}</td><td>${pct(b.solvers[k].band_inside)}</td><td>${pct(b.solvers[k].band_outside)}</td></tr>`).join("")}
     </tbody></table>
-    <p class="note" style="margin-top:14px">${S("A single network is smooth, so it blurs the sudden change in stretching where two materials meet. ATLAS-XPINN gives each material its own network and joins them at the boundary.", "A single smooth network has to bend around the jump in strain at the interface. ATLAS-XPINN puts a subdomain boundary there instead.")}</p>`;
+    <p class="note" style="margin-top:14px">A single smooth network blurs the strain jump at a bonded material interface, whereas ATLAS-XPINN assigns each material its own subnetwork.${extra(" Augmented-Lagrangian penalties enforce displacement continuity and traction equilibrium across Γ_I.")}</p>`;
 }
 
 function goalText(inv) {
   const r = inv.target_ratio;
-  const what = inv.param || "a dimension";
-  if (inv.metric === "compliance" && r) return `a ${what} that makes it ${/hole/.test(what) ? "stretch" : "bend"} ${Math.round(Math.abs(1 - r) * 100)} % ${r < 1 ? "less" : "more"}`;
-  if (inv.metric === "peak_vm" && r) return `a ${what} that cuts the peak stress by ${Math.round((1 - r) * 100)} %`;
+  const what = inv.param || "dimension";
+  if (inv.metric === "compliance" && r) return `${what} for ${Math.round(Math.abs(1 - r) * 100)} % ${r < 1 ? "lower" : "higher"} compliance`;
+  if (inv.metric === "peak_vm" && r) return `${what} for ${Math.round((1 - r) * 100)} % lower peak von Mises stress`;
   return inv.objective || inv.metric || "";
 }
 
 const FIGS = {
   paper: [
-    ["fem_comparison", "ATLAS vs FEM", "Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the FEniCS reference, and the pointwise error between them."],
-    ["displacement", "Displacement", "Displacement field predicted by ATLAS-XPINN."],
-    ["stress", "von Mises", "von Mises stress predicted by ATLAS-XPINN, in Pa."],
-    ["convergence", "Convergence", "Left: relative energy gap to the final value. Right: strain energy U and external work W, which settle at U = W / 2. Dashed line: switch from Adam to L-BFGS; the jump at iteration 1000 is where the shared warm-start network is split into subnetworks."],
-    ["all_solvers", "All solvers", "Top to bottom: |displacement|, von Mises stress and |displacement error| (saturated at 20 % of the FEM maximum). Left to right: FEM, DeepXDE with library defaults, DeepXDE configured, ATLAS-XPINN."],
+    ["fem_comparison", "ATLAS vs FEM", "Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the FEniCS reference, and the pointwise error between them.", " Pointwise error fields highlight boundary and corner behavior directly against the reference mesh."],
+    ["displacement", "Displacement", "Displacement field predicted by ATLAS-XPINN.", " Evaluated across the physical domain in meters."],
+    ["stress", "von Mises", "von Mises stress predicted by ATLAS-XPINN, in Pa.", " Computed via automatic differentiation of the neural displacement field."],
+    ["convergence", "Convergence", "Left: relative energy gap to the final value. Right: strain energy U and external work W.", " At equilibrium U = W / 2; dashed line marks the switch from Adam to L-BFGS and subnetwork split at iteration 1000."],
+    ["all_solvers", "All solvers", "Top to bottom: |displacement|, von Mises stress, and |displacement error|. Left to right: FEM, DeepXDE defaults, DeepXDE configured, and ATLAS-XPINN.", " Displacement error color scale is saturated at 20 % of the FEM maximum."],
   ],
   multi: [
-    ["fields", "Fields", "Top: von Mises stress from FEM and each solver. Bottom: the von Mises error, saturated at 10 % of the FEM 99.8th percentile. Dashed line: the material interface."],
-    ["profiles", "Stress profiles", "von Mises stress along the two symmetry lines, through the interface (dotted line): FEM against each solver."],
-    ["convergence", "Error vs time", "Displacement and von Mises error against training wall-clock, seed 42."],
+    ["fields", "Fields", "Top: von Mises stress from FEM and each solver. Bottom: von Mises error across the domain.", " Error color scale is saturated at 10 % of the FEM 99.8th percentile; dashed curve marks the material interface."],
+    ["profiles", "Stress profiles", "von Mises stress along the two symmetry lines across the material interface (dotted line): FEM against each solver.", " Single smooth networks oscillate across the strain discontinuity, whereas ATLAS-XPINN tracks the jump cleanly."],
+    ["convergence", "Error vs time", "Displacement and von Mises error against training wall-clock time.", " Single training run per solver at seed 42."],
   ],
-};
-
-const FIGS_SIMPLE = {
-  fem_comparison: ["AI vs trusted answer", "Top row: how far each point moves. Bottom row: stress. Left to right: ATLAS-XPINN, the trusted simulation (FEM), and the difference between them."],
-  displacement: ["How it moves", "How far each point of the part moves under the load, predicted by ATLAS-XPINN."],
-  stress: ["Stress", "Stress (von Mises) predicted by ATLAS-XPINN, in pascals. The highest values mark where the part would start to give way first."],
-  convergence: ["Training", "How training settled. Left: how far the stored energy still is from its final value; it falls as the network learns. Right: the energy stored in the part and the work done by the load, which settle into a fixed balance (stored energy = half the work)."],
-  all_solvers: ["All methods", "Rows: movement, stress and the movement error. Columns: the trusted simulation (FEM), the standard PINN with default and tuned settings, and ATLAS-XPINN. The PINNs' maps differ visibly from FEM; ATLAS-XPINN's match it."],
-  fields: ["Stress maps", "Top: stress from the trusted simulation and from each method. Bottom: each method's error. The dashed line is the boundary between the two materials."],
-  profiles: ["Stress along a line", "Stress along the two edges of the plate, through the material boundary (dotted line). Where the single networks wobble near the boundary, ATLAS-XPINN follows the trusted answer more closely."],
-  multi_convergence: ["Error over time", "How the bending and stress errors fall during training, for one run of each method."],
 };
 
 function renderFigures(b) {
-  const figs = FIGS[b.group].filter(([k]) => b.plots[k]).map((f) => {
-    const plain = simple() && FIGS_SIMPLE[b.group === "multi" && f[0] === "convergence" ? "multi_convergence" : f[0]];
-    return plain ? [f[0], ...plain] : f;
-  });
+  const figs = FIGS[b.group].filter(([k]) => b.plots[k]);
   if (!figs.length) { $("#figCard").innerHTML = `<div class="fig-head"><h2 class="l">Fields and validation</h2></div><div class="fig-empty">No figures stored for this benchmark.</div>`; return; }
   const cur = figs.find(([k]) => k === state.fig[b.key]) || figs[0];
   const src = b.plots[cur[0]];
+  const caption = `${cur[2]}${extra(cur[3] || "")}`;
   $("#figCard").innerHTML = `
-    <div class="fig-head"><div><h2 class="l">${S("See the results", "Fields and validation")}</h2><span class="meta">${b.group === "paper" ? "ATLAS-XPINN" : "All solvers"} · ${esc(b.title)}</span></div>
+    <div class="fig-head"><div><h2 class="l">Fields and validation</h2><span class="meta">${b.group === "paper" ? "ATLAS-XPINN" : "All solvers"} · ${esc(b.title)}</span></div>
     <div class="seg" role="group" aria-label="Figure">${figs.map(([k, l]) => `<button type="button" data-fig="${k}" aria-pressed="${k === cur[0]}">${esc(l)}</button>`).join("")}</div></div>
     <div class="fig-frame"><img src="${esc(src)}" alt="${esc(`${cur[1]}, ${b.title}`)}" data-full="${esc(src)}"></div>
-    <div class="fig-foot"><p>${esc(cur[2])}</p><a class="open-link" href="${esc(src)}" target="_blank" rel="noopener">Open full size${ICON.open}</a></div>`;
+    <div class="fig-foot"><p>${esc(caption)}</p><a class="open-link" href="${esc(src)}" target="_blank" rel="noopener">Open full size${ICON.open}</a></div>`;
 }
 
 function renderResults() {
@@ -1067,20 +1030,16 @@ const STEPS = {
   forward: [["setup", "Setup"], ["train", "Training"], ["predict", "Prediction"], ["validate", "FEM validation"], ["plots", "Plots"]],
   inverse: [["setup", "Setup"], ["train", "Design loop"], ["validate", "FEM check"], ["plots", "Plots"]],
 };
-const STEPS_SIMPLE = {
-  forward: [["setup", "Getting ready"], ["train", "Training"], ["predict", "Predicting"], ["validate", "Checking with FEM"], ["plots", "Drawing"]],
-  inverse: [["setup", "Getting ready"], ["train", "Trying shapes"], ["validate", "Checking with FEM"], ["plots", "Drawing"]],
-};
 
 function liveMeta(key) { return (state.meta || []).find((m) => m.key === key); }
 
 function renderBenchPick() {
-  const groups = [["paper", S("One material", "Paper benchmarks")], ["multi", S("Two materials", "Multi-material")]];
+  const groups = [["paper", "Single-material benchmarks"], ["multi", "Multi-material benchmarks"]];
   const html = groups.map(([g, label]) => {
     const ms = state.meta.filter((m) => m.group === g);
     return `<div class="opt-group-label">${esc(label)}</div>${ms.map((m) => `<label class="opt ${m.key === state.liveBench ? "on" : ""}"><input type="radio" name="bench" value="${m.key}" ${m.key === state.liveBench ? "checked" : ""}><span class="thumb">${thumb(m.key, 48, 32)}</span><span class="opt-text"><span class="opt-title">${esc(m.title)}</span><span class="opt-meta">${esc(benchSubtitle(m))}</span></span></label>`).join("")}`;
   }).join("");
-  $("#benchPick").innerHTML = `<legend class="eyebrow">${S("Part", "Benchmark")}</legend>${html}`;
+  $("#benchPick").innerHTML = `<legend class="eyebrow">Benchmark</legend>${html}`;
 }
 
 function invDefaultMetric(key) {
@@ -1128,7 +1087,7 @@ function renderCompute() {
     ? `${shortGpu(h?.gpu_name)}${pref === "auto" ? " (auto)" : " (pinned)"}`
     : `CPU · ${h?.cpu_threads || 4} threads${pref === "cpu" && cudaOk ? " (GPU idle)" : ""}`;
   box.innerHTML = `
-    <div class="props-head"><span class="eyebrow">${S(`Compute, Solver & FEM ${tip("device")}`, "Compute, Solver & FEM")}</span><a href="#settings" class="link-btn">${S("All settings", "Settings")}</a></div>
+    <div class="props-head"><span class="eyebrow">Compute, Solver &amp; FEM ${tip("device")}</span><a href="#settings" class="link-btn">Settings</a></div>
     <div class="seg seg-block" role="group" aria-label="Compute device">
       <button type="button" data-dev-pick="auto" aria-pressed="${pref === "auto"}">Auto</button>
       <button type="button" data-dev-pick="cuda" aria-pressed="${pref === "cuda"}" ${cudaOk ? "" : 'disabled title="No CUDA GPU detected in this Python environment"'}>GPU</button>
@@ -1138,7 +1097,7 @@ function renderCompute() {
     ${!cudaOk && h?.system_gpu_name ? `<div class="compute-meta"><span>GPU detected: <b>${esc(shortGpu(h.system_gpu_name))}</b></span><button type="button" class="link-btn" data-install-cuda>Enable CUDA →</button></div>` : ""}
     <div class="seg seg-block two" role="group" aria-label="Solver architecture">
       <button type="button" data-form-pick="energy_xpinn" aria-pressed="${form === "energy_xpinn"}">ATLAS-XPINN</button>
-      <button type="button" data-form-pick="energy" aria-pressed="${form === "energy"}">${S("ATLAS (1 network)", "ATLAS single")}</button>
+      <button type="button" data-form-pick="energy" aria-pressed="${form === "energy"}">ATLAS single</button>
     </div>
     <div class="field compact">
       <span>FEM validator for custom sliders &amp; design</span>
@@ -1157,7 +1116,7 @@ function renderSpec() {
   const isXpinn = s.formulation === "energy_xpinn";
   const nSub = isXpinn ? m.subdomains : 1;
   const rows = [
-    ["Solver", isXpinn ? "ATLAS-XPINN" : "ATLAS (single network)"],
+    ["Solver", isXpinn ? "ATLAS-XPINN" : "ATLAS single"],
     ["Compute", effectiveDevice() === "cuda" ? `GPU (${shortGpu(state.health?.gpu_name)})` : `CPU (${state.health?.cpu_threads || 4} threads)`],
     ["Network", `${nSub} × (${s.hidden_layers} × ${s.neurons}), tanh · ${s.precision}`],
   ];
@@ -1167,20 +1126,11 @@ function renderSpec() {
   const custom = isCustom(m.key);
   const devWord = effectiveDevice() === "cuda" ? "GPU" : "CPU";
   $("#runInverse").disabled = !inv || isBusy();
-  $("#runForward").textContent = isBusy() ? "Running…" : S("Run simulation", "Run forward + validate");
-  $("#runInverse").textContent = S("Find a shape (inverse design)", "Run inverse design");
-  const goalObj = inv ? { ...inv, target_ratio: invSelectedRatio(m.key), metric: invSelectedMetric(m.key) } : null;
-  $("#runNote").innerHTML = simple()
-    ? (!inv
-      ? `Runs locally on ${devWord}, one run at a time, then validates against FEniCS. Finding a shape is available for the one-material parts.`
-      : custom
-        ? `Find a shape ${tip("inverse")} searches for ${esc(goalText(goalObj))}, starting from your settings, then FEniCS checks the result on ${devWord}.`
-        : `Find a shape ${tip("inverse")} searches for ${esc(goalText(goalObj))}, then FEniCS checks the result. Runs on ${devWord}.`)
-    : esc(!inv
-      ? `Inverse design is available on the three paper benchmarks. Runs on ${devWord} and validates against FEniCS.`
-      : custom
-        ? `Inverse design optimizes ${inv.param} (${invSelectedMetric(m.key)} = ${invSelectedRatio(m.key).toFixed(2)}× baseline) from custom settings, then validates with FEniCS.`
-        : `Inverse design optimizes ${inv.param} (${invSelectedMetric(m.key)} = ${invSelectedRatio(m.key).toFixed(2)}× baseline), then validates with FEniCS.`);
+  $("#runForward").textContent = isBusy() ? "Running…" : "Run forward + validate";
+  $("#runInverse").textContent = "Run inverse design";
+  $("#runNote").innerHTML = !inv
+    ? `Runs on ${devWord} and validates against FEM. Inverse design is available on the single-material benchmarks.`
+    : `Inverse design ${tip("inverse")} optimizes ${esc(inv.param)} (${esc(invSelectedMetric(m.key))} = ${invSelectedRatio(m.key).toFixed(2)}× baseline)${custom ? " from custom settings" : ""}, then validates with FEM on ${devWord}.`;
 }
 
 const inverseOf = (key) => state.results?.benchmarks?.[key]?.inverse;
@@ -1204,32 +1154,32 @@ function runText() {
   const est = cap(runEstimate(state.liveBench, state.budget));
   const end = est ? ` ${est}.` : "";
   const r = RUN_STEPS[i];
-  if (i === FULL_STEP) return ["Full", `The same training as the study.${end}`];
-  if (i === 0) return [r.label, `${r.label} of the study's training: the fastest, but it may miss the accuracy goals.${end}`];
-  if (i > 0) return [r.label, `${r.label} of the study's training, so less accurate.${end}`];
+  if (i === FULL_STEP) return ["Full", `The same training budget as the study.${end}`];
+  if (i === 0) return [r.label, `${r.label} of the study budget — quickest run, may miss accuracy targets.${end}`];
+  if (i > 0) return [r.label, `${r.label} of the study budget.${end}`];
   return ["Custom", `${state.budget.epochs} Adam + ${state.budget.lbfgs} L-BFGS steps.${end}`];
 }
 
 function renderBudget() {
   const box = $("#budget");
   if (!box) return;
-  if (simple()) {
-    const n = RUN_STEPS.length;
-    const found = stepOf(state.budget);
-    const idx = found >= 0 ? found : FULL_STEP;
-    const [val, hint] = runText();
-    box.innerHTML = `<div class="field">
-        <div class="run-top"><span class="field-label">Run length ${tip("training")}</span><b id="runVal">${esc(val)}</b></div>
-        <input type="range" class="slider" data-run min="0" max="${n - 1}" step="1" value="${idx}" style="--fill:${(idx / (n - 1)) * 100}%" aria-label="Run length" aria-valuetext="${esc(val)}">
-        <div class="run-ticks"><span>Quicker</span><span>Full training</span></div>
-        <span class="hint" id="runHint">${esc(hint)}</span></div>`;
-    return;
-  }
-  box.innerHTML = `<div class="grid-2">
-      <label class="field">Adam epochs<input id="epochs" type="number" min="50" max="40000" step="50" value="${state.budget.epochs}"></label>
-      <label class="field">L-BFGS iterations<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
+  const n = RUN_STEPS.length;
+  const found = stepOf(state.budget);
+  const idx = found >= 0 ? found : FULL_STEP;
+  const [val, hint] = runText();
+  const expertInputs = simple() ? "" : `
+    <div class="grid-2" style="margin-top:8px">
+      <label class="field compact">Adam epochs<input id="epochs" type="number" min="50" max="40000" step="50" value="${state.budget.epochs}"></label>
+      <label class="field compact">L-BFGS iterations<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
     </div>
-    <span class="hint">Study budget: ${FULL.epochs} Adam + ${state.lbfgs ?? FULL.lbfgs} L-BFGS, seed ${state.solver.seed}; up to ${(state.maxLbfgs ?? MAX_LBFGS).toLocaleString("en-US")} L-BFGS (${runEstimate(state.liveBench, state.budget) || "custom"}).</span>`;
+    <span class="hint">Study budget: ${FULL.epochs} Adam + ${state.lbfgs ?? FULL.lbfgs} L-BFGS · seed ${state.solver.seed} · max ${(state.maxLbfgs ?? MAX_LBFGS).toLocaleString("en-US")} L-BFGS.</span>`;
+  box.innerHTML = `<div class="field">
+      <div class="run-top"><span class="field-label">Run length ${tip("training")}</span><b id="runVal">${esc(val)}</b></div>
+      <input type="range" class="slider" data-run min="0" max="${n - 1}" step="1" value="${idx}" style="--fill:${(idx / (n - 1)) * 100}%" aria-label="Run length" aria-valuetext="${esc(val)}">
+      <div class="run-ticks"><span>Quicker</span><span>Full training</span></div>
+      <span class="hint" id="runHint">${esc(hint)}</span>
+      ${expertInputs}
+    </div>`;
 }
 
 function renderSolverCfg() {
@@ -1245,21 +1195,21 @@ function renderSolverCfg() {
   const inv = m.inverse;
   const invMet = inv ? invSelectedMetric(m.key) : null;
   const invRat = inv ? invSelectedRatio(m.key) : null;
-  const metricLabels = { compliance: S("Stiffness / compliance", "Compliance"), peak_vm: S("Peak stress (von Mises)", "Peak von Mises"), volume: "Volume" };
+  const metricLabels = { compliance: "Compliance", peak_vm: "Peak von Mises", volume: "Volume" };
 
   const simpleSteps = simple() ? `
     <div class="adv-sec">
       <div class="pgroup-label">Exact training steps</div>
       <div class="grid-2">
         <label class="field compact">Adam epochs<input id="epochs" type="number" min="50" max="40000" step="50" value="${state.budget.epochs}"></label>
-        <label class="field compact">L-BFGS steps<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
+        <label class="field compact">L-BFGS iterations<input id="lbfgs" type="number" min="0" max="${state.maxLbfgs ?? MAX_LBFGS}" step="100" value="${state.budget.lbfgs}"></label>
       </div>
     </div>` : "";
 
   const inner = `
     ${simpleSteps}
     <div class="adv-sec">
-      <div class="adv-head"><span class="pgroup-label">${S("Network & optimizer", "Architecture & optimizer")}</span></div>
+      <div class="adv-head"><span class="pgroup-label">Architecture &amp; optimizer</span></div>
       <div class="preset-row" role="group" aria-label="Network size presets">
         ${presets.map(([hl, nn, label]) => `<button type="button" class="preset-pill ${s.hidden_layers === hl && s.neurons === nn ? "on" : ""}" data-net-preset="${hl}x${nn}">${esc(label)}</button>`).join("")}
       </div>
@@ -1285,7 +1235,7 @@ function renderSolverCfg() {
 
     ${isXpinn ? `
     <div class="adv-sec">
-      <div class="pgroup-label">${S("Subdomain coupling (XPINN)", "XPINN warm-start & interface penalties")}</div>
+      <div class="pgroup-label">XPINN warm-start &amp; interface penalties</div>
       <div class="grid-2">
         <label class="field compact">Warm-start steps<input id="cfgWarm" type="number" min="0" max="20000" step="100" value="${s.warm_start}"></label>
         <label class="field compact">AL stages<input id="cfgAl" type="number" min="0" max="8" step="1" value="${s.al_stages}"></label>
@@ -1298,7 +1248,7 @@ function renderSolverCfg() {
 
     ${inv ? `
     <div class="adv-sec">
-      <div class="pgroup-label">${S(`Shape search settings (${inv.param})`, `Inverse design (${inv.param})`)}</div>
+      <div class="pgroup-label">Inverse design (${esc(inv.param)})</div>
       <div class="grid-2">
         <label class="field compact">Objective
           <select id="cfgInvMetric">
@@ -1314,11 +1264,11 @@ function renderSolverCfg() {
       </div>
     </div>` : ""}`;
 
-  const headRight = `<span style="display:flex;align-items:center;gap:8px"><span class="badge ${modified ? "custom" : ""}">${modified ? S("Modified", "Custom") : S("Defaults", "Study")}</span><button type="button" class="link-btn" id="resetSolver" ${modified ? "" : "disabled"}>Reset</button></span>`;
+  const headRight = `<span style="display:flex;align-items:center;gap:8px"><span class="badge ${modified ? "custom" : ""}">${modified ? "Custom" : "Study"}</span><button type="button" class="link-btn" id="resetSolver" ${modified ? "" : "disabled"}>Reset</button></span>`;
 
   if (simple()) {
     box.innerHTML = `<details class="solver-adv" id="solverAdv" ${state.advOpen ? "open" : ""}>
-      <summary><span>Adjustable solver &amp; design settings</span>${headRight}</summary>
+      <summary><span>Solver &amp; design settings</span>${headRight}</summary>
       <div class="adv-body">${inner}</div>
     </details>`;
   } else {
@@ -1371,8 +1321,7 @@ function renderProps() {
   }
   const label = (s) => {
     const base = s.key.replace(/\d$/, "");
-    const text = simple() && SIMPLE_LABEL[base] ? SIMPLE_LABEL[base] : s.label;
-    return `${esc(text)}${base === "E" || base === "nu" ? ` ${tip(base)}` : ""}`;
+    return `${esc(s.label)}${base === "E" || base === "nu" ? ` ${tip(base)}` : ""}`;
   };
   const row = (s) => `
       <div class="prow" data-key="${s.key}">
@@ -1386,12 +1335,12 @@ function renderProps() {
     const rest = g.items.filter((x) => x !== eSpec && x !== nuSpec);
     const select = `<label class="mat"><span class="sr-only">${esc(g.name)} material</span><select class="mat-select" data-mat="${eSpec.key}" data-mat-nu="${nuSpec.key}">${matOptions(vals[eSpec.key], vals[nuSpec.key], eSpec.min, eSpec.max)}</select></label>`;
     const exact = simple()
-      ? `<details class="fine"><summary>Exact values</summary>${row(eSpec)}${row(nuSpec)}</details>`
+      ? `<details class="fine"><summary>Exact E &amp; ν values</summary>${row(eSpec)}${row(nuSpec)}</details>`
       : row(eSpec) + row(nuSpec);
     return select + exact + rest.map(row).join("");
   };
   $("#props").innerHTML = `
-    <div class="props-head"><span class="eyebrow">${S("Materials and load", "Properties")}</span><span style="display:flex;align-items:center;gap:10px"><span class="badge" id="propsBadge"></span><button type="button" class="link-btn" id="resetProps">Reset</button></span></div>
+    <div class="props-head"><span class="eyebrow">Properties</span><span style="display:flex;align-items:center;gap:10px"><span class="badge" id="propsBadge"></span><button type="button" class="link-btn" id="resetProps">Reset</button></span></div>
     <div class="geo" id="geo" role="img" aria-label="Geometry preview"></div>
     ${groups.map((g) => `<div class="pgroup"><div class="pgroup-label">${esc(g.name)}</div>${groupHtml(g)}</div>`).join("")}
     <p class="props-note" id="propsNote"></p>`;
@@ -1405,13 +1354,11 @@ function updatePropsChrome() {
   const custom = isCustom(m.key);
   const badge = $("#propsBadge");
   badge.className = `badge ${custom ? "custom" : ""}`;
-  badge.textContent = custom ? S("Your settings", "Custom settings") : S("Original settings", "Study settings");
+  badge.textContent = custom ? "Custom settings" : "Study settings";
   $("#resetProps").disabled = !custom;
   $("#propsNote").textContent = custom
-    ? S("The server first runs the trusted simulation (FEM) for exactly these settings, which takes a few seconds, then compares ATLAS with it.",
-      "The server solves a fresh FEniCS reference for exactly these inputs (a few seconds), then scores ATLAS-XPINN against it.")
-    : S("These are the settings used in the study, so ATLAS is compared with the stored trusted answer.",
-      "These are the study's settings: the run is scored against the stored FEniCS reference.");
+    ? `Solves a fresh FEM reference for these custom inputs (a few seconds), then validates the run against it.${extra(" Uses your configured FEM validation engine automatically.")}`
+    : `Uses the stored study parameters and scores directly against the reference solution.${extra(" Reference field loaded from fem/reference/.")}`;
   for (const s of m.params) {
     const row = $(`.prow[data-key="${s.key}"]`);
     if (row) row.classList.toggle("changed", Math.abs(vals[s.key] - s.value) > 1e-9 * Math.max(1, Math.abs(s.value)));
@@ -1559,13 +1506,12 @@ function renderEnergy(j) {
   dot.style.left = `${(last[0] / 600) * 100}%`;
   dot.style.top = `${(last[1] / 120) * 100}%`;
   dot.classList.toggle("live", j.status === "running");
-  $("#eHead").textContent = S("Training progress: distance from the lowest energy reached (log scale)", "Energy gap to the lowest Π reached, log scale");
-  $("#eVal").textContent = S(`energy ${pts[pts.length - 1][1].toFixed(4)}`, `Π = ${pts[pts.length - 1][1].toFixed(4)}`);
-  $("#eN").textContent = S(`${n.toLocaleString("en-US")} steps`, `${n.toLocaleString("en-US")} energy evaluations`);
+  $("#eHead").textContent = "Energy gap to the lowest Π reached (log scale)";
+  $("#eVal").textContent = `Π = ${pts[pts.length - 1][1].toFixed(4)}`;
+  $("#eN").textContent = `${n.toLocaleString("en-US")} steps`;
   $("#eNote").textContent = j.status === "running"
-    ? S("The network keeps adjusting itself to lower the energy stored in the part; when the line flattens, it has found the answer. The small upward jumps are planned: they are where the separate networks start training on their own and where their borders are tightened.",
-      "Updates as the solver runs. Upward jumps are the switch from the shared warm start to separate subnetworks and each augmented-Lagrangian update.")
-    : S("The whole training run.", "The complete descent of this run.");
+    ? `Updates live as the solver lowers total potential energy.${extra(" Upward jumps mark subnetwork split after warm-start and augmented-Lagrangian interface updates.")}`
+    : `Complete training trajectory.${extra(" Final potential energy settled at the end of L-BFGS optimization.")}`;
 }
 
 function isBusy() { return state.jobs.some((j) => j.status === "queued" || j.status === "running"); }
@@ -1581,7 +1527,7 @@ function renderJobs() {
     const right = j.status === "done" ? dur(secondsBetween(j.started, j.finished)) : j.status === "error" ? "failed" : j.status === "cancelled" ? "stopped" : j.status;
     const devTag = j.device === "cuda" ? "GPU" : j.device === "cpu" ? "CPU" : "";
     const formTag = j.formulation === "energy" ? "1-net" : "XPINN";
-    return `<li><button type="button" data-job="${j.id}" aria-current="${state.job?.id === j.id}"><span class="dot ${cls}"></span><span class="job-label">${j.kind === "inverse" ? S("Shape search", "Inverse") : S("Simulation", "Forward")} · ${esc(m?.title || j.benchmark)} <span class="job-meta-tag">${esc(devTag ? `${formTag} · ${devTag}` : formTag)}</span></span><span class="job-right">${esc(right)}</span></button></li>`;
+    return `<li><button type="button" data-job="${j.id}" aria-current="${state.job?.id === j.id}"><span class="dot ${cls}"></span><span class="job-label">${j.kind === "inverse" ? "Inverse" : "Forward"} · ${esc(m?.title || j.benchmark)} <span class="job-meta-tag">${esc(devTag ? `${formTag} · ${devTag}` : formTag)}</span></span><span class="job-right">${esc(right)}</span></button></li>`;
   }).join("");
 }
 
@@ -1589,7 +1535,7 @@ function renderJob() {
   const j = state.job;
   const busy = isBusy();
   $("#runForward").disabled = busy;
-  $("#runForward").textContent = busy ? "Running…" : S("Run simulation", "Run forward + validate");
+  $("#runForward").textContent = busy ? "Running…" : "Run forward + validate";
   const m = liveMeta(state.liveBench);
   $("#runInverse").disabled = busy || !m?.inverse;
   const cancelBtn = $("#cancelJob");
@@ -1598,16 +1544,16 @@ function renderJob() {
   if (cancelBtn) {
     cancelBtn.hidden = !activeRun;
     cancelBtn.disabled = !!j?.cancel_requested;
-    cancelBtn.textContent = j?.cancel_requested ? "Stopping…" : S("Stop", "Stop run");
+    cancelBtn.textContent = j?.cancel_requested ? "Stopping…" : "Stop run";
   }
   if (exportBtn) {
     exportBtn.hidden = !(j && j.status === "done");
     if (j && j.status === "done") exportBtn.href = `/api/jobs/${j.id}/export`;
   }
-  const steps = (simple() ? STEPS_SIMPLE : STEPS)[j?.kind === "inverse" ? "inverse" : "forward"];
+  const steps = STEPS[j?.kind === "inverse" ? "inverse" : "forward"];
   if (!j) {
-    $("#jobTitle").textContent = S("Nothing run yet", "No run yet");
-    $("#jobSub").textContent = S("Pick a part on the left, choose GPU or CPU if needed, then press Run simulation.", "Pick a benchmark, choose compute/solver settings on the left, then run.");
+    $("#jobTitle").textContent = "No run yet";
+    $("#jobSub").textContent = `Pick a benchmark and compute settings on the left, then start a run.${extra(" Detailed component metrics and mesh diagnostics appear below once a run completes.")}`;
     $("#jobChip").className = "chip";
     $("#jobChip").textContent = "Idle";
     $("#progress").hidden = true;
@@ -1621,12 +1567,11 @@ function renderJob() {
     const fullRun = step === FULL_STEP;
     const solverLabel = j.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN";
     const devLabel = j.device === "cuda" ? `GPU (${shortGpu(j.device_name)})` : j.device ? (j.device_name || "CPU") : "";
-    $("#jobTitle").textContent = j.kind === "inverse" ? S("Finding a shape", "Inverse design") : S("Simulation, checked with FEniCS", "Forward solve + FEniCS validation");
-    $("#jobSub").textContent = simple()
-      ? `${jm?.title || j.benchmark} · ${devLabel ? `${devLabel} · ` : ""}${j.custom ? "your settings" : "original settings"}${j.kind === "inverse" ? "" : fullRun ? " · full training" : step >= 0 ? ` · ${RUN_STEPS[step].label} training` : " · custom steps"}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`
-      : `${jm?.title || j.benchmark} · ${solverLabel}${devLabel ? ` · ${devLabel}` : ""} · ${j.custom ? "custom settings" : "study settings"}${bud && !fullRun && j.kind !== "inverse" ? ` · ${bud.epochs} Adam + ${bud.lbfgs} L-BFGS` : ""} · seed ${j.metrics?.seed ?? j.solver_config?.seed ?? state.seed ?? 42}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
+    $("#jobTitle").textContent = j.kind === "inverse" ? "Inverse design" : "Forward solve + FEM validation";
+    const extraMeta = extra(`${bud && !fullRun && j.kind !== "inverse" ? ` · ${bud.epochs} Adam + ${bud.lbfgs} L-BFGS` : ""} · seed ${j.metrics?.seed ?? j.solver_config?.seed ?? state.seed ?? 42}`);
+    $("#jobSub").textContent = `${jm?.title || j.benchmark} · ${solverLabel}${devLabel ? ` · ${devLabel}` : ""} · ${j.custom ? "custom settings" : "study settings"}${extraMeta}${j.status === "done" ? ` · finished in ${dur(secs)}` : ""}`;
     const chip = {
-      queued: ["run", S("Waiting in line", "Queued")],
+      queued: ["run", "Queued"],
       running: ["run", j.cancel_requested ? "Stopping…" : "Running"],
       done: ["done", "Done"],
       cancelled: ["cancel", "Stopped"],
@@ -1639,7 +1584,7 @@ function renderJob() {
     $("#jobError").textContent = j.error || "";
     const pre = $("#log");
     const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
-    pre.textContent = j.log || (j.status === "queued" ? S("Waiting for the run before yours to finish…", "Waiting in queue…") : "Solver output appears here as it is written.");
+    pre.textContent = j.log || (j.status === "queued" ? "Waiting in queue…" : "Solver output appears here as it is written.");
     if (atBottom) pre.scrollTop = pre.scrollHeight;
   }
   const idx = !j ? -1 : j.status === "done" ? steps.length : Math.max(0, steps.findIndex(([k]) => k === j.stage));
@@ -1668,40 +1613,39 @@ function renderTiles(j) {
     const fc = mx.fem_check || {};
     const ratio = fc.target_ratio;
     const change = ratio != null ? `${ratio < 1 ? "−" : "+"}${Math.round(Math.abs(1 - ratio) * 100)} %` : null;
-    const what = mx.metric === "peak_vm" ? "peak stress" : mx.metric === "compliance" ? (/hole/.test(mx.param || "") ? "stretching" : "bending") : mx.metric;
     const near = (x) => mx.bounds && Math.abs(mx.final - x) < 1e-6;
-    const edge = done && !mx.converged ? (near(mx.bounds?.[1]) ? "largest" : near(mx.bounds?.[0]) ? "smallest" : "") : null;
-    const stop = edge == null ? "" : edge ? S(` · stopped at the ${edge} size allowed`, ` · at the ${edge === "largest" ? "upper" : "lower"} bound`) : S(" · did not fully settle", ` · ${mx.status}`);
+    const edge = done && !mx.converged ? (near(mx.bounds?.[1]) ? "upper" : near(mx.bounds?.[0]) ? "lower" : "") : null;
+    const stop = edge == null ? "" : edge ? ` · at ${edge} bound` : ` · ${mx.status}`;
     $("#tiles").innerHTML = [
-      tile(done ? `${cap(mx.param)} found` : S("Shape found", "Design found"), done ? `${mx.final?.toFixed(3)} m` : null, done ? `started from ${mx.initial?.toFixed(3)} m${stop}` : waiting),
-      tile(S("Goal", "Objective"), done ? change : null, done ? S(`change in ${what} from the start`, `${mx.objective}: ${sci(mx.target)}`) : waiting),
-      tile(S("Checked with FEM", "FEM check"), done && fc.error_vs_target != null ? spct(fc.error_vs_target) : null,
-        done ? S("from the goal, verified by FEniCS", `FEniCS ${what} at the design vs its target`) : waiting, done && fc.within_10pct != null ? fc.within_10pct : null),
+      tile(done ? `${cap(mx.param)} found` : "Design found", done ? `${mx.final?.toFixed(3)} m` : null, done ? `started from ${mx.initial?.toFixed(3)} m${stop}` : waiting),
+      tile("Objective", done ? change : null, done ? `${mx.objective}${extra(`: ${sci(mx.target)}`)}` : waiting),
+      tile("FEM check", done && fc.error_vs_target != null ? spct(fc.error_vs_target) : null,
+        done ? `verified against target${extra(` (${mx.metric})`)}` : waiting, done && fc.within_10pct != null ? fc.within_10pct : null),
       tile("Run time", done ? dur(mx.train_seconds) : null, done ? `design loop on ${runDevText}` : waiting),
     ].join("");
     return;
   }
   const vmKey = mx.von_mises_l2_excl != null ? "von_mises_l2_excl" : "von_mises_l2";
   $("#tiles").innerHTML = [
-    tile(S("Bending error", "Displacement L²"), done ? pct(mx.relative_L2_displacement) : null, S(`vs FEniCS · goal under ${t.displacement * 100} %`, `relative to FEniCS · target < ${t.displacement * 100} %`), done ? mx.relative_L2_displacement < t.displacement : null),
-    tile(S("Stress error", vmKey === "von_mises_l2_excl" || !done ? "von Mises L², excl." : "von Mises L²"), done ? pct(mx[vmKey]) : null, S(`vs FEniCS · goal under ${t.von_mises * 100} %`, `relative to FEniCS · target < ${t.von_mises * 100} %`), done ? mx[vmKey] < t.von_mises : null),
-    tile(S("Training time", "Run time"), done ? dur(mx.train_seconds) : null, done ? `wall-clock on ${runDevText}` : waiting),
-    tile(S("Network size", "Parameters"), done ? mx.params?.toLocaleString("en-US") : null, done ? S(`adjustable numbers · ${plural(mx.subdomains, "network", "networks")}`, `${plural(mx.subdomains, "subnetwork", "subnetworks")} · ${mx.hidden_layers || 4}×${mx.neurons || 64}`) : waiting),
+    tile("Displacement L²", done ? pct(mx.relative_L2_displacement) : null, `relative to FEM · target < ${t.displacement * 100} %`, done ? mx.relative_L2_displacement < t.displacement : null),
+    tile(vmKey === "von_mises_l2_excl" || !done ? "von Mises L², excl." : "von Mises L²", done ? pct(mx[vmKey]) : null, `relative to FEM · target < ${t.von_mises * 100} %`, done ? mx[vmKey] < t.von_mises : null),
+    tile("Run time", done ? dur(mx.train_seconds) : null, done ? `wall-clock on ${runDevText}` : waiting),
+    tile("Parameters", done ? mx.params?.toLocaleString("en-US") : null, done ? `${plural(mx.subdomains, "subnetwork", "subnetworks")}${extra(` · ${mx.hidden_layers || 4}×${mx.neurons || 64}`)}` : waiting),
   ].join("");
 }
 
 function renderLiveFigure(j) {
   const card = $("#liveFig");
   const done = j?.status === "done";
-  const figs = j?.kind === "inverse" ? [["design", S("Shape", "Design")], ["inverse_history", S("Steps", "History")]]
-    : [["fem_comparison", S("Comparison", "ATLAS vs FEM")], ["deformed", S("Deformed shape", "Deformed")], ["convergence", S("Training", "Convergence")]];
+  const figs = j?.kind === "inverse" ? [["design", "Design"], ["inverse_history", "History"]]
+    : [["fem_comparison", "ATLAS vs FEM"], ["deformed", "Deformed"], ["convergence", "Convergence"]];
   const avail = done ? figs.filter(([k]) => j.plots?.[k]) : [];
   const cur = avail.find(([k]) => k === state.fig.live) || avail[0];
   const m = j ? liveMeta(j.benchmark) : null;
   const solverTag = j?.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN";
-  const head = `<div class="fig-head"><div><h2>${j?.kind === "inverse" ? S("The shape ATLAS found", "Design") : S("ATLAS vs the trusted answer", "ATLAS vs FEniCS")}</h2>${m ? `<span class="meta">${esc(m.title)} · ${esc(solverTag)}</span>` : ""}</div>${avail.length > 1 ? `<div class="seg" role="group" aria-label="Figure">${avail.map(([k, l]) => `<button type="button" data-livefig="${k}" aria-pressed="${k === cur[0]}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`;
+  const head = `<div class="fig-head"><div><h2>${j?.kind === "inverse" ? "Design" : "ATLAS vs FEM"}</h2>${m ? `<span class="meta">${esc(m.title)} · ${esc(solverTag)}</span>` : ""}</div>${avail.length > 1 ? `<div class="seg" role="group" aria-label="Figure">${avail.map(([k, l]) => `<button type="button" data-livefig="${k}" aria-pressed="${k === cur[0]}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`;
   if (!cur) {
-    const msg = !j ? "The FEniCS comparison appears here when a run finishes."
+    const msg = !j ? "The FEM comparison appears here when a run finishes."
       : j.status === "error" ? "The run failed before producing figures."
         : j.status === "cancelled" ? "Run stopped before figures were generated."
           : "The figures appear here when the run finishes.";
@@ -1716,29 +1660,22 @@ function liveCaption(j, fig) {
   const studyPlot = !j.custom && liveMeta(j.benchmark)?.group === "paper";
   if (fig === "fem_comparison") {
     return studyPlot
-      ? S("Top row: how far each point moves. Bottom row: stress. Left to right: ATLAS-XPINN, the trusted simulation (FEM), and the difference between them.",
-        "Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the FEniCS reference, and the pointwise error.")
-      : S("How far each point moves (|u|) and the stress, each shown three ways: the trusted simulation (FEM), ATLAS-XPINN, and the difference between them. The more alike the first two look, and the darker the difference, the closer the match.",
-        "|u| and von Mises stress: FEM, ATLAS-XPINN and the pointwise error (saturated at 10 % of the FEM 99.8th percentile of each field).");
+      ? `Top row |displacement|, bottom row von Mises stress. Left to right: ATLAS-XPINN, the reference FEM solution, and the pointwise error.${extra(" Reference field loaded from fem/reference/.")}`
+      : `|u| and von Mises stress: FEM reference, ATLAS prediction, and pointwise error.${extra(" Error color scale is saturated at 10 % of the FEM 99.8th percentile of each field.")}`;
   }
   if (fig === "deformed") {
     return studyPlot
-      ? S("The shape ATLAS-XPINN predicts under the load (red) over the unloaded part (blue), with the movement exaggerated so it is visible (the factor is in the title).",
-        "Deformed (red) and undeformed (blue) grids from ATLAS-XPINN, displacement scaled by the factor in the title.")
-      : S("The shape ATLAS-XPINN predicts under the load, with the movement exaggerated so it is visible (the factor is in the title). Colour shows the stress; grey is the unloaded part.",
-        "Deformed configuration predicted by ATLAS-XPINN, displacement scaled by the factor in the title, coloured by von Mises stress.");
+      ? `Deformed (red) and undeformed (blue) grids from ATLAS, with displacement magnified for visibility.${extra(" Exact magnification factor is shown in the figure title.")}`
+      : `Deformed configuration predicted by ATLAS, colored by von Mises stress over the unloaded outline.${extra(" Displacement magnification factor is shown in the figure title.")}`;
   }
   if (fig === "convergence") {
-    return S("How training settled: the energy gap falls as the network learns, and the stored energy and the work done by the load settle into balance.",
-      "Relative energy gap to the final value, and strain energy U against external work W (U = W / 2 at the solution).");
+    return `Relative energy gap to the final value and strain energy U against external work W.${extra(" At equilibrium U = W / 2.")}`;
   }
   if (fig === "design") {
-    return S("Left: the starting shape (dashed) and the shape ATLAS found (solid). Middle and right: how far each point of the new shape moves, and its stress.",
-      "Baseline (dashed) and designed (solid) geometry, with |u| and von Mises stress of the design from ATLAS-XPINN.");
+    return `Baseline (dashed) and optimized (solid) geometry, alongside predicted |u| and von Mises stress.${extra(" Evaluated directly on the final design parameter.")}`;
   }
   if (fig === "inverse_history") {
-    return S("Each step of the search: the size tried, how close it came to the goal (red dashed line), and the gap left, which shrinks as the search settles.",
-      "Design parameter, objective against its target (dashed) and residual |metric / target − 1| per outer iteration.");
+    return `Design parameter trajectory, objective relative to target (dashed), and residual per outer iteration.${extra(" Residual measures |metric / target − 1| across outer steps.")}`;
   }
   return "";
 }
@@ -1877,7 +1814,7 @@ async function submit(kind) {
   $("#runForward").disabled = true;
   $("#runInverse").disabled = true;
   $("#jobChip").className = "chip run";
-  $("#jobChip").textContent = S("Starting…", "Submitting…");
+  $("#jobChip").textContent = "Starting…";
   try {
     const { job_id } = await api(`/api/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     state.jobs.unshift({

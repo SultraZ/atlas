@@ -98,11 +98,18 @@ def t_metric_validation():
     raise AssertionError("cantilever has no peak_vm metric; must raise")
 
 
-check("quadrature areas for the three design cases", t_areas)
-check("fillet geometry is a real fillet (corner side, outside the disk)", t_fillet_is_a_real_fillet)
-check("autodiff shape derivative = finite differences ~ beam theory", t_autodiff_gradient_matches_fd_and_beam_theory)
-check("inverse solver recovers the beam height for a compliance target", t_inverse_solver_finds_root)
-check("unavailable metric is rejected", t_metric_validation)
+def test_energy_design_suite():
+    ok.clear()
+    bad.clear()
+    check("quadrature areas for the three design cases", t_areas)
+    check("fillet geometry is a real fillet (corner side, outside the disk)", t_fillet_is_a_real_fillet)
+    check("autodiff shape derivative = finite differences ~ beam theory", t_autodiff_gradient_matches_fd_and_beam_theory)
+    check("inverse solver recovers the beam height for a compliance target", t_inverse_solver_finds_root)
+    check("unavailable metric is rejected", t_metric_validation)
+    print(f"passed: {len(ok)}  failed: {len(bad)}")
+    assert not bad, f"Failed design checks: {bad}"
 
-print(f"passed: {len(ok)}  failed: {len(bad)}")
-sys.exit(1 if bad else 0)
+
+if __name__ == "__main__":
+    test_energy_design_suite()
+    sys.exit(0)

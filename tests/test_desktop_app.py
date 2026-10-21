@@ -57,13 +57,13 @@ def test_desktop_launcher_helpers(tmp_path):
         assert meta["CompanyName"] == "ATLAS"
         assert meta["Publisher"] == "ATLAS"
         assert meta["Author"] == "ATLAS"
-        assert meta["FileVersion"] == "1.1.5B"
-        assert meta["ProductVersion"] == "1.1.5B"
+        assert meta["FileVersion"] == "1.1.6"
+        assert meta["ProductVersion"] == "1.1.6"
 
     wizard_c = (ROOT / "installer" / "setup_wizard.c").read_text(encoding="utf-8")
     assert "ID_BTN_UPDATE" in wizard_c
     assert 'L"Update"' in wizard_c
-    assert "v1.1.5B" in wizard_c
+    assert "v1.1.6" in wizard_c
 
     # Execute standalone installer verification scripts AND guard against PowerShell traps
     import subprocess
@@ -73,7 +73,7 @@ def test_desktop_launcher_helpers(tmp_path):
     assert " -c " not in ps1_text.split("# Provisioning Miniconda")[0].split("$wslCmd")[0], (
         "Inline python -c string detected in PowerShell section!"
     )
-    assert "ATLAS_ACTION" in ps1_text and "v1.1.5B" in ps1_text
+    assert "ATLAS_ACTION" in ps1_text and "v1.1.6" in ps1_text
     assert "please close and re-open ATLAS-Setup.exe" not in ps1_text
     assert "Install-OfficialPython312" in ps1_text
     assert "PythonCore" in ps1_text
@@ -87,27 +87,27 @@ def test_desktop_launcher_helpers(tmp_path):
     assert cuda_probe.returncode in (0, 2, 3)
     subprocess.run([sys.executable, str(ROOT / "installer" / "verify_install.py")], check=True)
 
-    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.5B", out_root=tmp_path)
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.6", out_root=tmp_path)
     assert out_dir.is_dir()
     assert notes_file.is_file()
     names = {a.name for a in assets}
     assert {
         "ATLAS-Setup.exe",
         "setup_atlas.sh",
-        "ATLAS-Desktop-Studio-v1.1.5B.zip",
+        "ATLAS-Desktop-Studio-v1.1.6.zip",
         "ATLAS-Desktop-Studio.zip",
         "SHA256SUMS.txt",
     } == names
     with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
         znames = set(zf.namelist())
-        assert "ATLAS-Desktop-Studio-v1.1.5B/ATLAS-Setup.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/installer/Uninstall-ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/installer/check_python.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/installer/check_cuda.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/installer/verify_install.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/atlas/native_fem.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.5B/webapp/desktop.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/ATLAS-Setup.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/installer/Uninstall-ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/installer/check_python.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/installer/check_cuda.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/installer/verify_install.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.6/webapp/desktop.py" in znames
         assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 
@@ -312,6 +312,52 @@ def test_live_cpu_forward_xpinn_and_single_network_with_custom_settings(tmp_path
     clr = client.post("/api/jobs/clear")
     assert clr.status_code == 200
     assert clr.json()["removed_jobs"] >= 3
+
+
+def test_sidebar_cleanup_and_consistent_simple_expert_ui(tmp_path, monkeypatch):
+    import re
+    import subprocess
+
+    monkeypatch.setattr(backend_app, "SETTINGS_FILE", tmp_path / ".app_settings.json")
+    client = TestClient(backend_app.app)
+
+    root_resp = client.get("/")
+    assert root_resp.status_code == 200
+    assert "no-cache" in root_resp.headers.get("cache-control", "")
+
+    html = (ROOT / "webapp" / "frontend" / "index.html").read_text(encoding="utf-8")
+    css = (ROOT / "webapp" / "frontend" / "style.css").read_text(encoding="utf-8")
+    js = (ROOT / "webapp" / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    # 1. Sidebar has NO Appearance quick section, while keeping GPU runtime button (#health) in .side-bottom
+    assert "side-quick" not in html
+    assert "side-seg" not in html
+    assert "side-quick" not in css
+    assert "data-theme-pick" not in html
+    assert "data-level-pick" not in html
+    side_match = re.search(r'<aside class="sidebar"[^>]*>(.*?)</aside>', html, flags=re.S)
+    assert side_match is not None, "Missing sidebar in index.html!"
+    assert 'data-view="settings"' in side_match.group(1)
+    side_bottom_match = re.search(r'<div class="side-bottom">(.*?)</div>\s*</aside>', html, flags=re.S)
+    assert side_bottom_match is not None, "Missing .side-bottom in sidebar!"
+    assert 'id="health"' in side_bottom_match.group(1)
+
+    # 2. Appearance & Detail level controls exist inside Settings view only
+    settings_fn = js.split("function renderSettingsDrawer()")[1].split("async function pollHealth()")[0]
+    assert '["light", "Light"' in settings_fn and '["dark", "Dark"' in settings_fn
+    assert 'data-theme-pick="${id}"' in settings_fn
+    assert 'data-level-pick="simple"' in settings_fn
+    assert 'data-level-pick="expert"' in settings_fn
+    assert js.count('data-theme-pick="') == 1
+    assert js.count('data-level-pick="') == 2
+
+    # 3. No word-swapping tables or S(...) rewrites remain in app.js
+    assert re.search(r"\bS\(", js) is None, "Legacy S(...) word-rewriting call left in app.js!"
+    for banned in ("SOLVER_NAMES_SIMPLE", "FIGS_SIMPLE", "STEPS_SIMPLE", "SIMPLE_LABEL", "SIMPLE_SUB"):
+        assert banned not in js, f"Legacy word-swapping table {banned} still in app.js!"
+    assert "const extra =" in js
+
+    subprocess.run(["node", "--check", str(ROOT / "webapp" / "frontend" / "app.js")], check=True)
 
 
 if __name__ == "__main__":

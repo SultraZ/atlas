@@ -10,7 +10,7 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.5B'
+$APP_VERSION = 'v1.1.6'
 $PUBLISHER   = 'ATLAS'
 $API_LATEST  = "https://api.github.com/repos/$REPO_SLUG/releases/latest"
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"

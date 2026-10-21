@@ -673,12 +673,6 @@ details.fine .prow + .prow { margin-top: 10px; }
 .nav-badge.live { background: var(--chip-run-bg); color: var(--chip-run-fg); font-weight: 600; }
 
 .side-bottom { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.side-quick { display: flex; flex-direction: column; gap: 7px; }
-.side-seg { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 3px; }
-.side-seg.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.side-seg > button {
-  height: 31px; padding: 0 6px; justify-content: center; gap: 5px; font-size: 12px;
-}
 
 .side-runtime {
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 11px; text-align: left;
@@ -697,7 +691,6 @@ details.fine .prow + .prow { margin-top: 10px; }
 :root[data-sidebar="collapsed"] .side-label,
 :root[data-sidebar="collapsed"] .nav-text,
 :root[data-sidebar="collapsed"] .nav-badge,
-:root[data-sidebar="collapsed"] .side-quick,
 :root[data-sidebar="collapsed"] .runtime-lines { display: none; }
 :root[data-sidebar="collapsed"] .nav-item { width: 44px; justify-content: center; padding: 0; }
 :root[data-sidebar="collapsed"] .side-runtime { width: 44px; height: 40px; justify-content: center; padding: 0; }

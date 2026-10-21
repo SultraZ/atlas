@@ -718,6 +718,21 @@ function renderSettingsDrawer() {
           </div>
         </div>
       </section>
+
+      <section class="card settings-card full">
+        <div class="settings-card-head">
+          <div>
+            <h2>${S("Desktop Installer & Releases", "GitHub Releases & Standalone Setup Wizard")}</h2>
+            <p>${S("Download one-click installers for Windows, macOS, or Linux — with or without WSL2 FEniCS.", "Includes native Windows Setup Wizard (Setup-ATLAS.bat), full offline-ready ZIP bundle, and macOS/Linux installer.")}</p>
+          </div>
+          <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
+        </div>
+        <div class="set-actions">
+          <a href="https://github.com/SultraZ/atlas/releases/latest/download/Setup-ATLAS.bat" class="mini-btn">Windows Smart Installer (Setup-ATLAS.bat)</a>
+          <a href="https://github.com/SultraZ/atlas/releases/latest/download/ATLAS-Desktop-Studio.zip" class="mini-btn">Full Desktop Bundle (.zip)</a>
+          <a href="https://github.com/SultraZ/atlas/releases/latest/download/setup_atlas.sh" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+        </div>
+      </section>
     </div>`;
 }
 

@@ -1,7 +1,23 @@
 # ATLAS — Adaptive Multi-Scale Framework for Structural Design
 
 Deep-energy (Ritz) forward solver, domain-decomposed as **ATLAS-XPINN**, with inverse shape design
-and FEM (FEniCS) validation.
+and dual selectable finite-element validation (**genuine FEniCS 2019.1.0** + **Built-in Cross-Platform `P2` FEM**).
+
+## Download & Install (GitHub Releases)
+
+Grab the latest standalone **ATLAS Desktop Studio** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
+
+- **Windows 10 / 11 (2-Click Guided GUI Installer)**: **[Download `Setup-ATLAS.bat`](https://github.com/SultraZ/atlas/releases/latest/download/Setup-ATLAS.bat)**
+  - Opens a native Windows Setup Wizard — lets you choose **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** or **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***, builds icon-stamped `ATLAS.exe`, and adds **Desktop & Start Menu shortcuts**.
+- **Full Offline-Ready Archive (Windows / macOS / Linux)**: **[Download `ATLAS-Desktop-Studio.zip`](https://github.com/SultraZ/atlas/releases/latest/download/ATLAS-Desktop-Studio.zip)**
+- **macOS & Linux (1-Line Guided Installer)**:
+  ```bash
+  curl -fsSL https://github.com/SultraZ/atlas/releases/latest/download/setup_atlas.sh | bash
+  ```
+- **Publish a New Release Anytime**:
+  ```bash
+  python scripts/create_release.py --version v1.0.0 --publish
+  ```
 
 ## Layout
 

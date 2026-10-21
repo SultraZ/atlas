@@ -31,16 +31,42 @@ def _wait_job(client: TestClient, job_id: str, timeout: float = 120.0) -> dict:
     raise TimeoutError(f"Job {job_id} timed out: {last.get('status')} / {last.get('stage')}")
 
 
-def test_desktop_launcher_helpers():
+def test_desktop_launcher_helpers(tmp_path):
+    import zipfile
+    from scripts import create_release
+
     port = desktop.find_free_port("127.0.0.1")
     assert isinstance(port, int) and port > 0
     assert (ROOT / "launch_atlas.sh").exists()
+    assert (ROOT / "setup_atlas.sh").exists()
     assert (ROOT / "ATLAS.bat").exists()
+    assert (ROOT / "Setup-ATLAS.bat").exists()
     assert (ROOT / "build_exe.bat").exists()
+    assert (ROOT / "scripts" / "create_release.py").exists()
     assert (ROOT / "webapp" / "frontend" / "icon.ico").exists()
     assert os.access(ROOT / "launch_atlas.sh", os.X_OK)
+    assert os.access(ROOT / "setup_atlas.sh", os.X_OK)
     assert backend_app._win_to_wsl_path(r"\\wsl.localhost\Ubuntu\home\sultra\atlas") == "/home/sultra/atlas"
     assert backend_app._win_to_wsl_path(r"\\wsl$\Ubuntu-22.04\home\sultra\atlas\fem") == "/home/sultra/atlas/fem"
+
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.0.0", out_root=tmp_path)
+    assert out_dir.is_dir()
+    assert notes_file.is_file()
+    names = {a.name for a in assets}
+    assert {
+        "Setup-ATLAS.bat",
+        "setup_atlas.sh",
+        "ATLAS-Desktop-Studio-v1.0.0.zip",
+        "ATLAS-Desktop-Studio.zip",
+        "SHA256SUMS.txt",
+    } == names
+    with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
+        znames = set(zf.namelist())
+        assert "ATLAS-Desktop-Studio-v1.0.0/Setup-ATLAS.bat" in znames
+        assert "ATLAS-Desktop-Studio-v1.0.0/ATLAS.bat" in znames
+        assert "ATLAS-Desktop-Studio-v1.0.0/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.0.0/webapp/desktop.py" in znames
+        assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 
 def test_health_and_adjustable_settings(tmp_path, monkeypatch):

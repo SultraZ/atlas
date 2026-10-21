@@ -5,19 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ATLAS — Structural Design Studio</title>
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
-<script>try{var d=document.documentElement,t=localStorage.getItem("atlas-theme");if(["light","dark","atlas"].indexOf(t)<0){t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}d.setAttribute("data-theme",t);d.setAttribute("data-level",localStorage.getItem("atlas-level")==="expert"?"expert":"simple");if(localStorage.getItem("atlas-sidebar")==="collapsed")d.setAttribute("data-sidebar","collapsed");var sc=localStorage.getItem("atlas-scale");if(sc)d.setAttribute("data-scale",sc);if(localStorage.getItem("atlas-motion")==="reduced")d.setAttribute("data-motion","reduced");}catch(e){}</script>
+<script>try{var d=document.documentElement,t=localStorage.getItem("atlas-theme");if(["light","dark"].indexOf(t)<0){t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}d.setAttribute("data-theme",t);d.setAttribute("data-level",localStorage.getItem("atlas-level")==="expert"?"expert":"simple");if(localStorage.getItem("atlas-sidebar")==="collapsed")d.setAttribute("data-sidebar","collapsed");var sc=localStorage.getItem("atlas-scale");if(sc)d.setAttribute("data-scale",sc);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500&amp;family=Spectral:wght@400;500;600&amp;display=swap" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="/static/style.css?v=12">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="/static/style.css?v=13">
 </head>
 <body>
 <div class="app-shell">
 <aside class="sidebar" id="sidebar" aria-label="Application navigation">
   <div class="side-top">
     <a href="#results" class="brand" data-view-jump="results">
-      <svg class="not-atlas brand-logo" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="2" y="2" width="24" height="24" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M11 2v24M11 14h15" stroke="currentColor" stroke-width="1.6"/></svg>
-      <svg class="only-atlas brand-logo" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.5"/><ellipse cx="14" cy="14" rx="5.5" ry="12" stroke="currentColor" stroke-width="1.2"/><path d="M2 14h24M4.6 8h18.8M4.6 20h18.8" stroke="currentColor" stroke-width="1.1"/></svg>
+      <svg class="brand-logo" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="2" y="2" width="24" height="24" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M11 2v24M11 14h15" stroke="currentColor" stroke-width="1.6"/></svg>
       <div class="brand-text">
         <span class="brand-name">ATLAS</span>
         <span class="brand-sub" id="brandSub">Structural Design Studio</span>
@@ -54,7 +53,7 @@
   <div class="side-bottom">
     <div class="side-quick">
       <div class="side-label">Appearance</div>
-      <div class="seg seg-theme side-seg" role="group" aria-label="Theme">
+      <div class="seg seg-theme side-seg two" role="group" aria-label="Theme">
         <button type="button" data-theme-pick="light" aria-pressed="false" title="Light theme">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.5 1.5M17.2 17.2l1.5 1.5M5.3 18.7l1.5-1.5M17.2 6.8l1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           <span>Light</span>
@@ -62,10 +61,6 @@
         <button type="button" data-theme-pick="dark" aria-pressed="false" title="Dark theme">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span>Dark</span>
-        </button>
-        <button type="button" data-theme-pick="atlas" aria-pressed="false" title="Atlas parchment theme">
-          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.7"/><ellipse cx="12" cy="12" rx="4.2" ry="9.5" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 12h19" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span>Atlas</span>
         </button>
       </div>
       <div class="seg seg-level side-seg two" role="group" aria-label="Detail level">
@@ -102,8 +97,6 @@
 
   <main id="view-results" class="view">
     <section class="hero">
-      <canvas class="flow not-atlas" id="flow" aria-hidden="true"></canvas>
-      <svg width="1440" height="440" viewBox="0 0 1440 440" fill="none" aria-hidden="true" class="contours only-atlas"><path d="M1303 70C1304 72 1303 75 1302 78C1301 80 1298 82 1296 84C1294 86 1292 88 1289 90C1287 91 1285 93 1282 95C1280 96 1277 98 1274 99C1271 100 1268 100 1264 101C1261 101 1258 101 1255 101C1252 101 1249 100 1245 100C1242 100 1239 101 1236 101C1232 101 1228 101 1224 101C1220 101 1216 100 1212 99C1209 98 1205 96 1203 93C1201 91 1200 88 1200 85C1200 83 1201 80 1202 77C1203 75 1204 72 1205 70C1205 68 1206 66 1207 64C1207 62 1207 59 1208 57C1209 55 1211 53 1212 51C1214 49 1216 47 1219 46C1221 44 1223 43 1226 42C1229 40 1232 39 1235 37C1238 36 1231 35 1244 34C1248 33 1252 32 1256 32C1259 33 1263 34 1267 35C1270 36 1272 38 1275 40C1277 42 1279 45 1280 47C1282 49 1284 50 1286 52C1288 54 1290 55 1293 57C1295 59 1298 61 1300 63C1302 65 1303 68 1303 70Z" stroke="#D5C5A3" stroke-width="1"></path><path d="M1374 70C1375 76 1373 82 1370 88C1367 93 1361 98 1356 103C1351 107 1345 111 1339 115C1334 118 1328 122 1322 125C1316 129 1311 132 1304 135C1297 137 1290 139 1283 140C1276 141 1268 141 1261 141C1254 142 1247 141 1239 141C1232 141 1224 142 1216 142C1208 142 1199 143 1190 142C1181 141 1171 140 1163 137C1155 134 1147 129 1143 124C1139 118 1137 111 1137 105C1136 99 1139 92 1141 86C1143 80 1146 75 1148 70C1150 65 1151 60 1152 56C1153 51 1153 46 1155 41C1157 36 1159 31 1162 26C1166 22 1171 17 1176 13C1182 10 1188 7 1194 3C1201 0 1207 -3 1215 -5C1222 -8 1229 -11 1237 -13C1245 -14 1255 -16 1263 -15C1271 -15 1280 -13 1288 -10C1295 -7 1301 -2 1306 3C1312 7 1315 12 1319 17C1324 21 1327 25 1332 29C1337 33 1343 36 1349 40C1354 44 1361 48 1365 53C1370 58 1373 64 1374 70Z" stroke="#D5C5A3" stroke-width="1"></path><path d="M1446 70C1447 79 1444 89 1439 98C1434 106 1424 114 1416 121C1407 128 1397 133 1388 139C1378 145 1370 150 1361 155C1352 160 1343 165 1333 169C1323 173 1313 177 1302 179C1291 182 1279 183 1267 183C1256 184 1245 183 1233 183C1221 184 1209 184 1196 184C1183 184 1169 185 1155 183C1141 182 1126 179 1114 175C1102 170 1090 162 1083 153C1077 145 1074 134 1074 124C1074 114 1079 104 1082 95C1085 86 1090 78 1093 70C1096 62 1097 55 1098 48C1100 40 1099 32 1101 24C1103 16 1106 8 1111 0C1116 -7 1124 -14 1132 -20C1141 -26 1151 -31 1161 -36C1172 -41 1183 -45 1194 -48C1206 -52 1218 -56 1230 -58C1243 -60 1257 -62 1270 -61C1283 -61 1297 -58 1308 -53C1319 -49 1329 -41 1338 -35C1346 -28 1352 -20 1359 -13C1365 -6 1371 -1 1379 5C1387 11 1396 16 1405 22C1414 29 1425 35 1432 43C1439 51 1445 61 1446 70Z" stroke="#D5C5A3" stroke-width="1"></path><path d="M1519 70C1520 82 1516 96 1508 108C1501 119 1487 130 1475 139C1462 148 1447 155 1434 162C1421 170 1410 176 1397 183C1385 190 1374 197 1361 203C1349 209 1335 215 1320 219C1306 223 1290 225 1274 226C1258 228 1242 228 1226 228C1210 228 1193 228 1176 228C1158 227 1139 228 1120 225C1102 222 1081 219 1065 212C1049 205 1033 194 1025 183C1016 171 1013 156 1013 143C1013 130 1019 115 1024 103C1028 91 1036 81 1039 70C1043 59 1044 50 1046 40C1047 30 1045 19 1047 8C1049 -3 1052 -16 1058 -26C1065 -37 1075 -47 1086 -55C1098 -64 1113 -70 1128 -76C1142 -82 1158 -87 1174 -91C1190 -96 1207 -100 1224 -103C1241 -105 1259 -107 1277 -106C1294 -105 1313 -101 1328 -96C1343 -90 1357 -80 1369 -72C1380 -63 1389 -52 1398 -44C1408 -35 1416 -27 1427 -19C1437 -11 1451 -4 1463 5C1475 13 1490 23 1500 33C1509 44 1517 58 1519 70Z" stroke="#C2AE86" stroke-width="1.4"></path><path d="M1592 70C1594 86 1587 104 1578 118C1568 132 1549 146 1532 157C1516 168 1496 176 1479 185C1463 194 1448 202 1433 210C1418 219 1405 228 1389 236C1373 244 1357 253 1339 259C1321 265 1301 269 1281 271C1261 274 1240 274 1219 274C1198 274 1177 274 1155 273C1132 271 1108 271 1085 267C1062 263 1036 258 1017 249C997 239 978 226 968 211C957 197 953 178 953 161C953 145 962 127 967 111C973 96 982 83 986 70C991 57 992 46 993 32C994 19 991 5 992 -9C994 -23 996 -40 1004 -53C1012 -67 1024 -81 1039 -92C1054 -102 1074 -111 1093 -118C1112 -125 1133 -130 1154 -134C1174 -139 1195 -143 1217 -146C1239 -148 1262 -150 1283 -149C1305 -147 1328 -143 1347 -137C1367 -130 1384 -119 1400 -109C1415 -98 1426 -85 1439 -74C1451 -64 1462 -53 1476 -43C1490 -33 1506 -24 1522 -13C1537 -2 1556 9 1568 23C1580 37 1591 54 1592 70Z" stroke="#D5C5A3" stroke-width="1"></path><path d="M584 500C585 507 582 514 578 520C574 526 565 531 558 536C551 540 541 543 534 547C527 551 520 554 514 558C508 563 504 568 497 573C491 578 485 584 476 589C468 593 457 598 447 600C436 601 424 601 413 600C402 599 392 596 382 592C372 589 364 585 356 580C348 576 340 572 333 567C326 562 320 558 315 552C311 547 307 541 305 535C304 529 304 522 304 517C304 511 306 506 306 500C306 494 305 489 304 483C303 477 299 470 299 464C299 457 298 448 301 442C305 435 311 428 319 423C327 418 339 415 350 413C361 411 373 412 384 412C395 412 406 414 416 414C426 415 435 415 444 416C454 416 463 416 473 418C482 419 492 420 501 423C510 426 518 430 525 434C532 438 538 443 544 448C550 453 555 458 561 464C566 469 572 475 576 481C580 487 584 493 584 500Z" stroke="#D5C5A3" stroke-width="1"></path><path d="M804 500C803 516 799 533 790 548C781 563 764 577 748 589C732 601 712 610 695 620C678 631 662 639 647 651C632 662 621 676 605 689C589 703 572 720 551 732C529 744 501 756 474 761C446 765 414 765 386 760C359 756 331 744 309 734C286 723 267 708 249 696C231 683 216 671 201 659C185 647 169 637 156 624C143 612 130 600 121 586C112 573 106 558 102 544C99 529 99 515 97 500C95 485 94 471 93 455C91 439 87 422 89 405C90 388 92 368 102 351C112 334 129 317 150 306C172 295 202 287 230 283C258 280 290 282 317 283C345 285 370 290 395 292C420 294 441 294 465 294C488 294 513 292 538 293C563 293 591 294 615 300C639 305 664 314 683 324C703 335 718 349 732 363C746 376 756 392 766 407C776 421 785 436 791 452C797 468 804 484 804 500Z" stroke="#C2AE86" stroke-width="1.4"></path></svg>
       <div class="hero-grid">
         <div>
           <div class="eyebrow" id="heroEyebrow">Stored study · validated against FEniCS</div>
@@ -190,6 +183,6 @@
 </div>
 
 <div class="tip-pop" id="tipPop" role="tooltip" hidden></div>
-<script src="/static/app.js?v=12"></script>
+<script src="/static/app.js?v=13"></script>
 </body>
 </html>

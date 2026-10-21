@@ -1463,14 +1463,17 @@ def workspace_files():
 
     result_items = []
     res_bytes = 0
+    excluded_result_prefixes = ("hard_single_material/", "multi_material/failed_candidates/", "multi_material/bimaterial/c3/")
     if STORED_RESULTS.exists():
         for p in sorted(STORED_RESULTS.rglob("*")):
             if not p.is_file():
                 continue
+            rel = p.relative_to(STORED_RESULTS).as_posix()
+            if rel.startswith(excluded_result_prefixes):
+                continue
             st = p.stat()
             res_bytes += st.st_size
             if p.suffix.lower() in (".png", ".json", ".md") and len(result_items) < 120:
-                rel = p.relative_to(STORED_RESULTS).as_posix()
                 result_items.append({
                     "path": rel,
                     "group": rel.split("/")[0],
@@ -1480,35 +1483,55 @@ def workspace_files():
                     "ext": p.suffix.lower().lstrip("."),
                 })
 
+    fenics_catalog = [
+        ("cantilever", "Cantilever beam"),
+        ("l_bracket", "L-shaped bracket"),
+        ("plate_hole", "Plate with hole"),
+        ("steel_insert", "Steel insert"),
+        ("bimaterial_c15", "Soft inclusion"),
+        ("filled_slot", "Epoxy-filled slot"),
+    ]
+    allowed_refs = dict(fenics_catalog)
     ref_groups: Dict[str, dict] = {}
     ref_bytes = 0
+    ref_suffixes = (
+        "_roi_coords.npy", "_roi_u.npy", "_roi_v.npy", "_roi_vonmises.npy",
+        "_coords.npy", "_u.npy", "_v.npy", "_vonmises.npy", "_meta.json",
+    )
     if FEM_REFERENCE_DIR.exists():
         for p in sorted(FEM_REFERENCE_DIR.iterdir()):
             if not p.is_file():
                 continue
-            st = p.stat()
-            ref_bytes += st.st_size
             stem = p.name
-            for suf in ("_coords.npy", "_u.npy", "_v.npy", "_vonmises.npy", "_meta.json"):
+            for suf in ref_suffixes:
                 if stem.endswith(suf):
                     stem = stem[: -len(suf)]
                     break
-            g = ref_groups.setdefault(stem, {"key": stem, "files": 0, "bytes": 0, "points": None, "compliance": None})
+            if stem not in allowed_refs:
+                continue
+            st = p.stat()
+            ref_bytes += st.st_size
+            g = ref_groups.setdefault(
+                stem,
+                {"key": stem, "title": allowed_refs[stem], "files": 0, "bytes": 0, "points": None, "compliance": None},
+            )
             g["files"] += 1
             g["bytes"] += st.st_size
-            if p.name.endswith("_meta.json"):
+            if p.name == f"{stem}_meta.json":
                 try:
-                    meta = json.loads(p.read_text())
+                    meta = json.loads(p.read_text(encoding="utf-8-sig"))
                     g["compliance"] = meta.get("compliance")
                     g["points"] = meta.get("n_points") or meta.get("points")
                 except Exception:
                     pass
-            elif p.name.endswith("_u.npy") and g["points"] is None:
+            elif p.name == f"{stem}_u.npy" and g["points"] is None:
                 try:
                     arr = np.load(p, mmap_mode="r")
                     g["points"] = int(arr.size)
                 except Exception:
                     pass
+
+    ordered_refs = [ref_groups[k] for k, _ in fenics_catalog if k in ref_groups]
 
     return {
         "plots": {
@@ -1525,9 +1548,9 @@ def workspace_files():
         },
         "references": {
             "path": str(FEM_REFERENCE_DIR),
-            "count": len(ref_groups),
+            "count": len(ordered_refs),
             "bytes": ref_bytes,
-            "items": list(ref_groups.values()),
+            "items": ordered_refs,
         },
     }
 

@@ -10,7 +10,7 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.4'
+$APP_VERSION = 'v1.1.5'
 $PUBLISHER   = 'ATLAS'
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
 $ZIP_URL_ALT = "https://github.com/$REPO_SLUG/archive/refs/tags/$APP_VERSION.zip"
@@ -186,6 +186,13 @@ $UninstSrc = Join-Path $InstallDir 'installer\Uninstall-ATLAS.exe'
 $UninstDst = Join-Path $InstallDir 'Uninstall-ATLAS.exe'
 if (Test-Path $UninstSrc) {
     Copy-Item -Path $UninstSrc -Destination $UninstDst -Force -ErrorAction SilentlyContinue
+}
+
+$refDir = Join-Path $InstallDir 'fem\reference'
+if (Test-Path $refDir) {
+    Get-ChildItem -Path $refDir -File -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -notmatch '^(cantilever|l_bracket|plate_hole|steel_insert|bimaterial_c15|filled_slot)_'
+    } | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 try {
@@ -409,7 +416,7 @@ if ($MakeStart) {
 $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ATLASDesktopStudio'
 if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 Set-ItemProperty -Path $regPath -Name 'DisplayName'          -Value 'ATLAS Desktop Studio'
-Set-ItemProperty -Path $regPath -Name 'DisplayVersion'       -Value '1.1.4'
+Set-ItemProperty -Path $regPath -Name 'DisplayVersion'       -Value '1.1.5'
 Set-ItemProperty -Path $regPath -Name 'Publisher'            -Value $PUBLISHER
 Set-ItemProperty -Path $regPath -Name 'InstallLocation'      -Value $InstallDir
 Set-ItemProperty -Path $regPath -Name 'DisplayIcon'          -Value "$appExe,0"

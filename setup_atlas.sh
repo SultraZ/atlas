@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.5"
+APP_VERSION="v1.1.5B"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
@@ -18,6 +18,7 @@ else
 fi
 
 AUTO_MODE=0
+UPDATE_MODE=0
 WITH_FENICS=0
 NO_LAUNCH=0
 DEVICE_PREF="auto"
@@ -26,6 +27,7 @@ TARGET_DIR="${DEFAULT_DIR}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --auto|--unattended|-y) AUTO_MODE=1 ;;
+        --update|-u)            UPDATE_MODE=1 ;;
         --with-fenics)          WITH_FENICS=1 ;;
         --no-launch)            NO_LAUNCH=1 ;;
         --device)               DEVICE_PREF="${2:-auto}"; shift ;;
@@ -63,7 +65,13 @@ if [ "${AUTO_MODE}" -eq 0 ] && [ "${OS_NAME}" = "Linux" ]; then
 fi
 
 mkdir -p "${TARGET_DIR}"
-if [ ! -f "${TARGET_DIR}/webapp/desktop.py" ]; then
+if [ "${UPDATE_MODE}" -eq 1 ] || [ ! -f "${TARGET_DIR}/webapp/desktop.py" ]; then
+    NEED_DOWNLOAD=1
+else
+    NEED_DOWNLOAD=0
+fi
+
+if [ "${NEED_DOWNLOAD}" -eq 1 ]; then
     echo ""
     echo "[1/5] Downloading ATLAS Desktop Studio release package..."
     TMP_ZIP="$(mktemp /tmp/atlas_release_XXXXXX.zip)"
@@ -83,6 +91,14 @@ fi
 
 chmod +x "${TARGET_DIR}/launch_atlas.sh" "${TARGET_DIR}/webapp/desktop.py" 2>/dev/null || true
 
+FAST_SKIP=0
+if [ "${UPDATE_MODE}" -eq 1 ] && [ -x "${TARGET_DIR}/.venv/bin/python" ]; then
+    if "${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/verify_install.py" >/dev/null 2>&1; then
+        FAST_SKIP=1
+        echo "[2/5] Verified existing .venv — fast-skipping package downloads!"
+    fi
+fi
+
 PY_BIN=""
 for cand in python3.11 python3.12 python3.10 python3; do
     if command -v "${cand}" >/dev/null 2>&1; then
@@ -98,28 +114,30 @@ if [ -z "${PY_BIN}" ]; then
     exit 1
 fi
 
-echo "[2/5] Setting up isolated Python environment (${PY_BIN})..."
-if [ ! -x "${TARGET_DIR}/.venv/bin/python" ]; then
-    "${PY_BIN}" -m venv "${TARGET_DIR}/.venv"
-fi
-"${TARGET_DIR}/.venv/bin/python" -m pip install --upgrade pip wheel -q
-
-echo "[3/5] Installing PyTorch & ATLAS dependencies..."
-if [ "${OS_NAME}" = "Linux" ] && [ "${HAS_NVIDIA}" -eq 1 ] && [ "${DEVICE_PREF}" != "cpu" ]; then
-    if ! "${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/check_cuda.py" >/dev/null 2>&1; then
-        "${TARGET_DIR}/.venv/bin/python" -m pip uninstall -y torch >/dev/null 2>&1 || true
-        "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu128 || \
-            "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu130 || \
-            "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+if [ "${FAST_SKIP}" -eq 0 ]; then
+    echo "[2/5] Setting up isolated Python environment (${PY_BIN})..."
+    if [ ! -x "${TARGET_DIR}/.venv/bin/python" ]; then
+        "${PY_BIN}" -m venv "${TARGET_DIR}/.venv"
     fi
-elif [ "${OS_NAME}" = "Linux" ] && [ "${DEVICE_PREF}" != "cuda" ]; then
-    "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu || \
+    "${TARGET_DIR}/.venv/bin/python" -m pip install --upgrade pip wheel -q
+
+    echo "[3/5] Installing PyTorch & ATLAS dependencies..."
+    if [ "${OS_NAME}" = "Linux" ] && [ "${HAS_NVIDIA}" -eq 1 ] && [ "${DEVICE_PREF}" != "cpu" ]; then
+        if ! "${TARGET_DIR}/.venv/bin/python" "${TARGET_DIR}/installer/check_cuda.py" >/dev/null 2>&1; then
+            "${TARGET_DIR}/.venv/bin/python" -m pip uninstall -y torch >/dev/null 2>&1 || true
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu128 || \
+                "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cu130 || \
+                "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+        fi
+    elif [ "${OS_NAME}" = "Linux" ] && [ "${DEVICE_PREF}" != "cuda" ]; then
+        "${TARGET_DIR}/.venv/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu || \
+            "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    else
         "${TARGET_DIR}/.venv/bin/python" -m pip install torch
-else
-    "${TARGET_DIR}/.venv/bin/python" -m pip install torch
+    fi
+    "${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary -r "${TARGET_DIR}/requirements.txt"
+    "${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary "pywebview>=5.0" || true
 fi
-"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary -r "${TARGET_DIR}/requirements.txt"
-"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary "pywebview>=5.0" || true
 
 if [ "${WITH_FENICS}" -eq 1 ] && [ "${OS_NAME}" = "Linux" ]; then
     echo "[4/5] Configuring Miniconda 'Atlas' environment with genuine FEniCS 2019.1.0..."

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO_SLUG="SultraZ/atlas"
-APP_VERSION="v1.1.0"
+APP_VERSION="v1.1.1"
 ZIP_URL_PRI="https://github.com/${REPO_SLUG}/releases/latest/download/ATLAS-Desktop-Studio.zip"
 ZIP_URL_ALT="https://github.com/${REPO_SLUG}/archive/refs/tags/${APP_VERSION}.zip"
 
@@ -114,7 +114,8 @@ elif [ "${OS_NAME}" = "Linux" ] && [ "${DEVICE_PREF}" != "cuda" ]; then
 else
     "${TARGET_DIR}/.venv/bin/python" -m pip install torch
 fi
-"${TARGET_DIR}/.venv/bin/python" -m pip install -r "${TARGET_DIR}/requirements.txt"
+"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary -r "${TARGET_DIR}/requirements.txt"
+"${TARGET_DIR}/.venv/bin/python" -m pip install --prefer-binary "pywebview>=5.0" || true
 
 if [ "${WITH_FENICS}" -eq 1 ] && [ "${OS_NAME}" = "Linux" ]; then
     echo "[4/5] Configuring Miniconda 'Atlas' environment with genuine FEniCS 2019.1.0..."

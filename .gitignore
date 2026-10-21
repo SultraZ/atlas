@@ -3,13 +3,23 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ipynb_checkpoints/
+.venv/
 
 # editors / OS
 *.swp
 .DS_Store
 
-# per-job plots written by the live web console (regenerated on every run)
+# per-job plots and local app preferences written by the console / desktop app
 webapp/static/plots/
+webapp/.app_settings.json
+
+# locally built PyInstaller bundles / build artifacts (official root EXEs remain tracked)
+*.spec
+build/
+dist/
+!ATLAS-Setup.exe
+!ATLAS.exe
+!installer/Uninstall-ATLAS.exe
 
 # local documents (paper drafts), not versioned
 docs/

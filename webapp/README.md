@@ -1,58 +1,111 @@
-# ATLAS Web Console
+# ATLAS Desktop Application & Web Console
 
-Two views in one page, with a light, dark or Atlas theme. A Simple / Expert switch sets the level of detail:
-Simple (the default) explains every result in plain words, with "?" tips for each term and a material picker;
-Expert shows the full metrics and solver settings. Both choices are kept in the browser.
+Standalone local application wrapping the full **ATLAS / ATLAS-XPINN** deep-energy solver alongside
+**dual selectable FEM validation engines** — genuine **FEniCS 2019.1.0** (`dolfin` + `mshr` in `fem/`,
+untouched) for WSL2/Linux AND a **Built-in Cross-Platform P2 FEM solver** (`atlas/native_fem.py`,
+pure Python + SciPy, working natively on Windows/macOS/Linux without WSL) — inside a modern left-rail
+desktop studio interface (`pywebview`, Windows Edge/Chrome app-mode from WSL2, or local browser).
 
-- **Results**: the stored study in `results/`, read through `/api/results`. The three paper
-  benchmarks (ATLAS-XPINN, the single-network ATLAS solver and two DeepXDE PINN baselines against
-  FEniCS, five-seed repeatability, inverse design) and the three multi-material benchmarks
-  (ATLAS-XPINN against a single network and a parameter-matched one, interface-band errors, five
-  seeds). Nothing is retrained in the browser.
-- **Live solver**: runs ATLAS-XPINN on the server for any of the six benchmarks and validates it
-  against FEniCS, or runs an inverse design on a paper benchmark. Each benchmark's materials, load
-  and key dimension can be changed with sliders (with a live geometry preview). At the study's
-  settings a run is scored against the stored reference; at any other settings the server first
-  solves a FEniCS reference for exactly those inputs (`fem/fem_live.py`, a few seconds). A forward
-  run shows the displacement and stress against FEM, the deformed shape and the training curve. An
-  inverse design starts from the chosen settings (for the cantilever and the plate, the height or
-  radius on the sliders is the starting shape) and FEniCS checks the design it finds. The solver
-  log, the pipeline steps and a live energy-descent chart update while the job runs; jobs run one at
-  a time and queue.
+Four workspace views in the collapsible left sidebar, with **Light**, **Dark**, and **Atlas** themes,
+**Compact / Default / Large** interface scaling, and **Simple / Expert** mode:
 
-## Run
+- **Results**: reads the stored study in `results/` via `/api/results` (all three single-material
+  benchmarks with ATLAS-XPINN, single-network ATLAS, and two DeepXDE PINN baselines against FEniCS,
+  5-seed repeatability, inverse design, plus all three multi-material benchmarks with interface-band
+  errors). Works completely offline with zero GPU retraining needed.
+- **Live Solver**: trains **ATLAS-XPINN** or **ATLAS (single network)** locally on **GPU (`cuda`)**,
+  **CPU (`cpu`)**, or **Auto**, validates against your chosen FEM backend (stored FEniCS reference at
+  study inputs, or live on-demand solve via **FEniCS** OR **Built-in P2 FEM** for custom sliders and
+  inverse shape checks).
+- **Folder & Files**: browse generated figures (`webapp/backend/plots`), completed run JSON records,
+  study figures (`results/`), and precomputed FEniCS references (`fem/reference/`), and open any local
+  folder directly in Windows Explorer / macOS Finder / Linux file manager.
+- **Settings**: dedicated studio page for **Theme (`Light` / `Dark` / `Atlas`)**, **UI Scale**,
+  **Simple / Expert** detail mode, **Compute Device (`Auto` / `GPU` / `CPU` + threads)**, and
+  **FEM Engine (`Auto` / `FEniCS WSL2·Linux` / `Built-in Cross-Platform P2 FEM`)** with a 1-click
+  cantilever verification test.
 
+## Adjustable Runtime & Solver Settings
+
+- **Compute & Hardware (`Settings` drawer & left rail)**:
+  - Switch compute device at any time between **Auto**, **GPU (`cuda`)**, and **CPU (`cpu`)**.
+  - Live hardware telemetry (GPU model, VRAM, CUDA version, FEniCS availability, CPU logical cores,
+    PyTorch version, plot storage size).
+  - Adjustable **PyTorch CPU thread count**, **figure export resolution** (`100 / 150 / 220 / 300 DPI`),
+    **live polling cadence** (`0.8 s / 1.5 s / 3.0 s`), **CUDA memory cache release**, **plot folder
+    opener**, and **run history / plot storage cleanup** (persisted to `webapp/.app_settings.json`).
+- **Solver & Design Controls (`Live solver` rail)**:
+  - **Solver architecture**: switch between domain-decomposed `ATLAS-XPINN` and single-network `ATLAS`.
+  - **Network size & presets**: `3×32 Fast`, `4×64 Study`, `4×91 Wide`, `5×128 Deep`, or custom hidden
+    layers (`2–8`) and width (`16–256`), plus floating-point precision (`float64` study / `float32` faster).
+  - **Optimizer & coupling**: Adam epochs (`50–40000`), L-BFGS steps (`0–8000`), learning rate, seed
+    (`42–46` quick study seeds or custom), XPINN warm-start steps, augmented-Lagrangian stages, and
+    interface penalties (`γ_u`, `γ_t`).
+  - **Inverse design**: selectable objective (`compliance`, `peak_vm`, `volume`), target ratio vs
+    baseline (`0.30×–1.60×` slider or numeric `0.10×–5.00×`), max outer design iterations, and inner
+    forward L-BFGS steps.
+  - **Run control**: cooperative **Stop** button on active runs and one-click **JSON metrics export**
+    on completed runs.
+
+## Launch
+
+### 1. One-Click Desktop Launch
+- **Windows** (supports WSL2 `Atlas` conda env seamlessly via `\\wsl.localhost\...` or native Python):
+  ```bat
+  :: Option A — run directly:
+  ATLAS.bat
+
+  :: Option B — generate a real native ATLAS.exe (with custom icon, Taskbar support, no console popup):
+  build_exe.bat
+  ATLAS.exe
+
+  :: Option C — build a full PyInstaller bundle (dist\ATLAS\ATLAS.exe) for PCs without Python:
+  build_exe.bat --standalone
+  ```
+- **Linux / WSLg / macOS**:
+  ```bash
+  ./launch_atlas.sh
+  ```
+
+### 2. CLI Options (`webapp/desktop.py`)
 ```bash
-cd webapp/backend
-/home/sultra/miniconda3/envs/Atlas/bin/python app.py
-```
+# Auto-pick native window shell (pywebview -> WSL2 Windows app window -> OS app window -> browser)
+python webapp/desktop.py
 
-Open http://localhost:8000/. No build step: `frontend/` is plain HTML, CSS and JavaScript.
+# Pin CPU or GPU mode and CPU thread count at startup
+python webapp/desktop.py --device cpu --threads 8
+python webapp/desktop.py --device cuda
+
+# Open directly on the Live Solver tab
+python webapp/desktop.py --live
+
+# Headless / browser server mode
+python webapp/desktop.py --no-window --host 0.0.0.0 --port 8000
+```
 
 ## API
 
-| method | path | |
+| method | path | description |
 |---|---|---|
-| GET | `/api/results` | stored study: per benchmark, solver errors, params and train times, seed statistics, inverse design, figure URLs under `/results/` |
-| GET | `/api/benchmarks` | benchmark metadata for the live solver: adjustable parameters (label, unit, study value, range), subdomains, network, inverse-design parameter; the L-BFGS budget and seed |
-| GET | `/api/health` | device, torch version, active jobs |
-| POST | `/api/forward` | `{benchmark, formulation: "energy_xpinn" \| "energy", epochs, lbfgs, params}`; `lbfgs` is at most 8000 (use multiples of 400); `params` overrides the study settings (see `/api/benchmarks`); the UI always sends `energy_xpinn` |
-| POST | `/api/inverse` | `{benchmark, params}` for cantilever, l_bracket or plate_hole: the ATLAS-XPINN design loop starting from the given settings (study settings when `params` is omitted), then a FEniCS check of the design (`fem/fem_parametric.py --check`) |
-| GET | `/api/jobs` | recent jobs (without logs) |
-| GET | `/api/jobs/{id}` | status, `stage` (setup, train, predict, validate, plots), streaming log, `progress` (energy per evaluation), `custom` flag, metrics, plot URLs |
-
-A live forward run uses seed 42 and the given Adam epochs and L-BFGS iterations. The default
-(2000 + 2000) is exactly the configuration of the stored seed-42 run (GPU arithmetic can still differ
-in the last digits). The Simple view's run-length slider picks 20, 40, 60, 80 or 100 % of that budget;
-the Expert view also accepts longer L-BFGS budgets, up to 8000.
-L-BFGS runs in four augmented-Lagrangian stages of whole 100-step chunks, so budgets are multiples of
-400; others are rounded up per stage. Shorter runs are faster and less accurate: at 20 % (400 + 400)
-the plate with a hole took 96 s and gave 5.9 % displacement and 10.0 % von Mises error, against
-0.75 % and 3.4 % for the full run.
+| GET | `/api/results` | Stored study results, 5-seed statistics, inverse designs, and `/results/*` figure URLs |
+| GET | `/api/benchmarks` | Benchmark metadata, geometry/material/load sliders, defaults, and inverse design specs |
+| GET | `/api/health` | Active compute device, GPU/CPU hardware info, FEniCS availability, storage stats, settings |
+| GET | `/api/settings` | Current persisted runtime settings (`device`, `cpu_threads`, `plot_dpi`, `poll_ms`, `auto_open_log`) |
+| POST | `/api/settings` | Update and persist runtime settings (applies CPU thread count and default device immediately) |
+| POST | `/api/cuda/clear` | Call `torch.cuda.empty_cache()` and return refreshed hardware telemetry |
+| POST | `/api/open-plots` | Open `webapp/static/plots/` in the desktop file manager (Windows Explorer in WSL2, Finder, `xdg-open`) |
+| POST | `/api/forward` | Queue a live forward solve + FEniCS validation (`device`, `formulation`, network/AL/optimizer params) |
+| POST | `/api/inverse` | Queue an inverse shape design + FEniCS verification (`device`, `metric`, `target_ratio`, `n_outer`, etc.) |
+| GET | `/api/jobs` | Recent jobs summary |
+| GET | `/api/jobs/{id}` | Job status, stage, live log, energy descent history, solver config, validation metrics, plot URLs |
+| POST | `/api/jobs/{id}/cancel` | Cooperatively stop a queued or running job |
+| GET | `/api/jobs/{id}/export` | Download JSON report of a job's configuration, runtime hardware, and FEniCS validation metrics |
+| POST | `/api/jobs/clear` | Clear finished job history and remove generated plot files in `webapp/static/plots/` |
 
 ## Layout
 
     webapp/
-      backend/app.py     FastAPI app and job runner (parameterised problems: atlas/live.py)
-      frontend/          index.html, style.css, app.js
-      static/plots/      figures written by live jobs (not versioned)
+      desktop.py         Standalone desktop window & backend process launcher
+      backend/app.py     FastAPI backend, settings manager, and background solver runner
+      frontend/          index.html, style.css, app.js, icon.svg (no build step required)
+      static/plots/      Figures written by live jobs (gitignored)

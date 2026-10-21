@@ -1,7 +1,25 @@
 # ATLAS — Adaptive Multi-Scale Framework for Structural Design
 
 Deep-energy (Ritz) forward solver, domain-decomposed as **ATLAS-XPINN**, with inverse shape design
-and FEM (FEniCS) validation.
+and dual selectable finite-element validation (**genuine FEniCS 2019.1.0** + **Built-in Cross-Platform `P2` FEM**).
+
+## Download & Install (GitHub Releases)
+
+Grab the latest standalone **ATLAS Desktop Studio (`v1.1.0` — Published by `ATLAS`)** directly from **[GitHub Releases](https://github.com/SultraZ/atlas/releases/latest)**:
+
+- **Full Complete Package (`.zip` — Includes Native `ATLAS-Setup.exe` & `ATLAS.exe`)**: **[Download `ATLAS-v1.1.0.zip`](https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.0.zip)**
+  - Extract the `.zip` archive and double-click **`ATLAS-Setup.exe`** *(Native Win32 GUI Installer — Publisher/Author: `ATLAS`)*.
+- **Windows Native GUI Installer (`ATLAS-Setup.exe`)**: **[Download `ATLAS-Setup.exe`](https://github.com/SultraZ/atlas/raw/v1.1.0/ATLAS-Setup.exe)**
+  - Real Windows x64 GUI Installer (`Publisher: ATLAS`) — lets you choose **Standard Cross-Platform Edition *(No WSL needed — GPU/CPU + Built-in P2 FEM)*** or **Full FEniCS Edition *(WSL2 + FEniCS 2019.1.0)***, installs `ATLAS.exe`, registers in *Windows Settings → Installed Apps*, and adds **Desktop & Start Menu shortcuts**.
+- **macOS & Linux (1-Line Guided Installer)**:
+  ```bash
+  curl -fsSL https://github.com/SultraZ/atlas/raw/v1.1.0/setup_atlas.sh | bash
+  ```
+- **Rebuild Windows Executables / Publish a New Release Anytime**:
+  ```bash
+  python scripts/build_windows_exes.py
+  python scripts/create_release.py --version v1.1.0 --publish
+  ```
 
 ## Layout
 
@@ -14,7 +32,8 @@ atlas_main/
 │   │                        (augmented Lagrangian, warm start)
 │   ├── energy_design.py, energy_xpinn_design.py   inverse design on the energy solvers
 │   ├── benchmarks/          the extra benchmarks (multi-material and hard single-material)
-│   ├── live.py              parameterised ATLAS-XPINN problems for the web console's live solver
+│   ├── live.py              parameterised ATLAS / ATLAS-XPINN problems for the live solver
+│   ├── native_fem.py        built-in cross-platform P2 FEM solver (pure Python + SciPy)
 │   ├── physics.py, validation.py, visualization.py, paths.py, ...
 │   └── atlas_main.py        interactive CLI (train / validate / inverse design)
 ├── scripts/
@@ -30,7 +49,12 @@ atlas_main/
 │   ├── fem_live.py          on-demand FEniCS reference for any live-solver settings
 │   └── reference/           FEM references (.npy / .json) the scripts score against
 ├── tests/                   test scripts (run each with python) + validation drivers
-├── webapp/                  FastAPI console (results viewer + live solver)
+├── webapp/                  Desktop app & FastAPI console (results viewer + live solver)
+│   └── desktop.py           Standalone desktop launcher (native window + local backend)
+├── launch_atlas.sh          Linux / WSL2 / macOS desktop launcher
+├── setup_atlas.sh           macOS / Linux guided installer
+├── ATLAS-Setup.exe          Native Win32 GUI Setup Wizard (Publisher: ATLAS)
+├── ATLAS.exe                Native Win32 Desktop Studio application launcher (Publisher: ATLAS)
 └── results/                 all study outputs; index in results/README.md
 ```
 
@@ -53,14 +77,25 @@ python scripts/multi_material/make_report.py --bench steel_insert
 # tests
 python tests/test_smoke.py
 python tests/test_energy_solver.py
+python tests/test_desktop_app.py
 
-# web console
-cd webapp/backend && python app.py        # then open http://localhost:8000/
+# standalone desktop application (opens a dedicated native desktop window)
+./launch_atlas.sh                              # Linux / WSL2 / macOS
+python webapp/desktop.py --device auto         # or --device cuda / --device cpu --threads 8
+# on Windows (double-click ATLAS.bat, or build a native icon-stamped ATLAS.exe in ~1 second):
+build_exe.bat                                  # builds ATLAS.exe (uses built-in Windows compiler, 0 downloads)
+build_exe.bat --standalone                     # optional: bundles Python + PyTorch into dist\ATLAS\ATLAS.exe
+ATLAS.exe                                      # or double-click ATLAS.bat directly
+
+# local browser / headless server mode
+python webapp/desktop.py --no-window --port 8000   # or: cd webapp/backend && python app.py
 ```
 
-FEniCS references need the legacy FEniCS 2019.1.0 env on `PATH`
-(`PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/<benchmark>_fenics.py`); see
-`fem/fenics_scripts/README.md`. WSL has about 3 GB of RAM: keep FEM meshes near or below
+FEniCS references use either the legacy FEniCS 2019.1.0 env on `PATH`
+(`PATH=$CONDA_PREFIX/bin:$PATH python fem/fenics_scripts/<benchmark>_fenics.py`; see
+`fem/fenics_scripts/README.md`) **or** the built-in cross-platform `P2` FEM engine
+(`atlas/native_fem.py`, pure Python + SciPy — selectable in the desktop **Settings** view on
+machines without WSL2/FEniCS). WSL has about 3 GB of RAM: keep FEM meshes near or below
 120k P2 cells.
 
 ## Results in one paragraph

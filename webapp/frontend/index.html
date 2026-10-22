@@ -8,7 +8,7 @@
 <script>try{var d=document.documentElement,t=localStorage.getItem("atlas-theme");if(["light","dark"].indexOf(t)<0){t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}d.setAttribute("data-theme",t);d.setAttribute("data-level",localStorage.getItem("atlas-level")==="expert"?"expert":"simple");if(localStorage.getItem("atlas-sidebar")==="collapsed")d.setAttribute("data-sidebar","collapsed");var sc=localStorage.getItem("atlas-scale");if(sc)d.setAttribute("data-scale",sc);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <link rel="stylesheet" href="/static/style.css?v=16">
 </head>
 <body>
@@ -79,13 +79,20 @@
 
   <main id="view-results" class="view">
     <section class="hero">
-      <div class="hero-grid">
-        <div>
-          <div class="eyebrow" id="heroEyebrow">Stored study · validated against FEniCS</div>
-          <h1 id="heroTitle">Loading the stored study…</h1>
-          <p id="heroLead">Relative L² error of displacement and von Mises stress against FEniCS reference solutions. Every number on this page is read from the stored study in results/ — nothing is retrained in the browser.</p>
-        </div>
-        <div class="kpis" id="heroKpis"></div>
+      <div class="hero-grid" style="padding: 24px var(--gutter); border-bottom: 1px solid var(--line); background: var(--surface);">
+  <div>
+    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+      <span class="badge" style="background: var(--inset); color: var(--ink2); border: 1px solid var(--line); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-family: var(--font-mono);">SOLID MECHANICS BENCHMARK</span>
+      <span class="badge" style="background: var(--chip-done-bg); color: var(--chip-done-fg); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-family: var(--font-mono);">FEniCS 2019.1.0 VERIFIED</span>
+    </div>
+    <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 8px; color: var(--ink);">
+      Computational Solid Mechanics Benchmarks
+    </h1>
+    <p style="font-size: 13.5px; color: var(--ink2); margin: 0; max-width: 680px; line-height: 1.5;">
+      Direct variational minimization of the hyperelastic strain energy functional <code style="font-family: var(--font-mono); background: var(--inset); padding: 1px 4px;">Π[u] = ∫ ½ ε:C:ε dΩ - ∫ t·u dΓ</code> validated against high-order Lagrange P2 finite-element reference solutions.
+    </p>
+  </div>
+</div>
       </div>
     </section>
     <section class="benches" id="benches" aria-label="Benchmark"></section>

@@ -80,7 +80,7 @@ static void refresh_dest_status(BOOL updateLog) {
     if (g_hStatusHint) {
         SetWindowTextW(g_hStatusHint,
             exists ? L"Existing install found — click Update"
-                   : L"Version 1.1.6  \x2022  Published by ATLAS");
+                   : L"Version 1.1.7  \x2022  Published by ATLAS");
     }
     if (g_hBtnUpdate && g_hBtnInstall) {
         SendMessageW(g_hBtnUpdate,  BM_SETSTYLE, exists ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON, TRUE);
@@ -93,7 +93,7 @@ static void refresh_dest_status(BOOL updateLog) {
                 L"Click 'Update' for a fast in-place update (keeps your CUDA/Python environment), or 'Install ATLAS' for full setup.");
         } else {
             SetWindowTextW(g_hLog,
-                L"Ready to install ATLAS Desktop Studio v1.1.6 (Published by ATLAS).\r\n"
+                L"Ready to install ATLAS Desktop Studio v1.1.7 (Published by ATLAS).\r\n"
                 L"Click 'Install ATLAS' for first-time setup, or 'Update' to update an existing installation.");
         }
     }
@@ -325,8 +325,8 @@ static void start_installation(BOOL isUpdate) {
     SendMessageW(g_hProg, PBM_SETPOS, 2, 0);
 
     append_log_line(isUpdate
-        ? L"Starting ATLAS Desktop Studio Update (v1.1.6 — Publisher: ATLAS)..."
-        : L"Starting ATLAS Desktop Studio Setup Wizard (v1.1.6 — Publisher: ATLAS)...");
+        ? L"Starting ATLAS Desktop Studio Update (v1.1.7 — Publisher: ATLAS)..."
+        : L"Starting ATLAS Desktop Studio Setup Wizard (v1.1.7 — Publisher: ATLAS)...");
     HANDLE hThread = CreateThread(NULL, 0, install_worker_thread, p, 0, NULL);
     if (hThread) CloseHandle(hThread);
 }
@@ -442,7 +442,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SendMessageW(g_hLog, WM_SETFONT, (WPARAM)g_fMono, TRUE);
 
         g_hStatusHint = CreateWindowExW(0, L"STATIC",
-            L"Version 1.1.6  \x2022  Published by ATLAS",
+            L"Version 1.1.7  \x2022  Published by ATLAS",
             WS_CHILD | WS_VISIBLE,
             SX(24), SX(540), SX(242), SX(20), hwnd, NULL, NULL, NULL);
         SendMessageW(g_hStatusHint, WM_SETFONT, (WPARAM)g_fSmall, TRUE);
@@ -493,7 +493,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SelectObject(hdc, g_fSub);
         SetTextColor(hdc, RGB(148, 163, 184));
         RECT rcS = { SX(75), SX(42), SX(650), SX(66) };
-        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.6   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
+        DrawTextW(hdc, L"Publisher: ATLAS   \x2022   Version 1.1.7   \x2022   Deep-Energy & Dual FEM Suite", -1, &rcS, DT_LEFT | DT_SINGLELINE);
         SelectObject(hdc, oldF);
 
         EndPaint(hwnd, &ps);
@@ -697,7 +697,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR lpCmdLine, int nShow
 
     g_hWnd = CreateWindowExW(
         0, L"AtlasSetupWizardWnd",
-        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.6",
+        L"ATLAS Setup Wizard  —  ATLAS Desktop Studio v1.1.7",
         style,
         (scrW - winW) / 2, (scrH - winH) / 2, winW, winH,
         NULL, NULL, hInst, NULL

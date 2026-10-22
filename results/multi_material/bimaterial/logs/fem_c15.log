@@ -1,9 +1,0 @@
-Calling FFC just-in-time (JIT) compiler, this may take some time.
-Calling FFC just-in-time (JIT) compiler, this may take some time.
-Calling FFC just-in-time (JIT) compiler, this may take some time.
-Calling FFC just-in-time (JIT) compiler, this may take some time.
-levels=2: cells=34326  compliance 1.9923955344e+01  peak vM near the interface 2.737945e+06
-levels=3: cells=110282  compliance 1.9923955365e+01  peak vM near the interface 2.737920e+06
-change between the last two levels: compliance 1.06e-09, interface-band von Mises L2 1.77e-04, peak 9.13e-06
-inclusion stress at (0.05, 0.05): sxx/sigma = 0.1829, syy/sigma = -0.0105   (infinite-plate Goodier solution 0.1748, -0.0053)
-saved 40385 main points and 7417 interface-band points; max |u| = 1.0456e-05, max |v| = 3.4209e-06

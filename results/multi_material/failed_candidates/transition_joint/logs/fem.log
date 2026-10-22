@@ -1,4 +1,0 @@
-level 1: cells=21625  compliance 1.8840083138e+01
-level 2: cells=86114  compliance 1.8839243945e+01
-change between levels: compliance 4.45e-05, displacement L2 7.53e-05, von Mises L2 (> 0.1 m from the singular point) 1.04e-03
-saved 20264 main points and 6024 bond-line band points

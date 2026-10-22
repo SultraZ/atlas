@@ -1,5 +1,0 @@
-levels=2: cells=34326  compliance 1.9461505199e+01  peak vM near the interface 1.819611e+06
-levels=3: cells=110282  compliance 1.9461505204e+01  peak vM near the interface 1.819580e+06
-change between the last two levels: compliance 2.40e-10, interface-band von Mises L2 8.85e-05, peak 1.70e-05
-inclusion stress at (0.05, 0.05): sxx/sigma = 0.6099, syy/sigma = -0.0167   (infinite-plate Goodier solution 0.5971, -0.0089)
-saved 40385 main points and 7417 interface-band points; max |u| = 9.9606e-06, max |v| = 3.1129e-06

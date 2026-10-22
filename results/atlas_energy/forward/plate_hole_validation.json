@@ -27,5 +27,6 @@
   "seed": 42,
   "epochs": 2000,
   "lbfgs_iters": 1500,
-  "train_seconds": 448.1
+  "train_seconds": 448.1,
+  "params": 12802
 }

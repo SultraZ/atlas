@@ -456,17 +456,6 @@ def materials(bench: str):
     return [dict(name="Steel plate", E=mod.E_ST, nu=mod.NU_ST), dict(name="Epoxy filler", E=mod.E_EP, nu=mod.NU_EP)]
 
 
-@lru_cache(maxsize=None)
-def saved_param_count(path: str) -> Optional[int]:
-    try:
-        import torch
-        sd = torch.load(path, map_location="cpu", weights_only=False)
-        sd = sd.state_dict() if hasattr(sd, "state_dict") else sd
-        return int(sum(v.numel() for k, v in sd.items() if hasattr(v, "numel") and not k.split(".")[-1].startswith("_")))
-    except Exception:
-        return None
-
-
 def bench_meta(bench: str) -> dict:
     m = dict(META[bench], key=bench, group="paper" if bench in PAPER else "multi",
              subdomains=subdomain_count(bench), materials=materials(bench),
@@ -1268,7 +1257,7 @@ def _paper_results(b: str) -> dict:
 
     return dict(
         solvers=dict(atlas_xpinn=solver(xf),
-                     atlas=solver(af, saved_param_count(str(STORED_RESULTS / "atlas_energy" / "forward" / f"{b}_model.pt"))),
+                     atlas=solver(af),
                      deepxde=solver(dd), deepxde_configured=solver(dc)),
         seeds=dict(atlas_xpinn=seeds(_load("atlas_xpinn_energy", "repeatability", b, "summary.json")),
                    atlas=seeds(_load("atlas_energy", "repeatability", b, "summary.json"))),
@@ -1461,96 +1450,12 @@ def workspace_files():
                 "is_image": p.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg", ".webp"),
             })
 
-    result_items = []
-    res_bytes = 0
-    excluded_result_prefixes = ("hard_single_material/", "multi_material/failed_candidates/", "multi_material/bimaterial/c3/")
-    if STORED_RESULTS.exists():
-        for p in sorted(STORED_RESULTS.rglob("*")):
-            if not p.is_file():
-                continue
-            rel = p.relative_to(STORED_RESULTS).as_posix()
-            if rel.startswith(excluded_result_prefixes):
-                continue
-            st = p.stat()
-            res_bytes += st.st_size
-            if p.suffix.lower() in (".png", ".json", ".md") and len(result_items) < 120:
-                result_items.append({
-                    "path": rel,
-                    "group": rel.split("/")[0],
-                    "url": f"/results/{rel}",
-                    "bytes": st.st_size,
-                    "is_image": p.suffix.lower() == ".png",
-                    "ext": p.suffix.lower().lstrip("."),
-                })
-
-    fenics_catalog = [
-        ("cantilever", "Cantilever beam"),
-        ("l_bracket", "L-shaped bracket"),
-        ("plate_hole", "Plate with hole"),
-        ("steel_insert", "Steel insert"),
-        ("bimaterial_c15", "Soft inclusion"),
-        ("filled_slot", "Epoxy-filled slot"),
-    ]
-    allowed_refs = dict(fenics_catalog)
-    ref_groups: Dict[str, dict] = {}
-    ref_bytes = 0
-    ref_suffixes = (
-        "_roi_coords.npy", "_roi_u.npy", "_roi_v.npy", "_roi_vonmises.npy",
-        "_coords.npy", "_u.npy", "_v.npy", "_vonmises.npy", "_meta.json",
-    )
-    if FEM_REFERENCE_DIR.exists():
-        for p in sorted(FEM_REFERENCE_DIR.iterdir()):
-            if not p.is_file():
-                continue
-            stem = p.name
-            for suf in ref_suffixes:
-                if stem.endswith(suf):
-                    stem = stem[: -len(suf)]
-                    break
-            if stem not in allowed_refs:
-                continue
-            st = p.stat()
-            ref_bytes += st.st_size
-            g = ref_groups.setdefault(
-                stem,
-                {"key": stem, "title": allowed_refs[stem], "files": 0, "bytes": 0, "points": None, "compliance": None},
-            )
-            g["files"] += 1
-            g["bytes"] += st.st_size
-            if p.name == f"{stem}_meta.json":
-                try:
-                    meta = json.loads(p.read_text(encoding="utf-8-sig"))
-                    g["compliance"] = meta.get("compliance")
-                    g["points"] = meta.get("n_points") or meta.get("points")
-                except Exception:
-                    pass
-            elif p.name == f"{stem}_u.npy" and g["points"] is None:
-                try:
-                    arr = np.load(p, mmap_mode="r")
-                    g["points"] = int(arr.size)
-                except Exception:
-                    pass
-
-    ordered_refs = [ref_groups[k] for k, _ in fenics_catalog if k in ref_groups]
-
     return {
         "plots": {
             "path": str(PLOTS_DIR),
             "count": len(plot_items),
             "bytes": sum(i["bytes"] for i in plot_items),
             "items": plot_items,
-        },
-        "results": {
-            "path": str(STORED_RESULTS),
-            "count": len(result_items),
-            "bytes": res_bytes,
-            "items": result_items,
-        },
-        "references": {
-            "path": str(FEM_REFERENCE_DIR),
-            "count": len(ordered_refs),
-            "bytes": ref_bytes,
-            "items": ordered_refs,
         },
     }
 
@@ -1712,7 +1617,7 @@ def clear_jobs(remove_plots: bool = True):
 
 
 class FolderOpenRequest(BaseModel):
-    target: str = Field("plots", pattern="^(plots|results|references)$")
+    target: str = Field("plots", pattern="^plots$")
 
 
 def _open_local_dir(request: Request, target_dir: Path) -> dict:
@@ -1746,12 +1651,7 @@ def open_plots_folder(request: Request):
 
 @app.post("/api/open-folder")
 def open_workspace_folder(request: Request, req: FolderOpenRequest = FolderOpenRequest()):
-    mapping = {
-        "plots": PLOTS_DIR,
-        "results": STORED_RESULTS,
-        "references": FEM_REFERENCE_DIR,
-    }
-    return _open_local_dir(request, mapping[req.target])
+    return _open_local_dir(request, PLOTS_DIR)
 
 
 @app.get("/icon.svg")

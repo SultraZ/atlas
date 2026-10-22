@@ -5,15 +5,22 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 
-# editors / OS
+# Editors / OS
 *.swp
 .DS_Store
+Thumbs.db
 
-# per-job plots and local app preferences written by the console / desktop app
+# Runtime session outputs & user settings
 webapp/static/plots/
 webapp/.app_settings.json
 
-# locally built PyInstaller bundles / build artifacts (official root EXEs remain tracked)
+# Offline training dumps / checkpoints / logs
+*.npz
+*.pt
+*.log
+*.out
+
+# Local build & release staging (official root Windows EXEs stay tracked)
 *.spec
 build/
 dist/
@@ -21,5 +28,5 @@ dist/
 !ATLAS.exe
 !installer/Uninstall-ATLAS.exe
 
-# local documents (paper drafts), not versioned
+# Local documents
 docs/

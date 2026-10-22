@@ -57,13 +57,13 @@ def test_desktop_launcher_helpers(tmp_path):
         assert meta["CompanyName"] == "ATLAS"
         assert meta["Publisher"] == "ATLAS"
         assert meta["Author"] == "ATLAS"
-        assert meta["FileVersion"] == "1.1.6"
-        assert meta["ProductVersion"] == "1.1.6"
+        assert meta["FileVersion"] == "1.1.7"
+        assert meta["ProductVersion"] == "1.1.7"
 
     wizard_c = (ROOT / "installer" / "setup_wizard.c").read_text(encoding="utf-8")
     assert "ID_BTN_UPDATE" in wizard_c
     assert 'L"Update"' in wizard_c
-    assert "v1.1.6" in wizard_c
+    assert "v1.1.7" in wizard_c
 
     # Execute standalone installer verification scripts AND guard against PowerShell traps
     import subprocess
@@ -73,7 +73,7 @@ def test_desktop_launcher_helpers(tmp_path):
     assert " -c " not in ps1_text.split("# Provisioning Miniconda")[0].split("$wslCmd")[0], (
         "Inline python -c string detected in PowerShell section!"
     )
-    assert "ATLAS_ACTION" in ps1_text and "v1.1.6" in ps1_text
+    assert "ATLAS_ACTION" in ps1_text and "v1.1.7" in ps1_text
     assert "please close and re-open ATLAS-Setup.exe" not in ps1_text
     assert "Install-OfficialPython312" in ps1_text
     assert "PythonCore" in ps1_text
@@ -87,27 +87,28 @@ def test_desktop_launcher_helpers(tmp_path):
     assert cuda_probe.returncode in (0, 2, 3)
     subprocess.run([sys.executable, str(ROOT / "installer" / "verify_install.py")], check=True)
 
-    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.6", out_root=tmp_path)
+    out_dir, assets, notes_file = create_release.build_release_bundle("v1.1.7", out_root=tmp_path)
     assert out_dir.is_dir()
     assert notes_file.is_file()
     names = {a.name for a in assets}
     assert {
         "ATLAS-Setup.exe",
         "setup_atlas.sh",
-        "ATLAS-Desktop-Studio-v1.1.6.zip",
+        "ATLAS-Desktop-Studio-v1.1.7.zip",
         "ATLAS-Desktop-Studio.zip",
         "SHA256SUMS.txt",
     } == names
     with zipfile.ZipFile(out_dir / "ATLAS-Desktop-Studio.zip") as zf:
         znames = set(zf.namelist())
-        assert "ATLAS-Desktop-Studio-v1.1.6/ATLAS-Setup.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/installer/Uninstall-ATLAS.exe" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/installer/check_python.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/installer/check_cuda.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/installer/verify_install.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/atlas/native_fem.py" in znames
-        assert "ATLAS-Desktop-Studio-v1.1.6/webapp/desktop.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/ATLAS-Setup.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/installer/Uninstall-ATLAS.exe" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/installer/check_python.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/installer/check_cuda.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/installer/verify_install.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/atlas/native_fem.py" in znames
+        assert "ATLAS-Desktop-Studio-v1.1.7/webapp/desktop.py" in znames
+        assert not any(n.endswith((".npz", ".pt", ".log", ".out")) for n in znames)
         assert not any("/.venv/" in n or "/.git/" in n for n in znames)
 
 
@@ -195,16 +196,10 @@ def test_static_frontend_and_study_results():
     ws = client.get("/api/workspace")
     assert ws.status_code == 200
     ws_data = ws.json()
-    assert ws_data["results"]["count"] > 0
-    assert ws_data["references"]["count"] == 6
-    assert [r["title"] for r in ws_data["references"]["items"]] == [
-        "Cantilever beam",
-        "L-shaped bracket",
-        "Plate with hole",
-        "Steel insert",
-        "Soft inclusion",
-        "Epoxy-filled slot",
-    ]
+    assert set(ws_data.keys()) == {"plots"}
+    assert "results" not in ws_data
+    assert "references" not in ws_data
+
     allowed_prefixes = ("cantilever_", "l_bracket_", "plate_hole_", "steel_insert_", "bimaterial_c15_", "filled_slot_")
     for ref_file in (ROOT / "fem" / "reference").iterdir():
         if ref_file.is_file():
@@ -219,6 +214,9 @@ def test_static_frontend_and_study_results():
     assert res.status_code == 200
     data = res.json()
     assert {"cantilever", "plate_hole", "l_bracket", "steel_insert"}.issubset(set(data["order"]))
+    for bkey in ("cantilever", "plate_hole", "l_bracket"):
+        assert data["benchmarks"][bkey]["solvers"]["atlas"]["params"] > 10000
+        assert len(data["benchmarks"][bkey]["plots"]) >= 5
 
     benches = client.get("/api/benchmarks")
     assert benches.status_code == 200
@@ -356,6 +354,40 @@ def test_sidebar_cleanup_and_consistent_simple_expert_ui(tmp_path, monkeypatch):
     for banned in ("SOLVER_NAMES_SIMPLE", "FIGS_SIMPLE", "STEPS_SIMPLE", "SIMPLE_LABEL", "SIMPLE_SUB"):
         assert banned not in js, f"Legacy word-swapping table {banned} still in app.js!"
     assert "const extra =" in js
+
+    # 4. Session Runs view contains ONLY session runs & saved plots (no Study Figures/JSON, FEniCS References, or Study Files)
+    for removed_ui in (
+        "Study Figures",
+        "FEniCS References",
+        "Study Files",
+        "Open Study Results",
+        "Open FEniCS Refs",
+        "data-files-tab",
+        "data-files-filter",
+    ):
+        assert removed_ui not in js and removed_ui not in html, f"Removed UI element still found: {removed_ui}"
+
+    # 5. Live Solver Run length has NO time estimation & no duplicate cross-view buttons remain
+    assert "runEstimate" not in js
+    assert "ADAM_SHARE" not in js
+    for dup_btn in (
+        "Browse in Folder View",
+        "Saved Runs &amp; Plots",
+        "Open folder",
+        "quickTestFem",
+        "openPlotsBtn",
+        "data-try-bench",
+        "data-view-jump",
+    ):
+        assert dup_btn not in js and dup_btn not in html, f"Duplicate navigation/action button still present: {dup_btn}"
+
+    # 6. Repository reclean check: zero .npz/.pt/.log/.out bloat in results/ or discarded study scripts
+    assert not list((ROOT / "results").rglob("*.npz"))
+    assert not list((ROOT / "results").rglob("*.pt"))
+    assert not list((ROOT / "results").rglob("*.log"))
+    assert not (ROOT / "atlas" / "data").exists()
+    assert not (ROOT / "fem" / "fenics_scripts").exists()
+    assert {p.name for p in (ROOT / "scripts").glob("*.py")} == {"build_windows_exes.py", "create_release.py"}
 
     subprocess.run(["node", "--check", str(ROOT / "webapp" / "frontend" / "app.js")], check=True)
 

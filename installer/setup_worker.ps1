@@ -10,7 +10,7 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $REPO_SLUG   = 'SultraZ/atlas'
-$APP_VERSION = 'v1.1.6'
+$APP_VERSION = 'v1.1.7'
 $PUBLISHER   = 'ATLAS'
 $API_LATEST  = "https://api.github.com/repos/$REPO_SLUG/releases/latest"
 $ZIP_URL_PRI = "https://github.com/$REPO_SLUG/releases/latest/download/ATLAS-Desktop-Studio.zip"
@@ -408,7 +408,7 @@ if ($HasLocalFiles -and (-not $SameFolder)) {
         if (Test-Path $destSetupExe) {
             Move-Item -Path $destSetupExe -Destination (Join-Path $InstallDir 'ATLAS-Setup.old.exe') -Force -ErrorAction SilentlyContinue
         }
-        & robocopy.exe $copyFrom $InstallDir /E /XD '.git' '.venv' '__pycache__' '.pytest_cache' 'dist' /XF '*.pyc' '.app_settings.json' /NFL /NDL /NJH /NJS /NP | Out-Null
+        & robocopy.exe $copyFrom $InstallDir /E /XD '.git' '.venv' '__pycache__' '.pytest_cache' 'dist' 'plots' /XF '*.pyc' '.app_settings.json' 'ATLAS-Setup.old.exe' /NFL /NDL /NJH /NJS /NP | Out-Null
         if ($LASTEXITCODE -ge 8) {
             Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
         }
@@ -430,6 +430,28 @@ if (Test-Path $refDir) {
     Get-ChildItem -Path $refDir -File -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -notmatch '^(cantilever|l_bracket|plate_hole|steel_insert|bimaterial_c15|filled_slot)_'
     } | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+foreach ($staleSub in @(
+    'atlas\data',
+    'fem\fenics_scripts',
+    'results\hard_single_material',
+    'results\multi_material\failed_candidates',
+    'results\multi_material\bimaterial\c3',
+    'scripts\checks',
+    'scripts\experiments',
+    'scripts\hard_benchmarks',
+    'scripts\multi_material'
+)) {
+    $stalePath = Join-Path $InstallDir $staleSub
+    if (Test-Path $stalePath) {
+        Remove-Item -Path $stalePath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+$resDir = Join-Path $InstallDir 'results'
+if (Test-Path $resDir) {
+    Get-ChildItem -Path $resDir -Recurse -File -Include '*.npz', '*.pt', '*.log', '*.out', '*.md', 'PROGRESS' -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 try {

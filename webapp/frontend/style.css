@@ -677,9 +677,8 @@ details.fine .prow + .prow { margin-top: 10px; }
 .side-runtime {
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 11px; text-align: left;
   border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--page); color: var(--ink);
-  cursor: pointer; transition: border-color .18s ease, background-color .18s ease;
+  cursor: default;
 }
-.side-runtime:hover { border-color: var(--line-strong); background: var(--inset); }
 .runtime-lines { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .runtime-main { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .runtime-sub { font-size: 11px; font-family: var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

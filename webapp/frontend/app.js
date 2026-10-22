@@ -71,8 +71,6 @@ const MATERIALS = [
 
 const FULL = { epochs: 2000, lbfgs: 2000 };
 const MAX_LBFGS = 4 * FULL.lbfgs;
-const LBFGS_UNIT = 400;
-const ADAM_SHARE = 0.38;
 const RUN_STEPS = [
   { epochs: 400, lbfgs: 400, label: "20 %" }, { epochs: 800, lbfgs: 800, label: "40 %" },
   { epochs: 1200, lbfgs: 1200, label: "60 %" }, { epochs: 1600, lbfgs: 1600, label: "80 %" },
@@ -116,7 +114,7 @@ const reduced = () => document.documentElement.getAttribute("data-motion") === "
 const state = {
   results: null, meta: null, bench: store.get("atlas-bench"), fig: {},
   liveBench: store.get("atlas-live-bench"), job: null, jobs: [], poll: null, health: null,
-  workspace: null, filesTab: "runs", filesFilter: "all", femTest: null, filesMsg: "",
+  workspace: null, femTest: null, filesMsg: "",
   params: readJSON("atlas-params") || {}, heroShown: false, tabsShown: false, geo: null,
   advOpen: store.get("atlas-adv-open") === "1", settingsOpen: false, settingsMsg: "",
   budget: (() => { const b = { ...FULL, ...(readJSON("atlas-budget") || {}) }; return { epochs: b.epochs, lbfgs: snapLbfgs(b.lbfgs) }; })(),
@@ -198,10 +196,10 @@ function currentView() {
 
 function setStaticText() {
   $$("[data-level-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.levelPick === (simple() ? "simple" : "expert"))));
-  $("#heroEyebrow").textContent = "Stored study · validated against FEniCS";
+  $("#heroEyebrow").textContent = "Benchmark accuracy · validated against FEM";
   $("#heroLead").innerHTML =
-    `Relative L² error of displacement ${tip("displacement")} and von Mises stress ${tip("vonmises")} against FEniCS reference solutions ${tip("fem")}. Every number on this page is read from the stored study in results/.`
-    + extra(" Reference fields live in fem/reference/ (FEniCS 2019.1.0, dolfin + mshr) alongside the cross-platform quadratic P2 FEM solver in atlas/native_fem.py — nothing is retrained in the browser.");
+    `Relative L² error of displacement ${tip("displacement")} and von Mises stress ${tip("vonmises")} validated against reference finite-element solutions ${tip("fem")}.`
+    + extra(" Evaluated across single-material and multi-material structural benchmarks with zero supervised training data.");
   $("#runTitle").textContent = "New run";
   const intro = $("#liveIntro");
   if (intro) intro.hidden = true;
@@ -300,35 +298,28 @@ function renderWorkspaceHeader() {
   const v = currentView();
   const eye = $("#wsEyebrow"), title = $("#wsTitle"), act = $("#wsActions");
   if (!eye || !title || !act) return;
-  const activeRunPill = isBusy() && v !== "live"
-    ? `<a href="#live" class="mini-btn"><span class="dot busy"></span><span>View active run</span></a>`
-    : "";
 
   if (v === "results") {
     const b = state.results?.benchmarks?.[state.bench];
-    eye.textContent = "Benchmark Study";
+    eye.textContent = "Benchmark Overview";
     title.textContent = b ? b.title : "Overview";
-    act.innerHTML = `${activeRunPill}
-      <button type="button" class="mini-btn" data-try-bench="${esc(state.bench || "cantilever")}">Open in Live Solver →</button>
-      <a href="#files" class="mini-btn">Study Files</a>`;
+    act.innerHTML = "";
   } else if (v === "live") {
     const m = liveMeta(state.liveBench);
     eye.textContent = "Live Solver";
     title.textContent = m ? m.title : "Workbench";
-    act.innerHTML = `<a href="#files" class="mini-btn">Saved Runs &amp; Plots</a>
-      <a href="#settings" class="mini-btn">Settings</a>`;
+    act.innerHTML = "";
   } else if (v === "files") {
-    eye.textContent = "Workspace Explorer";
-    title.textContent = "Folder, Runs & Reference Data";
-    act.innerHTML = `${activeRunPill}
+    eye.textContent = "Session Workspace";
+    title.textContent = "Session Runs & Saved Plots";
+    act.innerHTML = `
       <button type="button" class="mini-btn" id="refreshWorkspaceBtn">Refresh</button>
-      <button type="button" class="mini-btn" data-open-folder="plots">Open Plots Folder</button>`;
+      <button type="button" class="mini-btn" data-open-folder="plots">Open Plots Folder</button>
+      <button type="button" class="mini-btn danger" id="clearStorageBtnFiles">Clear Finished Runs</button>`;
   } else {
     eye.textContent = "Application Settings";
     title.textContent = "Appearance, Compute & FEM Engine";
-    act.innerHTML = `${activeRunPill}
-      <button type="button" class="mini-btn" id="quickTestFem">Test Active FEM Engine</button>
-      <button type="button" class="mini-btn" id="resetAllBtn">Reset Defaults</button>`;
+    act.innerHTML = `<button type="button" class="mini-btn" id="resetAllBtn">Reset Defaults</button>`;
   }
 }
 
@@ -337,7 +328,7 @@ async function loadWorkspace() {
     state.workspace = await api("/api/workspace");
     if (currentView() === "files") renderFilesView();
   } catch (e) {
-    state.filesMsg = `Could not read workspace files: ${e.message}`;
+    state.filesMsg = `Could not read session plots: ${e.message}`;
     if (currentView() === "files") renderFilesView();
   }
 }
@@ -347,142 +338,62 @@ function renderFilesView() {
   if (!box) return;
   const ws = state.workspace;
   const plots = ws?.plots || { count: 0, bytes: 0, path: "webapp/static/plots", items: [] };
-  const resFiles = ws?.results || { count: 0, bytes: 0, path: "results", items: [] };
-  const refs = ws?.references || { count: 0, bytes: 0, path: "fem/reference", items: [] };
-  const tab = state.filesTab || "runs";
 
-  let tabBody = "";
-  if (tab === "runs") {
-    const jobCards = state.jobs.map((j) => {
-      const m = liveMeta(j.benchmark);
-      const mx = j.metrics || {};
-      const img = j.plots?.fem_comparison || j.plots?.design || j.plots?.deformed || j.plots?.convergence;
-      const devLabel = (mx.device || j.device) === "cuda" ? "GPU" : "CPU";
-      const femLabel = mx.fem_engine || j.fem_engine || "FEM";
-      const statLine = j.status === "done"
-        ? (j.kind === "inverse"
-          ? `Design: ${mx.final?.toFixed(3) ?? "—"} m · ${dur(mx.train_seconds)}`
-          : `Disp ${pct(mx.relative_L2_displacement)} · VM ${pct(mx.von_mises_l2_excl ?? mx.von_mises_l2)} · ${dur(mx.train_seconds)}`)
-        : `Status: ${j.status}`;
-      return `<article class="file-card">
-        <div>
-          ${img ? `<div class="file-thumb" data-open-img="${esc(img)}"><img src="${esc(img)}" alt="${esc(m?.title || j.benchmark)}"></div>`
-            : `<div class="file-thumb">${thumb(j.benchmark, 96, 64)}</div>`}
-          <div class="file-info" style="margin-top:12px">
-            <span class="file-name">${j.kind === "inverse" ? "Inverse Design" : "Forward Solve"} · ${esc(m?.title || j.benchmark)}</span>
-            <span class="file-meta">${esc(statLine)}</span>
-            <span class="file-meta">${esc(`${j.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN"} · ${devLabel} · ${femLabel}`)}</span>
-          </div>
-        </div>
-        <div class="file-actions">
-          <button type="button" class="mini-btn" data-inspect-job="${esc(j.id)}">Open in Live Solver</button>
-          ${j.status === "done" ? `<a class="mini-btn" href="/api/jobs/${esc(j.id)}/export" download>Export JSON</a>` : ""}
-        </div>
-      </article>`;
-    }).join("");
-
-    const loosePlots = plots.items.map((f) => `<article class="file-card">
+  const jobCards = state.jobs.map((j) => {
+    const m = liveMeta(j.benchmark);
+    const mx = j.metrics || {};
+    const img = j.plots?.fem_comparison || j.plots?.design || j.plots?.deformed || j.plots?.convergence;
+    const devLabel = (mx.device || j.device) === "cuda" ? "GPU" : "CPU";
+    const femLabel = mx.fem_engine || j.fem_engine || "FEM";
+    const statLine = j.status === "done"
+      ? (j.kind === "inverse"
+        ? `Design: ${mx.final?.toFixed(3) ?? "—"} m · ${dur(mx.train_seconds)}`
+        : `Disp ${pct(mx.relative_L2_displacement)} · VM ${pct(mx.von_mises_l2_excl ?? mx.von_mises_l2)} · ${dur(mx.train_seconds)}`)
+      : `Status: ${j.status}`;
+    return `<article class="file-card">
       <div>
-        ${f.is_image ? `<div class="file-thumb" data-open-img="${esc(f.url)}"><img src="${esc(f.url)}" alt="${esc(f.name)}"></div>` : ""}
-        <div class="file-info" style="margin-top:10px">
-          <span class="file-name">${esc(f.name)}</span>
-          <span class="file-meta">${esc(humanBytes(f.bytes))} · ${esc(f.modified.replace("T", " "))}</span>
+        ${img ? `<div class="file-thumb"><img src="${esc(img)}" alt="${esc(m?.title || j.benchmark)}"></div>`
+          : `<div class="file-thumb">${thumb(j.benchmark, 96, 64)}</div>`}
+        <div class="file-info" style="margin-top:12px">
+          <span class="file-name">${j.kind === "inverse" ? "Inverse Design" : "Forward Solve"} · ${esc(m?.title || j.benchmark)}</span>
+          <span class="file-meta">${esc(statLine)}</span>
+          <span class="file-meta">${esc(`${j.formulation === "energy" ? "ATLAS single" : "ATLAS-XPINN"} · ${devLabel}${extra(` · ${femLabel}`)}`)}</span>
         </div>
       </div>
       <div class="file-actions">
-        <a class="mini-btn" href="${esc(f.url)}" target="_blank" rel="noopener">Open Full Size</a>
-        <a class="mini-btn" href="${esc(f.url)}" download="${esc(f.name)}">Download</a>
+        <button type="button" class="mini-btn" data-inspect-job="${esc(j.id)}">Inspect Run</button>
+        ${j.status === "done" ? `<a class="mini-btn" href="/api/jobs/${esc(j.id)}/export" download>Export JSON</a>` : ""}
       </div>
-    </article>`).join("");
+    </article>`;
+  }).join("");
 
-    tabBody = (jobCards || loosePlots)
-      ? `<div class="files-grid">${jobCards}${loosePlots}</div>`
-      : `<div class="card"><p class="note" style="margin:0">No live runs or saved plot files yet in this session. Start a simulation in <a href="#live" style="text-decoration:underline;font-weight:600">Live Solver</a> to populate this folder automatically.</p></div>`;
-  } else if (tab === "results") {
-    const flt = state.filesFilter || "all";
-    const items = resFiles.items.filter((i) => flt === "all" || (flt === "png" ? i.is_image : !i.is_image));
-    tabBody = `
-      <div class="toolbar-row">
-        <div class="seg" role="group" aria-label="File type filter">
-          <button type="button" data-files-filter="all" aria-pressed="${flt === "all"}">All (${resFiles.items.length})</button>
-          <button type="button" data-files-filter="png" aria-pressed="${flt === "png"}">Figures (.png)</button>
-          <button type="button" data-files-filter="data" aria-pressed="${flt === "data"}">JSON &amp; Reports</button>
-        </div>
-        <span class="meta">Directory: ${esc(resFiles.path)}</span>
-      </div>
-      <div class="files-grid">
-        ${items.map((item) => `<article class="file-card">
-          <div>
-            ${item.is_image ? `<div class="file-thumb" data-open-img="${esc(item.url)}"><img src="${esc(item.url)}" alt="${esc(item.path)}" loading="lazy"></div>` : ""}
-            <div class="file-info" style="margin-top:${item.is_image ? "10px" : "0"}">
-              <span class="file-name">${esc(item.path)}</span>
-              <span class="file-meta">${esc(item.group)} · ${esc(humanBytes(item.bytes))}</span>
-            </div>
-          </div>
-          <div class="file-actions">
-            <a class="mini-btn" href="${esc(item.url)}" target="_blank" rel="noopener">View</a>
-            <a class="mini-btn" href="${esc(item.url)}" download>Download</a>
-          </div>
-        </article>`).join("")}
-      </div>`;
-  } else {
-    tabBody = `
-      <section class="card">
-        <div class="card-head">
-          <h2>Precomputed FEniCS 2019.1.0 Reference Datasets</h2>
-          <span class="meta">${esc(refs.path)}</span>
-        </div>
-        <p class="note">Genuine legacy FEniCS (dolfin + mshr) reference solutions bundled with ATLAS so all six benchmarks validate immediately on Windows, macOS, and Linux even before WSL2 is configured.</p>
-        <div class="data-table-wrap" style="margin-top:16px">
-          <table class="data-table">
-            <thead><tr><th>Dataset</th><th>Mesh / Grid Points</th><th>Reference Compliance</th><th>Files</th><th>Size</th></tr></thead>
-            <tbody>
-              ${refs.items.map((r) => `<tr>
-                <td><strong>${esc(r.title || r.key)}</strong></td>
-                <td>${r.points != null ? r.points.toLocaleString("en-US") : "—"}</td>
-                <td>${r.compliance != null ? sci(r.compliance) : "—"}</td>
-                <td>${r.files}</td>
-                <td>${esc(humanBytes(r.bytes))}</td>
-              </tr>`).join("")}
-            </tbody>
-          </table>
-        </div>
-      </section>`;
-  }
-
-  box.innerHTML = `
-    <div class="page-banner">
-      <div>
-        <div class="eyebrow">Workspace &amp; Output Directory</div>
-        <h1>Folder, Runs &amp; Reference Data</h1>
-        <p>Browse simulation figures and JSON reports created during your session, open local folders in File Explorer, or inspect the bundled study figures and FEniCS references.${extra(" Paths: live plots in webapp/static/plots/, study artifacts in results/, and FEniCS 2019.1.0 reference solutions in fem/reference/.")}</p>
-      </div>
-      <div class="set-actions">
-        <button type="button" class="mini-btn" data-open-folder="plots">Open Live Plots</button>
-        <button type="button" class="mini-btn" data-open-folder="results">Open Study Results</button>
-        <button type="button" class="mini-btn" data-open-folder="references">Open FEniCS Refs</button>
-        <button type="button" class="mini-btn danger" id="clearStorageBtnFiles">Clear Finished Runs &amp; Plots</button>
+  const loosePlots = plots.items.map((f) => `<article class="file-card">
+    <div>
+      ${f.is_image ? `<div class="file-thumb"><img src="${esc(f.url)}" alt="${esc(f.name)}"></div>` : ""}
+      <div class="file-info" style="margin-top:10px">
+        <span class="file-name">${esc(f.name)}</span>
+        <span class="file-meta">${esc(humanBytes(f.bytes))} · ${esc(f.modified.replace("T", " "))}</span>
       </div>
     </div>
+    <div class="file-actions">
+      <a class="mini-btn" href="${esc(f.url)}" target="_blank" rel="noopener">Open Full Size</a>
+      <a class="mini-btn" href="${esc(f.url)}" download="${esc(f.name)}">Download</a>
+    </div>
+  </article>`).join("");
 
+  const body = (jobCards || loosePlots)
+    ? `<div class="files-grid">${jobCards}${loosePlots}</div>`
+    : `<div class="card"><p class="note" style="margin:0">No session runs or saved plot files yet. Start a forward solve or inverse design in Live Solver to record runs here.</p></div>`;
+
+  box.innerHTML = `
     ${state.filesMsg ? `<div class="status-banner">${esc(state.filesMsg)}</div>` : ""}
 
     <div class="tiles">
       ${tile("Session runs", String(state.jobs.length), `${state.jobs.filter((j) => j.status === "done").length} completed this session`)}
-      ${tile("Live plot files", String(plots.count), `${humanBytes(plots.bytes)} in webapp/static/plots`)}
-      ${tile("Study artifacts", String(resFiles.count), `${humanBytes(resFiles.bytes)} in results/`)}
-      ${tile("FEniCS references", String(refs.count), `${humanBytes(refs.bytes)} in fem/reference/`)}
+      ${tile("Saved plot files", String(plots.count), `${humanBytes(plots.bytes)}${extra(` · ${plots.path}`)}`)}
     </div>
 
-    <div class="toolbar-row">
-      <div class="seg" role="group" aria-label="Workspace sections">
-        <button type="button" data-files-tab="runs" aria-pressed="${tab === "runs"}">Session Runs &amp; Live Plots (${state.jobs.length + plots.count})</button>
-        <button type="button" data-files-tab="results" aria-pressed="${tab === "results"}">Study Figures &amp; JSON (${resFiles.count})</button>
-        <button type="button" data-files-tab="refs" aria-pressed="${tab === "refs"}">FEniCS References (${refs.count})</button>
-      </div>
-    </div>
-
-    ${tabBody}`;
+    ${body}`;
 }
 
 function openSettingsDrawer() {
@@ -519,14 +430,6 @@ function renderSettingsDrawer() {
   ];
 
   body.innerHTML = `
-    <div class="page-banner">
-      <div>
-        <div class="eyebrow">Application Settings</div>
-        <h1>Appearance, Compute &amp; FEM Engine</h1>
-        <p>Configure color theme, detail level, interface scale, GPU or CPU execution, and your FEM validation backend.${extra(" Settings persist automatically in localStorage and webapp/.app_settings.json.")}</p>
-      </div>
-    </div>
-
     ${state.settingsMsg ? `<div class="status-banner">${esc(state.settingsMsg)}</div>` : ""}
 
     <div class="settings-grid">
@@ -670,28 +573,20 @@ function renderSettingsDrawer() {
           <input type="checkbox" id="setAutoLog" ${cfg.auto_open_log !== false ? "checked" : ""}>
         </label>
         <div class="toolbar-row" style="padding-top:4px;border-top:1px solid var(--line-soft)">
-          <span class="meta">Saved live plots: <strong>${h ? `${h.plots_count} files (${humanBytes(h.plots_bytes)})` : "—"}</strong> · Session jobs: <strong>${h ? h.total_jobs : 0}</strong></span>
-          <div class="set-actions">
-            <a href="#files" class="mini-btn">Browse in Folder View</a>
-            <button type="button" class="mini-btn" id="openPlotsBtn">Open Plots Folder</button>
-            <button type="button" class="mini-btn danger" id="clearStorageBtn">Clear Finished Runs &amp; Plots</button>
-          </div>
+          <span class="meta">Saved session plots: <strong>${h ? `${h.plots_count} files (${humanBytes(h.plots_bytes)})` : "—"}</strong> · Session jobs: <strong>${h ? h.total_jobs : 0}</strong></span>
         </div>
       </section>
 
       <section class="card settings-card full">
         <div class="settings-card-head">
           <div>
-            <h2>Desktop Installer &amp; Releases</h2>
-            <p>Update directly in place or download standalone installers (Published by ATLAS) for Windows, macOS, and Linux.${extra(" Includes native Windows x64 GUI Installer (ATLAS-Setup.exe), ATLAS.exe launcher, and complete release archive.")}</p>
+            <h2>Application Updates &amp; Releases</h2>
+            <p>Update ATLAS in place without reinstalling Python or CUDA, or view standalone releases on GitHub.${extra(" Native Windows x64 GUI Installer & Updater (ATLAS-Setup.exe, Publisher: ATLAS).")}</p>
           </div>
-          <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">All Releases ↗</a>
-        </div>
-        <div class="set-actions">
-          <button type="button" class="mini-btn" id="updateAppBtn">Update App</button>
-          <a href="https://github.com/SultraZ/atlas/archive/refs/tags/v1.1.6.zip" target="_blank" rel="noopener" class="mini-btn">Full Complete Package (ATLAS-v1.1.6.zip)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.6/ATLAS-Setup.exe" target="_blank" rel="noopener" class="mini-btn">Windows Installer (ATLAS-Setup.exe)</a>
-          <a href="https://github.com/SultraZ/atlas/raw/v1.1.6/setup_atlas.sh" target="_blank" rel="noopener" class="mini-btn">macOS / Linux Installer (setup_atlas.sh)</a>
+          <div class="set-actions">
+            <button type="button" class="mini-btn" id="updateAppBtn">Update App</button>
+            <a href="https://github.com/SultraZ/atlas/releases/latest" target="_blank" rel="noopener" class="mini-btn">GitHub Releases ↗</a>
+          </div>
         </div>
       </section>
     </div>`;
@@ -1087,7 +982,7 @@ function renderCompute() {
     ? `${shortGpu(h?.gpu_name)}${pref === "auto" ? " (auto)" : " (pinned)"}`
     : `CPU · ${h?.cpu_threads || 4} threads${pref === "cpu" && cudaOk ? " (GPU idle)" : ""}`;
   box.innerHTML = `
-    <div class="props-head"><span class="eyebrow">Compute, Solver &amp; FEM ${tip("device")}</span><a href="#settings" class="link-btn">Settings</a></div>
+    <div class="props-head"><span class="eyebrow">Compute, Solver &amp; FEM ${tip("device")}</span></div>
     <div class="seg seg-block" role="group" aria-label="Compute device">
       <button type="button" data-dev-pick="auto" aria-pressed="${pref === "auto"}">Auto</button>
       <button type="button" data-dev-pick="cuda" aria-pressed="${pref === "cuda"}" ${cudaOk ? "" : 'disabled title="No CUDA GPU detected in this Python environment"'}>GPU</button>
@@ -1137,27 +1032,14 @@ const inverseOf = (key) => state.results?.benchmarks?.[key]?.inverse;
 const inverseRatio = (key) => inverseOf(key)?.target_ratio;
 const inverseMetric = (key) => inverseOf(key)?.metric;
 
-function runEstimate(key, budget) {
-  const solverKey = state.solver.formulation === "energy_xpinn" ? "atlas_xpinn" : "atlas";
-  const full = state.results?.benchmarks?.[key]?.solvers?.[solverKey]?.seconds
-    || state.results?.benchmarks?.[key]?.solvers?.atlas_xpinn?.seconds;
-  if (!full) return "";
-  const share = ADAM_SHARE * budget.epochs / FULL.epochs + (1 - ADAM_SHARE) * budget.lbfgs / FULL.lbfgs;
-  const cpuMult = effectiveDevice() === "cpu" ? 2.4 : 1.0;
-  const widthMult = (state.solver.neurons / 64) ** 1.35 * (state.solver.hidden_layers / 4);
-  const sec = full * share * cpuMult * widthMult + (isCustom(key) ? 30 : 0);
-  return sec < 90 ? `about ${Math.max(5, Math.round(sec / 5) * 5)} s` : `about ${Math.max(1, Math.round(sec / 60))} min`;
-}
-
 function runText() {
   const i = stepOf(state.budget);
-  const est = cap(runEstimate(state.liveBench, state.budget));
-  const end = est ? ` ${est}.` : "";
   const r = RUN_STEPS[i];
-  if (i === FULL_STEP) return ["Full", `The same training budget as the study.${end}`];
-  if (i === 0) return [r.label, `${r.label} of the study budget — quickest run, may miss accuracy targets.${end}`];
-  if (i > 0) return [r.label, `${r.label} of the study budget.${end}`];
-  return ["Custom", `${state.budget.epochs} Adam + ${state.budget.lbfgs} L-BFGS steps.${end}`];
+  const stepsLabel = `${state.budget.epochs.toLocaleString("en-US")} Adam epochs + ${state.budget.lbfgs.toLocaleString("en-US")} L-BFGS steps`;
+  if (i === FULL_STEP) return ["Full", `${stepsLabel} (full training budget).`];
+  if (i === 0) return [r.label, `${r.label} of full budget (${stepsLabel}) — quick check, lower accuracy.`];
+  if (i > 0) return [r.label, `${r.label} of full budget (${stepsLabel}).`];
+  return ["Custom", `${stepsLabel}.`];
 }
 
 function renderBudget() {
@@ -1880,25 +1762,8 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  if (e.target.closest("#health") || e.target.closest("[data-open-settings]")) {
+  if (e.target.closest("[data-open-settings]")) {
     openSettingsDrawer();
-    return;
-  }
-
-  const tryBench = e.target.closest("[data-try-bench]");
-  if (tryBench) {
-    const k = tryBench.dataset.tryBench;
-    if (k && liveMeta(k)) {
-      state.liveBench = k;
-      store.set("atlas-live-bench", k);
-      renderBenchPick();
-      renderCompute();
-      renderSpec();
-      renderProps();
-      renderSolverCfg();
-      renderJob();
-    }
-    location.hash = "#live";
     return;
   }
 
@@ -1911,28 +1776,10 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  const openImg = e.target.closest("[data-open-img]");
-  if (openImg) {
-    window.open(openImg.dataset.openImg, "_blank", "noopener");
-    return;
-  }
-
-  const filesTabBtn = e.target.closest("[data-files-tab]");
-  if (filesTabBtn) {
-    state.filesTab = filesTabBtn.dataset.filesTab;
-    renderFilesView();
-    return;
-  }
-  const filesFltBtn = e.target.closest("[data-files-filter]");
-  if (filesFltBtn) {
-    state.filesFilter = filesFltBtn.dataset.filesFilter;
-    renderFilesView();
-    return;
-  }
   if (e.target.closest("#refreshWorkspaceBtn")) {
     await refreshJobs();
     await loadWorkspace();
-    state.filesMsg = "Refreshed workspace directory listing.";
+    state.filesMsg = "Refreshed session runs and plot files.";
     renderFilesView();
     return;
   }
@@ -1964,7 +1811,7 @@ document.addEventListener("click", async (e) => {
     applyScale(scaleBtn.dataset.scalePick);
     return;
   }
-  if (e.target.closest("#testFemBtn") || e.target.closest("#quickTestFem")) {
+  if (e.target.closest("#testFemBtn")) {
     state.femTest = "Running cantilever verification check…";
     if (currentView() === "settings") renderSettingsDrawer();
     try {
@@ -2074,23 +1921,16 @@ document.addEventListener("click", async (e) => {
     if (currentView() === "settings") renderSettingsDrawer();
     return;
   }
-  if (e.target.closest("#openPlotsBtn")) {
-    const r = await api("/api/open-plots", { method: "POST" });
-    state.settingsMsg = r.opened ? `Opened ${r.path}` : `Plots directory: ${r.path}`;
-    if (currentView() === "settings") renderSettingsDrawer();
-    return;
-  }
-  if (e.target.closest("#clearStorageBtn") || e.target.closest("#clearStorageBtnFiles") || e.target.closest("#clearJobsBtn")) {
+  if (e.target.closest("#clearStorageBtnFiles") || e.target.closest("#clearJobsBtn")) {
     const h = await api("/api/jobs/clear", { method: "POST" });
     state.health = h;
     if (state.job && state.job.status !== "queued" && state.job.status !== "running") state.job = null;
     await refreshJobs();
     await loadWorkspace();
+    renderWorkspaceHeader();
     renderJob();
     const msg = `Cleared ${h.removed_jobs || 0} finished runs and ${h.deleted_files || 0} plot files.`;
-    state.settingsMsg = msg;
     state.filesMsg = msg;
-    if (currentView() === "settings") renderSettingsDrawer();
     if (currentView() === "files") renderFilesView();
     applyHealthUI(h);
     return;
@@ -2135,9 +1975,7 @@ document.addEventListener("click", async (e) => {
   const lf = e.target.closest("[data-livefig]");
   if (lf) { state.fig.live = lf.dataset.livefig; renderLiveFigure(state.job); return; }
   const jb = e.target.closest("[data-job]");
-  if (jb) { state.fig.live = null; watchJob(jb.dataset.job); return; }
-  const img = e.target.closest(".fig-frame img");
-  if (img) window.open(img.dataset.full, "_blank", "noopener");
+  if (jb) { state.fig.live = null; watchJob(jb.dataset.job); }
 });
 
 document.addEventListener("toggle", (e) => {

@@ -1,0 +1,32 @@
+{
+  "relative_L2_u": 0.0032885825843245414,
+  "relative_L2_v": 0.0018716052417145606,
+  "relative_L2_displacement": 0.0018642402207960276,
+  "displacement_within_5pct_target": true,
+  "used_mock_data": false,
+  "geometry_warning": null,
+  "relative_L2_von_mises": 0.07677370081934526,
+  "von_mises_l2_global": 0.07677370081934526,
+  "von_mises_l2_excl": 0.04203901118783944,
+  "von_mises_exclusion_radius": 0.02192767483456329,
+  "von_mises_exclusion_factor": 2.5,
+  "von_mises_excluded_points": 13,
+  "von_mises_total_points": 29808,
+  "von_mises_l2_excl_within_10pct": true,
+  "max_pointwise_von_mises_error": 23637482.330121357,
+  "max_pointwise_von_mises_error_location": [
+    1.0,
+    1.0
+  ],
+  "von_mises_l2_roi": 0.04293850263512035,
+  "von_mises_roi_excluded_points": 333,
+  "von_mises_roi_desc": "re-entrant corner (fixed-radius 0.12 disk)",
+  "von_mises_l2_roi_within_10pct": true,
+  "benchmark": "l_bracket",
+  "formulation": "energy",
+  "seed": 42,
+  "epochs": 2000,
+  "lbfgs_iters": 1500,
+  "train_seconds": 987.3,
+  "params": 12826
+}

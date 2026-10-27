@@ -1,0 +1,29 @@
+{
+  "relative_L2_displacement": 0.9716200810025458,
+  "relative_L2_vector": 1.025708035607553,
+  "von_mises_l2_excl": 0.9329632224499208,
+  "von_mises_l2_global": 0.9333845427600908,
+  "benchmark": "cantilever",
+  "variant": "deepxde_configured",
+  "seed": 42,
+  "params": 12802,
+  "train_seconds": 3478.9,
+  "pred_max_abs_disp": 3.7639071520685855e-05,
+  "fem_max_abs_disp": 0.0012948817981938312,
+  "config": {
+    "library": "deepxde 1.15.0",
+    "adam": 10000,
+    "lbfgs": 2000,
+    "lr": 0.001,
+    "width": 64,
+    "depth": 4,
+    "n_domain": 4000,
+    "n_boundary": 2000,
+    "loss_weights": {
+      "pde": 1.0,
+      "fix": 1.0,
+      "trac": 1.0
+    },
+    "float64": true
+  }
+}

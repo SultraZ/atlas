@@ -1,0 +1,133 @@
+{
+  "benchmark": "filled_slot",
+  "seed": 45,
+  "param_name": "slot semi-axis along the load",
+  "metric": "peak_vm",
+  "p_atlas": 0.3462284667698142,
+  "status": "converged",
+  "converged": true,
+  "n_steps": 6,
+  "atlas_metric": 3489153.556966272,
+  "atlas_target": 3478291.7040371206,
+  "fem_target": 3695196.8078423524,
+  "fem_at_p_atlas": 3490907.8282429236,
+  "p_fem_reference": 0.31458058633491304,
+  "fem_error_vs_target": -0.055285006515989665,
+  "atlas_vs_fem": -0.0005025258078883432,
+  "param_difference": 0.1006034123199446,
+  "seconds": 723.7366105929977,
+  "design": {
+    "benchmark": "filled_slot",
+    "param_name": "slot semi-axis along the load",
+    "metric": "peak_vm",
+    "target": 3478291.7040371206,
+    "p_star": 0.3462284667698142,
+    "g": 0.003122755034186575,
+    "status": "converged",
+    "converged": true,
+    "tol": 0.01,
+    "bounds": [
+      0.08,
+      0.6
+    ],
+    "baseline": {
+      "param": 0.2,
+      "compliance": 20.532652986431575,
+      "volume": 0.06283185307179587,
+      "peak_vm": 4637722.272049494
+    },
+    "metrics": {
+      "param": 0.3462284667698142,
+      "compliance": 20.843776242928676,
+      "volume": 0.10877088076677062,
+      "peak_vm": 3489153.556966272
+    },
+    "history": [
+      {
+        "param": 0.2,
+        "compliance": 20.533508585368008,
+        "volume": 0.06283185307179587,
+        "peak_vm": 5155273.158512749,
+        "iter": 0.0,
+        "g": 0.48212789414102897,
+        "target": 3478291.7040371206,
+        "tag": "start"
+      },
+      {
+        "param": 0.2156,
+        "compliance": 20.56795129706456,
+        "volume": 0.06773273761139595,
+        "peak_vm": 4810247.772213772,
+        "iter": 1.0,
+        "g": 0.38293397492530623,
+        "target": 3478291.7040371206,
+        "tag": "probe"
+      },
+      {
+        "param": 0.2,
+        "compliance": 20.533073957671284,
+        "volume": 0.06283185307179587,
+        "peak_vm": 5144973.85628783,
+        "iter": 2.0,
+        "g": 0.4791668710005703,
+        "target": 3478291.7040371206,
+        "tag": "return"
+      },
+      {
+        "param": 0.27535747399346705,
+        "compliance": 20.69649897407694,
+        "volume": 0.08650610174089186,
+        "peak_vm": 4018393.637356297,
+        "iter": 3.0,
+        "g": 0.15527792930429052,
+        "target": 3478291.7040371206,
+        "tag": "fd",
+        "grad_source": "fd"
+      },
+      {
+        "param": 0.31148514311988074,
+        "compliance": 20.771449042110756,
+        "volume": 0.09785594373277827,
+        "peak_vm": 3718577.0200092196,
+        "iter": 4.0,
+        "g": 0.06908141594139705,
+        "target": 3478291.7040371206,
+        "tag": "secant",
+        "grad_source": "secant"
+      },
+      {
+        "param": 0.34043933674726873,
+        "compliance": 20.83181520727409,
+        "volume": 0.10695217193182012,
+        "peak_vm": 3518329.4088545055,
+        "iter": 5.0,
+        "g": 0.01151073809333325,
+        "target": 3478291.7040371206,
+        "tag": "secant",
+        "grad_source": "secant"
+      },
+      {
+        "param": 0.3462284667698142,
+        "compliance": 20.843708304158806,
+        "volume": 0.10877088076677062,
+        "peak_vm": 3479199.4286786974,
+        "iter": 6.0,
+        "g": 0.0002609685209906676,
+        "target": 3478291.7040371206,
+        "tag": "secant",
+        "grad_source": "secant"
+      },
+      {
+        "param": 0.3462284667698142,
+        "compliance": 20.843776242928676,
+        "volume": 0.10877088076677062,
+        "peak_vm": 3489153.556966272,
+        "iter": 7.0,
+        "g": 0.003122755034186575,
+        "target": 3478291.7040371206,
+        "tag": "polish"
+      }
+    ],
+    "param_baseline": 0.2
+  }
+}

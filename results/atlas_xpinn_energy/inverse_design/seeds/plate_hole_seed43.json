@@ -1,0 +1,102 @@
+{
+  "benchmark": "plate_hole",
+  "seed": 43,
+  "param_name": "hole radius",
+  "metric": "compliance",
+  "p_atlas": 0.4821545998830376,
+  "status": "converged",
+  "converged": true,
+  "n_steps": 5,
+  "atlas_metric": 22.142928287103526,
+  "atlas_target": 22.134198589160327,
+  "fem_target": 22.138045306827554,
+  "fem_at_p_atlas": 22.14604234147719,
+  "p_fem_reference": 0.48158505582862143,
+  "fem_error_vs_target": 0.00036123490302775174,
+  "atlas_vs_fem": -0.00014061448658175824,
+  "param_difference": 0.0011826447841829443,
+  "seconds": 794.8071401470006,
+  "design": {
+    "benchmark": "plate_hole",
+    "param_name": "hole radius",
+    "metric": "compliance",
+    "target": 22.134198589160327,
+    "p_star": 0.4821545998830376,
+    "g": 0.000394398645518379,
+    "status": "converged",
+    "converged": true,
+    "tol": 0.002,
+    "bounds": [
+      0.1,
+      0.8
+    ],
+    "baseline": {
+      "param": 0.3,
+      "compliance": 20.121998717418478,
+      "volume": 3.9293141652942296,
+      "peak_vm": 3131634.948069058
+    },
+    "metrics": {
+      "param": 0.4821545998830376,
+      "compliance": 22.142928287103526,
+      "volume": 3.8174160870594642,
+      "peak_vm": 3503959.1299638795
+    },
+    "history": [
+      {
+        "param": 0.3,
+        "compliance": 20.12059652901588,
+        "volume": 3.9293141652942296,
+        "peak_vm": 3093322.050186081,
+        "iter": 0.0,
+        "g": -0.09097244031823937,
+        "target": 22.134198589160327,
+        "tag": "start"
+      },
+      {
+        "param": 0.5449999999999999,
+        "compliance": 23.202970826698216,
+        "volume": 3.766717110516873,
+        "peak_vm": 3620221.7830281393,
+        "iter": 1.0,
+        "g": 0.04828601465884086,
+        "target": 22.134198589160327,
+        "tag": "autodiff",
+        "grad_source": "autodiff"
+      },
+      {
+        "param": 0.4887392316564561,
+        "compliance": 22.236762281199177,
+        "volume": 3.812395053587636,
+        "peak_vm": 3457578.2680901433,
+        "iter": 2.0,
+        "g": 0.004633720603242297,
+        "target": 22.134198589160327,
+        "tag": "autodiff",
+        "grad_source": "autodiff"
+      },
+      {
+        "param": 0.4821545998830376,
+        "compliance": 22.13968609584423,
+        "volume": 3.8174160870594642,
+        "peak_vm": 3447342.0284344763,
+        "iter": 3.0,
+        "g": 0.0002479198269500493,
+        "target": 22.134198589160327,
+        "tag": "autodiff",
+        "grad_source": "autodiff"
+      },
+      {
+        "param": 0.4821545998830376,
+        "compliance": 22.142928287103526,
+        "volume": 3.8174160870594642,
+        "peak_vm": 3503959.1299638795,
+        "iter": 4.0,
+        "g": 0.000394398645518379,
+        "target": 22.134198589160327,
+        "tag": "polish"
+      }
+    ],
+    "param_baseline": 0.3
+  }
+}

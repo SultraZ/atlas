@@ -1,0 +1,18 @@
+{
+  "W": 2.0,
+  "H": 2.0,
+  "AX": 0.2,
+  "BY": 0.4,
+  "E_plate": 210000000000.0,
+  "nu_plate": 0.3,
+  "E_filler": 3500000000.0,
+  "nu_filler": 0.35,
+  "sigma": 1000000.0,
+  "cells": 108070,
+  "compliance": 20.53337987170131,
+  "compliance_change_last_level": 6.856882538655435e-09,
+  "band_vm_change_last_level": 0.0004652814068028203,
+  "peak_vm_band": 4765879.067054955,
+  "n_main": 40390,
+  "n_roi": 6811
+}

@@ -1,0 +1,122 @@
+{
+  "benchmark": "l_bracket",
+  "seed": 44,
+  "param_name": "fillet radius",
+  "metric": "peak_vm",
+  "p_atlas": 0.22204804670687056,
+  "status": "converged",
+  "converged": true,
+  "n_steps": 5,
+  "atlas_metric": 12178546.332564896,
+  "atlas_target": 12252300.04271072,
+  "fem_target": 12468514.506785864,
+  "fem_at_p_atlas": 12312597.461568793,
+  "p_fem_reference": 0.21517215751644508,
+  "fem_error_vs_target": -0.012504861355553953,
+  "atlas_vs_fem": -0.01088731516012853,
+  "param_difference": 0.03195529231006558,
+  "seconds": 1259.8317210110035,
+  "design": {
+    "benchmark": "l_bracket",
+    "param_name": "fillet radius",
+    "metric": "peak_vm",
+    "target": 12252300.04271072,
+    "p_star": 0.22204804670687056,
+    "g": -0.006019580804316194,
+    "status": "converged",
+    "converged": true,
+    "tol": 0.01,
+    "bounds": [
+      0.05,
+      0.4
+    ],
+    "baseline": {
+      "param": 0.1,
+      "compliance": 93.14619867662276,
+      "volume": 3.0021460183660253,
+      "peak_vm": 16336400.056947626
+    },
+    "metrics": {
+      "param": 0.22204804670687056,
+      "compliance": 88.19820160229449,
+      "volume": 3.010581015455248,
+      "peak_vm": 12178546.332564896
+    },
+    "history": [
+      {
+        "param": 0.1,
+        "compliance": 93.172210106231,
+        "volume": 3.0021460183660253,
+        "peak_vm": 16113226.808810499,
+        "iter": 0.0,
+        "g": 0.3151185289815659,
+        "target": 12252300.04271072,
+        "tag": "start"
+      },
+      {
+        "param": 0.1105,
+        "compliance": 92.7467057080026,
+        "volume": 3.0026203420753763,
+        "peak_vm": 15690415.46418021,
+        "iter": 1.0,
+        "g": 0.28060979648592066,
+        "target": 12252300.04271072,
+        "tag": "probe"
+      },
+      {
+        "param": 0.1,
+        "compliance": 93.15699562463377,
+        "volume": 3.0021460183660253,
+        "peak_vm": 16099372.888326138,
+        "iter": 2.0,
+        "g": 0.3139878089995163,
+        "target": 12252300.04271072,
+        "tag": "return"
+      },
+      {
+        "param": 0.1955373250788322,
+        "compliance": 89.18613604239813,
+        "volume": 3.008205268066297,
+        "peak_vm": 12879266.56614012,
+        "iter": 3.0,
+        "g": 0.05117133283088382,
+        "target": 12252300.04271072,
+        "tag": "fd",
+        "grad_source": "fd"
+      },
+      {
+        "param": 0.21413879303339245,
+        "compliance": 88.4640913120711,
+        "volume": 3.0098406579257,
+        "peak_vm": 12439350.299137432,
+        "iter": 4.0,
+        "g": 0.015266542263466354,
+        "target": 12252300.04271072,
+        "tag": "secant",
+        "grad_source": "secant"
+      },
+      {
+        "param": 0.22204804670687056,
+        "compliance": 88.1173410899392,
+        "volume": 3.010581015455248,
+        "peak_vm": 12256691.900404772,
+        "iter": 5.0,
+        "g": 0.0003584516930488224,
+        "target": 12252300.04271072,
+        "tag": "secant",
+        "grad_source": "secant"
+      },
+      {
+        "param": 0.22204804670687056,
+        "compliance": 88.19820160229449,
+        "volume": 3.010581015455248,
+        "peak_vm": 12178546.332564896,
+        "iter": 6.0,
+        "g": -0.006019580804316194,
+        "target": 12252300.04271072,
+        "tag": "polish"
+      }
+    ],
+    "param_baseline": 0.1
+  }
+}

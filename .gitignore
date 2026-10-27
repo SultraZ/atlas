@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+
+# Editors / OS
+*.swp
+.DS_Store
+Thumbs.db
+
+# Runtime session outputs & user settings
+webapp/static/plots/
+webapp/.app_settings.json
+
+# Offline training dumps / checkpoints / logs
+*.npz
+*.pt
+*.log
+*.out
+
+# Local build & release staging (official root Windows EXEs stay tracked)
+*.spec
+build/
+dist/
+!ATLAS-Setup.exe
+!ATLAS.exe
+!installer/Uninstall-ATLAS.exe
+
+# Local documents
+docs/

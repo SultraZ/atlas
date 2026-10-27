@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-level="simple">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS — Structural Design Studio</title>
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg?v=20">
+<script>try{var d=document.documentElement,t=localStorage.getItem("atlas-theme");if(["light","dark"].indexOf(t)<0){t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}d.setAttribute("data-theme",t);d.setAttribute("data-level",localStorage.getItem("atlas-level")==="expert"?"expert":"simple");if(localStorage.getItem("atlas-sidebar")==="collapsed")d.setAttribute("data-sidebar","collapsed");var sc=localStorage.getItem("atlas-scale");if(sc)d.setAttribute("data-scale",sc);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="/static/style.css?v=20">
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar" id="sidebar" aria-label="Application navigation">
+  <div class="side-top">
+    <div class="brand">
+      <svg class="brand-logo" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M6.5 24L14 6.5L21.5 24" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.6 18H18.4" stroke="#7FA6EE" stroke-width="2.1" stroke-linecap="round"/><circle cx="14" cy="6.5" r="2" fill="#E07B45"/></svg>
+      <div class="brand-text">
+        <span class="brand-name">ATLAS</span>
+        <span class="brand-sub" id="brandSub">Structural Design Studio</span>
+      </div>
+    </div>
+    <button type="button" class="rail-toggle" id="collapseSidebar" title="Collapse or expand sidebar" aria-label="Collapse or expand sidebar">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M9 4v16" stroke="currentColor" stroke-width="1.7"/></svg>
+    </button>
+  </div>
+
+  <nav class="side-nav" aria-label="Workspace">
+    <div class="side-label">Workspace</div>
+    <a href="#results" class="nav-item" data-view="results" title="Benchmark accuracy &amp; validation results">
+      <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="nav-text">Results</span>
+      <span class="nav-badge" id="navResultsBadge">6</span>
+    </a>
+    <a href="#live" class="nav-item" data-view="live" title="Live solver &amp; inverse shape design">
+      <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2L4.5 13.5H12L11 22l8.5-11.5H12L13 2z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+      <span class="nav-text">Live Solver</span>
+      <span class="nav-badge running" id="navLiveBadge" hidden>Run</span>
+    </a>
+    <a href="#files" class="nav-item" data-view="files" title="Session runs &amp; saved plots">
+      <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6.5A2 2 0 0 1 5 4.5h4.2l2 2.2H19a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></svg>
+      <span class="nav-text">Session Runs</span>
+      <span class="nav-badge" id="navFilesBadge">0</span>
+    </a>
+    <a href="#settings" class="nav-item" id="openSettings" data-view="settings" title="Theme, GPU/CPU compute &amp; FEM engine settings">
+      <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="6" r="2.2" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="12" r="2.2" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.2" stroke="currentColor" stroke-width="1.8"/></svg>
+      <span class="nav-text">Settings</span>
+    </a>
+  </nav>
+
+  <div class="side-bottom">
+    <div class="side-runtime" id="health" role="status" aria-live="polite" title="Active compute device &amp; FEM engine status">
+      <span class="dot"></span>
+      <span class="runtime-lines">
+        <span class="runtime-main">Connecting…</span>
+        <span class="runtime-sub">Checking FEM engine…</span>
+      </span>
+    </div>
+  </div>
+</aside>
+
+<div class="side-backdrop" id="sideBackdrop" hidden></div>
+
+<div class="workspace-pane">
+  <header class="workspace-head">
+    <div class="ws-left">
+      <button type="button" class="rail-toggle mobile-only" id="mobileMenuBtn" aria-label="Open navigation menu">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div class="ws-titles">
+        <span class="eyebrow" id="wsEyebrow">Stored Study</span>
+        <strong class="ws-title" id="wsTitle">Benchmark Results</strong>
+      </div>
+    </div>
+    <div class="ws-actions" id="wsActions"></div>
+  </header>
+
+  <main id="view-results" class="view">
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow" id="heroEyebrow">Stored study · validated against FEniCS</div>
+          <h1 id="heroTitle">Loading the stored study…</h1>
+          <p id="heroLead">Relative L² error of displacement and von Mises stress against FEniCS reference solutions. Every number on this page is read from the stored study in results/ — nothing is retrained in the browser.</p>
+        </div>
+        <div class="kpis" id="heroKpis"></div>
+      </div>
+    </section>
+    <section class="benches" id="benches" aria-label="Benchmark"></section>
+    <section class="study">
+      <article class="card errors" id="errors"></article>
+      <div class="side"><article class="card" id="seeds"></article><article class="card" id="sideCard"></article></div>
+    </section>
+    <section class="figs"><article class="card fig-card" id="figCard"></article></section>
+  </main>
+
+  <main id="view-live" class="view" hidden>
+    <div class="live">
+      <aside class="live-side">
+        <section class="card run-card">
+          <h2 id="runTitle">New run</h2>
+          <p class="live-intro" id="liveIntro" hidden></p>
+          <fieldset id="benchPick"><legend class="eyebrow">Benchmark</legend></fieldset>
+          <section class="props" id="props" aria-label="Properties"></section>
+          <section class="compute-box" id="computeBox" aria-label="Compute and solver"></section>
+          <dl class="spec" id="spec"></dl>
+          <section class="budget" id="budget" aria-label="Run length"></section>
+          <section class="solver-cfg" id="solverCfg" aria-label="Solver and design settings"></section>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="runForward">Run forward + validate</button>
+            <button type="button" class="btn btn-secondary" id="runInverse">Run inverse design</button>
+          </div>
+          <p class="run-note" id="runNote"></p>
+        </section>
+        <section class="card">
+          <div class="card-head">
+            <h2 class="xs">Recent runs</h2>
+            <button type="button" class="link-btn" id="clearJobsBtn" hidden>Clear finished</button>
+          </div>
+          <ul class="jobs" id="jobs"></ul>
+        </section>
+      </aside>
+      <div class="live-main">
+        <section class="card">
+          <div class="job-head">
+            <div>
+              <h1 id="jobTitle">No run yet</h1>
+              <div class="sub" id="jobSub">Pick a benchmark, then run a forward solve.</div>
+            </div>
+            <div class="job-ctrl">
+              <a class="mini-btn" id="reportJob" href="#" target="_blank" rel="noopener" hidden>Report</a>
+              <a class="mini-btn" id="exportJob" href="#" download hidden>Export JSON</a>
+              <button type="button" class="mini-btn danger" id="cancelJob" hidden>Stop run</button>
+              <span class="job-clock" id="jobClock" hidden></span>
+              <span class="chip" id="jobChip">Idle</span>
+            </div>
+          </div>
+          <ol class="steps" id="steps"></ol>
+          <div class="progress" id="progress" hidden><div></div></div>
+          <div class="energy" id="energy" hidden></div>
+          <p class="error-msg" id="jobError" hidden></p>
+          <details class="log" id="logBox"><summary>Solver log</summary><pre id="log">—</pre></details>
+        </section>
+        <div class="tiles" id="tiles"></div>
+        <section class="card" id="liveFig"></section>
+        <section class="card fx-card" id="fieldX" hidden></section>
+        <section class="card" id="details"></section>
+      </div>
+    </div>
+  </main>
+
+  <main id="view-files" class="view" hidden>
+    <div class="page-wrap" id="filesContent"></div>
+  </main>
+
+  <main id="view-settings" class="view" hidden>
+    <div class="page-wrap" id="settingsDrawer">
+      <div id="settingsBody"></div>
+    </div>
+  </main>
+</div>
+</div>
+
+<div class="tip-pop" id="tipPop" role="tooltip" hidden></div>
+<script src="/static/app.js?v=20"></script>
+</body>
+</html>

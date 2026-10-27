@@ -1,0 +1,91 @@
+{
+  "benchmark": "bimaterial",
+  "seed": 46,
+  "param_name": "inclusion radius",
+  "metric": "compliance",
+  "p_atlas": 0.5150970940379178,
+  "status": "converged",
+  "converged": true,
+  "n_steps": 4,
+  "atlas_metric": 21.91688567527767,
+  "atlas_target": 21.916435567634085,
+  "fem_target": 21.916331810649073,
+  "fem_at_p_atlas": 21.916923890586602,
+  "p_fem_reference": 0.5149952476452223,
+  "fem_error_vs_target": 2.7015466942392763e-05,
+  "atlas_vs_fem": -1.7436438217721673e-06,
+  "param_difference": 0.00019776181073745606,
+  "seconds": 589.6045729320031,
+  "design": {
+    "benchmark": "bimaterial",
+    "param_name": "inclusion radius",
+    "metric": "compliance",
+    "target": 21.916435567634085,
+    "p_star": 0.5150970940379178,
+    "g": 2.0537447441792978e-05,
+    "status": "converged",
+    "converged": true,
+    "tol": 0.002,
+    "bounds": [
+      0.15,
+      0.75
+    ],
+    "baseline": {
+      "param": 0.3,
+      "compliance": 19.924032334212804,
+      "volume": 0.07068583470577035,
+      "peak_vm": 2761256.372717567
+    },
+    "metrics": {
+      "param": 0.5150970940379178,
+      "compliance": 21.91688567527767,
+      "volume": 0.208385780494664,
+      "peak_vm": 3058461.6107026367
+    },
+    "history": [
+      {
+        "param": 0.3,
+        "compliance": 19.923892127503283,
+        "volume": 0.07068583470577035,
+        "peak_vm": 2766357.055708487,
+        "iter": 0.0,
+        "g": -0.09091548824086004,
+        "target": 21.916435567634085,
+        "tag": "start"
+      },
+      {
+        "param": 0.51,
+        "compliance": 21.851518036773665,
+        "volume": 0.2042820622996763,
+        "peak_vm": 3047280.1315624686,
+        "iter": 1.0,
+        "g": -0.0029620478503488146,
+        "target": 21.916435567634085,
+        "tag": "autodiff",
+        "grad_source": "autodiff"
+      },
+      {
+        "param": 0.5150970940379178,
+        "compliance": 21.91691415704965,
+        "volume": 0.208385780494664,
+        "peak_vm": 3057981.4883571435,
+        "iter": 2.0,
+        "g": 2.183700967650637e-05,
+        "target": 21.916435567634085,
+        "tag": "autodiff",
+        "grad_source": "autodiff"
+      },
+      {
+        "param": 0.5150970940379178,
+        "compliance": 21.91688567527767,
+        "volume": 0.208385780494664,
+        "peak_vm": 3058461.6107026367,
+        "iter": 3.0,
+        "g": 2.0537447441792978e-05,
+        "target": 21.916435567634085,
+        "tag": "polish"
+      }
+    ],
+    "param_baseline": 0.3
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "relative_L2_u": 0.006504563696672153,
+  "relative_L2_v": 0.01750972629567971,
+  "relative_L2_displacement": 0.007535607970531449,
+  "von_mises_l2_excl": 0.03387222024949188,
+  "von_mises_l2_global": 0.03442375000247074,
+  "von_mises_l2_roi": 0.017184891544245094,
+  "max_pointwise_von_mises_error": 3008469.704554869,
+  "benchmark": "plate_hole",
+  "variant": "xpinn_energy",
+  "seed": 42,
+  "params": 38406,
+  "train_seconds": 438.2,
+  "pred_max_abs_disp": 1.0615106475597713e-05,
+  "fem_max_abs_disp": 1.0686597931656835e-05,
+  "config": {
+    "formulation": "energy_xpinn",
+    "epochs": 2000,
+    "lbfgs_iters": 2000,
+    "gammas": [
+      30.0
+    ],
+    "gamma_t": 0.1,
+    "al_stages": 3,
+    "warm_start": 1000,
+    "final_interface_jump_sq": 4.746623588338852e-16
+  }
+}

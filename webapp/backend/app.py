@@ -570,8 +570,8 @@ def _b64(a) -> str:
 
 
 def _lut(name: str) -> list:
-    import matplotlib.cm as cm
-    return (np.round(cm.get_cmap(name)(np.linspace(0, 1, 256))[:, :3] * 255)).astype(int).ravel().tolist()
+    from matplotlib import colormaps
+    return (np.round(colormaps[name](np.linspace(0, 1, 256))[:, :3] * 255)).astype(int).ravel().tolist()
 
 
 def resolve_device(requested: Optional[str] = None, strict_cuda: bool = True) -> Tuple[str, str]:

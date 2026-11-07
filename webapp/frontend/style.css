@@ -1,5 +1,5 @@
 :root {
-  --sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --sans: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
   --mono: 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas, ui-monospace, monospace;
   --gutter: clamp(16px, 4.4vw, 64px);
   --font-ui: var(--sans); --font-mono: var(--mono); --font-display: var(--sans); --font-h2: var(--sans);

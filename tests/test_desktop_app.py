@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,6 +17,13 @@ sys.path.insert(0, str(ROOT))
 
 from webapp import desktop
 from webapp.backend import app as backend_app
+
+
+@pytest.fixture(autouse=True)
+def _isolated_runs_folder(tmp_path, monkeypatch):
+    plots = tmp_path / "plots"
+    plots.mkdir()
+    monkeypatch.setattr(backend_app, "PLOTS_DIR", plots)
 
 
 def _wait_job(client: TestClient, job_id: str, timeout: float = 120.0) -> dict:
@@ -181,7 +189,7 @@ def test_static_frontend_and_study_results():
     assert 'data-theme-pick="atlas"' not in idx.text
     assert 'id="flow"' not in idx.text
     assert 'class="contours' not in idx.text
-    assert "Inter" in idx.text
+    assert "https://" not in idx.text
 
     css_text = (ROOT / "webapp" / "frontend" / "style.css").read_text(encoding="utf-8")
     js_text = (ROOT / "webapp" / "frontend" / "app.js").read_text(encoding="utf-8")

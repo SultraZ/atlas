@@ -144,37 +144,34 @@ def build_report(job: dict, run_dir: Path, version: str, boundary_conditions: di
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ATLAS Calculation Report · {_e(title)}</title>
 <style>
-:root {{ color-scheme: light; --ink:#111827; --muted:#4b5563; --line:#d1d5db; --soft:#f3f4f6; --accent:#1d4ed8; }}
 * {{ box-sizing: border-box; }}
-body {{ margin: 0; background: #e5e7eb; color: var(--ink); font: 13px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }}
-.page {{ max-width: 210mm; margin: 24px auto; background: #fff; padding: 18mm 16mm; box-shadow: 0 2px 12px rgba(0,0,0,.12); }}
-header {{ border-bottom: 2px solid var(--ink); padding-bottom: 10px; margin-bottom: 18px; display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; }}
-header h1 {{ margin: 0; font-size: 22px; letter-spacing: -.01em; }}
-header .eyebrow {{ font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }}
-header .meta {{ text-align: right; color: var(--muted); font-size: 12px; }}
-h2 {{ font-size: 15px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }}
-h3 {{ font-size: 12.5px; margin: 12px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }}
-table {{ width: 100%; border-collapse: collapse; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }}
-th, td {{ text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }}
-th {{ background: var(--soft); font-weight: 600; font-size: 12px; }}
-ul {{ margin: 4px 0; padding-left: 18px; }}
-figure {{ margin: 12px 0; break-inside: avoid; }}
-figure img {{ width: 100%; height: auto; border: 1px solid var(--line); }}
-figcaption {{ color: var(--muted); font-size: 11.5px; margin-top: 4px; }}
-.note {{ color: var(--muted); font-size: 12px; }}
-footer {{ margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; display: flex; justify-content: space-between; }}
-.toolbar {{ max-width: 210mm; margin: 16px auto 0; display: flex; justify-content: flex-end; gap: 8px; padding: 0 4px; }}
-.toolbar button {{ font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }}
-@media (max-width: 600px) {{ .page {{ padding: 16px; margin: 0; }} header {{ flex-direction: column; align-items: flex-start; }} header .meta {{ text-align: left; }} }}
-@media print {{ body {{ background: #fff; }} .toolbar {{ display: none; }} .page {{ box-shadow: none; margin: 0; padding: 0; max-width: none; }}
-  @page {{ size: A4; margin: 15mm; }} h2 {{ break-after: avoid; }} table {{ break-inside: avoid; }} }}
+body {{ margin: 0; background: #fff; color: #000; font: 12pt/1.4 "Times New Roman", Times, serif; }}
+.page {{ max-width: 210mm; margin: 0 auto; padding: 15mm; }}
+header {{ border-bottom: 1px solid #000; padding-bottom: 6pt; margin-bottom: 12pt; }}
+header h1 {{ margin: 0 0 4pt; font-size: 16pt; font-weight: bold; }}
+header .meta {{ font-size: 11pt; }}
+h2 {{ font-size: 13pt; font-weight: bold; margin: 16pt 0 6pt; }}
+h3 {{ font-size: 12pt; font-weight: bold; font-style: italic; margin: 10pt 0 4pt; }}
+table {{ width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; }}
+th, td {{ text-align: left; padding: 3pt 6pt; border: 1px solid #000; vertical-align: top; font-size: 11pt; }}
+th {{ font-weight: bold; }}
+ul {{ margin: 4pt 0; padding-left: 20pt; }}
+figure {{ margin: 10pt 0; break-inside: avoid; }}
+figure img {{ width: 100%; height: auto; }}
+figcaption {{ font-size: 11pt; margin-top: 4pt; }}
+.note {{ font-size: 11pt; }}
+footer {{ margin-top: 18pt; padding-top: 6pt; border-top: 1px solid #000; font-size: 10pt; }}
+footer span {{ display: block; }}
+.toolbar {{ max-width: 210mm; margin: 8pt auto 0; padding: 0 15mm; }}
+@media print {{ .toolbar {{ display: none; }} .page {{ padding: 0; max-width: none; }}
+  @page {{ size: A4; margin: 20mm; }} h2 {{ break-after: avoid; }} table {{ break-inside: avoid; }} }}
 </style></head>
 <body>
-<div class="toolbar"><button type="button" onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toolbar"><button type="button" onclick="window.print()">Print</button></div>
 <main class="page">
 <header>
-  <div><div class="eyebrow">ATLAS engineering calculation report</div><h1>{_e(title)} · {"Inverse shape design" if inverse else "Forward solve and FEM validation"}</h1></div>
-  <div class="meta">{_e(stamp)}<br>Run {_e(job['id'])}{" · custom settings" if job.get("custom") else " · study settings"}</div>
+  <h1>Calculation report: {_e(title)}, {"inverse shape design" if inverse else "forward solve and FEM validation"}</h1>
+  <div class="meta">{_e(stamp)}<br>Run {_e(job['id'])}, {"custom settings" if job.get("custom") else "study settings"}</div>
 </header>
 <h2>1. Model: plane stress, linear elastic</h2>
 {props}

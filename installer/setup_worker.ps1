@@ -616,31 +616,40 @@ if (-not $FastUpdatedEnv) {
 
     if ($WithFenics) {
         Emit-Step 83 "Configuring WSL2 + Legacy FEniCS 2019.1.0 ('Atlas' conda environment)..."
-        if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-            Write-Output "WSL2 is not enabled on this Windows installation; Built-in Cross-Platform P2 FEM remains active."
-        } else {
+        $fenicsScript = Join-Path $InstallDir 'installer\setup_fenics_wsl.sh'
+        $distros = @()
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
             $raw = (& wsl.exe -l -q 2>$null) -join "`n"
-            $distros = @($raw -split "`r?`n" | ForEach-Object { $_.Trim() -replace "`0",'' } | Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
-            if ($distros.Count -eq 0) {
-                Write-Output "Installing Ubuntu WSL2 distribution (reboot Windows after setup completes, then run ATLAS-Setup.exe once more to finish creating the conda env)..."
-                Start-Process -FilePath 'wsl.exe' -ArgumentList '--install -d Ubuntu --no-launch' -Wait -NoNewWindow
+            if ($LASTEXITCODE -eq 0) {
+                $distros = @($raw -split "`r?`n" | ForEach-Object { ($_ -replace "`0", '').Trim() } |
+                    Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
+            }
+        }
+        if ($distros.Count -eq 0) {
+            Write-Output "No WSL2 Linux distribution found. Asking Windows for permission to install WSL2 + Ubuntu..."
+            try {
+                $p = Start-Process -FilePath 'wsl.exe' -ArgumentList '--install', '-d', 'Ubuntu', '--no-launch' -Verb RunAs -Wait -PassThru -ErrorAction Stop
+                if ($p.ExitCode -eq 0) {
+                    Write-Output "WSL2 + Ubuntu installed. Restart Windows, open Ubuntu once from the Start menu to create your Linux user, then run ATLAS-Setup.exe again with the Full FEniCS edition to finish. The Built-in P2 FEM works in the meantime."
+                } else {
+                    Write-Output "WSL2 install returned exit code $($p.ExitCode). The Built-in P2 FEM remains active; you can retry later from ATLAS-Setup.exe."
+                }
+            } catch {
+                Write-Output "WSL2 install was cancelled or blocked ($($_.Exception.Message)). The Built-in P2 FEM remains active."
+            }
+        } else {
+            $distro = $distros[0]
+            Write-Output "Provisioning conda + FEniCS 2019.1.0 inside WSL2 ($distro)..."
+            $linuxScript = ((& wsl.exe -d $distro --exec wslpath -a ($fenicsScript -replace '\\', '/')) -join '').Trim()
+            if ($LASTEXITCODE -ne 0 -or -not $linuxScript) {
+                Write-Output "Could not reach the '$distro' distribution (open it once from the Start menu to finish its first-run setup). The Built-in P2 FEM remains active."
             } else {
-                $distro = $distros[0]
-                Write-Output "Provisioning Miniconda + FEniCS 2019.1.0 inside WSL2 ($distro)..."
-                $wslCmd = @'
-set -e
-if [ ! -x "$HOME/miniconda3/bin/conda" ]; then
-  curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh
-  bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
-  rm -f /tmp/miniconda.sh
-fi
-source "$HOME/miniconda3/etc/profile.d/conda.sh"
-if [ ! -x "$HOME/miniconda3/envs/Atlas/bin/python" ]; then
-  conda create -y -n Atlas -c conda-forge python=3.9 fenics=2019.1.0 mshr numpy scipy matplotlib
-fi
-"$HOME/miniconda3/envs/Atlas/bin/python" -c "import dolfin; print('WSL2 FEniCS ready:', dolfin.__version__)"
-'@
-                & wsl.exe -d $distro bash -lc $wslCmd
+                & wsl.exe -d $distro --exec bash $linuxScript
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Output "WSL2 FEniCS 2019.1.0 is ready and will be used automatically for FEniCS validation."
+                } else {
+                    Write-Output "WSL2 FEniCS setup did not finish (exit code $LASTEXITCODE). The Built-in P2 FEM remains active; run ATLAS-Setup.exe again to retry."
+                }
             }
         }
     }
